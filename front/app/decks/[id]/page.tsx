@@ -1,0 +1,178 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId } from "@/lib/api";
+import CardSearch from "@/components/CardSearch";
+
+export default function DeckPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+
+  const [deck, setDeck] = useState<Deck | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [cards, setCards] = useState<DeckCard[]>([]);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getDeck(id)
+      .then((d) => {
+        setDeck(d);
+        setName(d.name);
+        setCards(d.cards);
+      })
+      .catch(() => router.push("/"))
+      .finally(() => setLoading(false));
+  }, [id, router]);
+
+  const totalCount = cards.reduce((sum, c) => sum + c.count, 0);
+
+  const addCard = (card: DeckCard) => {
+    setCards((prev) => {
+      const existing = prev.find((c) => c.cardId === card.cardId);
+      if (existing) {
+        return prev.map((c) =>
+          c.cardId === card.cardId ? { ...c, count: Math.min(4, c.count + 1) } : c
+        );
+      }
+      return [...prev, card];
+    });
+  };
+
+  const removeCard = (id: string) => setCards((prev) => prev.filter((c) => c.cardId !== id));
+
+  const handleSave = async () => {
+    setError("");
+    if (!name.trim()) {
+      setError("デッキ名を入力してください");
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await updateDeck(id, { name: name.trim(), cards });
+      setDeck(updated);
+      setCards(updated.cards);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "エラーが発生しました");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("このデッキを削除しますか？")) return;
+    try {
+      await deleteDeck(id);
+      removeDeckId(id);
+      router.push("/");
+    } catch {
+      setError("削除に失敗しました");
+    }
+  };
+
+  if (loading) return <p className="p-6 text-gray-500">読み込み中...</p>;
+  if (!deck) return null;
+
+  return (
+    <main className="max-w-2xl mx-auto p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
+        <h1 className="text-2xl font-bold flex-1">
+          {editing ? (
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border rounded px-3 py-1 text-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          ) : (
+            deck.name
+          )}
+        </h1>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+          >
+            編集
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-red-500 mb-4">{error}</p>}
+
+      {/* カード追加（編集中のみ） */}
+      {editing && (
+        <div className="mb-6">
+          <CardSearch onAdd={addCard} />
+        </div>
+      )}
+
+      {/* カード一覧 */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm font-medium">カード一覧</span>
+          <span className="text-sm text-gray-500">{totalCount} / 60 枚</span>
+        </div>
+        {cards.length === 0 ? (
+          <p className="text-gray-400 text-sm">カードがありません</p>
+        ) : (
+          <ul className="space-y-2">
+            {cards.map((c) => (
+              <li key={c.cardId} className="flex items-center justify-between border rounded px-3 py-2">
+                <div className="flex items-center gap-3">
+                  {c.illustration && (
+                    <img src={c.illustration} alt={c.cardName} className="w-8 h-11 object-contain" />
+                  )}
+                  <span className="text-sm">{c.cardName || c.cardId}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">×{c.count}</span>
+                  {editing && (
+                    <button
+                      onClick={() => removeCard(c.cardId)}
+                      className="text-red-400 hover:text-red-600 text-sm"
+                    >
+                      削除
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* ボタン */}
+      {editing ? (
+        <div className="flex gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white py-3 rounded font-medium"
+          >
+            {saving ? "保存中..." : "保存する"}
+          </button>
+          <button
+            onClick={() => { setEditing(false); setCards(deck.cards); setName(deck.name); }}
+            className="px-6 bg-gray-100 hover:bg-gray-200 rounded font-medium"
+          >
+            キャンセル
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleDelete}
+          className="w-full bg-red-50 hover:bg-red-100 text-red-500 py-3 rounded font-medium"
+        >
+          デッキを削除する
+        </button>
+      )}
+    </main>
+  );
+}

@@ -31,9 +31,10 @@ type Card struct {
 }
 
 type DeckCard struct {
-	CardID   string `json:"cardId"`
-	CardName string `json:"cardName,omitempty"`
-	Count    int    `json:"count"`
+	CardID       string `json:"cardId"`
+	CardName     string `json:"cardName,omitempty"`
+	Illustration string `json:"illustration,omitempty"`
+	Count        int    `json:"count"`
 }
 
 type Deck struct {
@@ -326,7 +327,7 @@ func (a *App) getDeck(ctx context.Context, deckID string) (Deck, error) {
 	}
 
 	rows, err := a.db.Query(ctx,
-		`SELECT card_id, card_name, count FROM deck_cards WHERE deck_id = $1 ORDER BY card_id`, deckID,
+		`SELECT card_id, card_name, illustration, count FROM deck_cards WHERE deck_id = $1 ORDER BY card_id`, deckID,
 	)
 	if err != nil {
 		return Deck{}, err
@@ -336,7 +337,7 @@ func (a *App) getDeck(ctx context.Context, deckID string) (Deck, error) {
 	d.Cards = []DeckCard{}
 	for rows.Next() {
 		var dc DeckCard
-		if err := rows.Scan(&dc.CardID, &dc.CardName, &dc.Count); err != nil {
+		if err := rows.Scan(&dc.CardID, &dc.CardName, &dc.Illustration, &dc.Count); err != nil {
 			return Deck{}, err
 		}
 		d.Cards = append(d.Cards, dc)
@@ -402,8 +403,8 @@ func (a *App) deleteDeck(ctx context.Context, deckID string) (bool, error) {
 func insertDeckCards(ctx context.Context, tx pgx.Tx, deckID string, cards []DeckCard) error {
 	for _, c := range cards {
 		_, err := tx.Exec(ctx,
-			`INSERT INTO deck_cards (deck_id, card_id, card_name, count) VALUES ($1, $2, $3, $4)`,
-			deckID, c.CardID, c.CardName, c.Count,
+			`INSERT INTO deck_cards (deck_id, card_id, card_name, illustration, count) VALUES ($1, $2, $3, $4, $5)`,
+			deckID, c.CardID, c.CardName, c.Illustration, c.Count,
 		)
 		if err != nil {
 			return err
@@ -434,14 +435,14 @@ func validateDeckCards(cards []DeckCard) error {
 }
 
 func normalizeCards(cards []DeckCard) []DeckCard {
-	type cardKey struct{ id, name string }
+	type cardKey struct{ id, name, illustration string }
 	m := map[cardKey]int{}
 	for _, c := range cards {
 		id := strings.TrimSpace(c.CardID)
 		if id == "" {
 			continue
 		}
-		k := cardKey{id: id, name: c.CardName}
+		k := cardKey{id: id, name: c.CardName, illustration: c.Illustration}
 		m[k] += c.Count
 		if m[k] > 4 {
 			m[k] = 4
@@ -449,7 +450,7 @@ func normalizeCards(cards []DeckCard) []DeckCard {
 	}
 	out := make([]DeckCard, 0, len(m))
 	for k, cnt := range m {
-		out = append(out, DeckCard{CardID: k.id, CardName: k.name, Count: cnt})
+		out = append(out, DeckCard{CardID: k.id, CardName: k.name, Illustration: k.illustration, Count: cnt})
 	}
 	return out
 }
