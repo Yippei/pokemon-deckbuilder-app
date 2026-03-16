@@ -48,8 +48,8 @@ type Deck struct {
 }
 
 type App struct {
-	db     *pgxpool.Pool
-	gemini string // Gemini API key
+	db   *pgxpool.Pool
+	groq string // Groq API key
 }
 
 // pokemon-card.com API レスポンス用
@@ -85,8 +85,8 @@ func main() {
 		log.Fatalf("DBへの疎通確認に失敗しました: %v", err)
 	}
 
-	geminiKey := mustGetenv("GEMINI_API_KEY")
-	app := &App{db: pool, gemini: geminiKey}
+	groqKey := mustGetenv("GROQ_API_KEY")
+	app := &App{db: pool, groq: groqKey}
 
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -555,61 +555,66 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 ]`, theme, string(existingJSON))
 	}
 
-	// Gemini REST API を直接呼び出す
+	// Groq API を呼び出す（OpenAI互換フォーマット）
 	reqBody := map[string]any{
-		"contents": []map[string]any{
-			{"parts": []map[string]any{{"text": prompt}}},
+		"model": "llama-3.3-70b-versatile",
+		"messages": []map[string]any{
+			{"role": "user", "content": prompt},
 		},
-		"generationConfig": map[string]any{
-			"maxOutputTokens": 2048,
-			"temperature":     0.7,
-		},
+		"max_tokens":  2048,
+		"temperature": 0.7,
 	}
 	reqJSON, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
 	}
 
-	url := fmt.Sprintf(
-		"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s",
-		a.gemini,
+	httpReq, err := http.NewRequestWithContext(ctx, "POST",
+		"https://api.groq.com/openai/v1/chat/completions",
+		strings.NewReader(string(reqJSON)),
 	)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+a.groq)
+
 	client := &http.Client{Timeout: 60 * time.Second}
-	resp, err := client.Post(url, "application/json", strings.NewReader(string(reqJSON)))
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var geminiResp struct {
-		Candidates []struct {
-			Content struct {
-				Parts []struct {
-					Text string `json:"text"`
-				} `json:"parts"`
-			} `json:"content"`
-		} `json:"candidates"`
-	}
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Gemini response status: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Groq API error: status=%d body=%s", resp.StatusCode, string(bodyBytes))
+	}
 
-	if err := json.Unmarshal(bodyBytes, &geminiResp); err != nil {
+	var groqResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(bodyBytes, &groqResp); err != nil {
 		return nil, err
 	}
-	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("Gemini からの応答が空です")
+	if len(groqResp.Choices) == 0 {
+		return nil, fmt.Errorf("Groq からの応答が空です")
 	}
 
-	text := geminiResp.Candidates[0].Content.Parts[0].Text
+	text := groqResp.Choices[0].Message.Content
 
 	// JSONのみを抽出（```json ... ``` や余分なテキストに対応）
 	start := strings.Index(text, "[")
 	end := strings.LastIndex(text, "]")
 	if start == -1 || end == -1 || end <= start {
-		return nil, fmt.Errorf("Geminiの応答からJSONを抽出できませんでした: %s", text)
+		return nil, fmt.Errorf("Groqの応答からJSONを抽出できませんでした: %s", text)
 	}
 	jsonStr := text[start : end+1]
 
