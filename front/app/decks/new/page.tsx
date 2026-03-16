@@ -27,6 +27,14 @@ export default function NewDeckPage() {
     });
   };
 
+  const changeCount = (id: string, delta: number) => {
+    setCards((prev) =>
+      prev
+        .map((c) => c.cardId === id ? { ...c, count: Math.min(4, Math.max(0, c.count + delta)) } : c)
+        .filter((c) => c.count > 0)
+    );
+  };
+
   const removeCard = (id: string) => {
     setCards((prev) => prev.filter((c) => c.cardId !== id));
   };
@@ -93,14 +101,21 @@ export default function NewDeckPage() {
                   )}
                   <span className="text-sm">{c.cardName || c.cardId}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-500">×{c.count}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => changeCount(c.cardId, -1)}
+                    className="w-7 h-7 rounded border text-gray-600 hover:bg-gray-100 text-lg leading-none"
+                  >－</button>
+                  <span className="w-6 text-center text-sm font-medium">{c.count}</span>
+                  <button
+                    onClick={() => changeCount(c.cardId, 1)}
+                    disabled={c.count >= 4}
+                    className="w-7 h-7 rounded border text-gray-600 hover:bg-gray-100 disabled:opacity-30 text-lg leading-none"
+                  >＋</button>
                   <button
                     onClick={() => removeCard(c.cardId)}
-                    className="text-red-400 hover:text-red-600 text-sm"
-                  >
-                    削除
-                  </button>
+                    className="ml-1 text-red-400 hover:text-red-600 text-sm"
+                  >削除</button>
                 </div>
               </li>
             ))}
