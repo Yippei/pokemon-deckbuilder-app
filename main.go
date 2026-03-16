@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -589,7 +590,13 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 			} `json:"content"`
 		} `json:"candidates"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("Gemini response status: %d, body: %s", resp.StatusCode, string(bodyBytes))
+
+	if err := json.Unmarshal(bodyBytes, &geminiResp); err != nil {
 		return nil, err
 	}
 	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
