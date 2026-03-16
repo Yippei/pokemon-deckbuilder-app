@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,8 +31,9 @@ type Card struct {
 }
 
 type DeckCard struct {
-	CardID string `json:"cardId"`
-	Count  int    `json:"count"`
+	CardID   string `json:"cardId"`
+	CardName string `json:"cardName,omitempty"`
+	Count    int    `json:"count"`
 }
 
 type Deck struct {
@@ -46,6 +47,19 @@ type Deck struct {
 
 type App struct {
 	db *pgxpool.Pool
+}
+
+// pokemon-card.com API レスポンス用
+type pokemonAPIResponse struct {
+	Result   int              `json:"result"`
+	CardList []pokemonAPICard `json:"cardList"`
+	MaxPage  int              `json:"maxPage"`
+}
+
+type pokemonAPICard struct {
+	CardID           string `json:"cardID"`
+	CardThumbFile    string `json:"cardThumbFile"`
+	CardNameViewText string `json:"cardNameViewText"`
 }
 
 /* =========================
@@ -83,9 +97,8 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 	})
 
-	// Cards
-	r.Get("/cards", app.handleSearchCards)       // ?name=...&reg=H&limit=50
-	r.Get("/cards/{cardId}", app.handleGetCard)
+	// Cards（pokemon-card.com にプロキシ）
+	r.Get("/cards", app.handleSearchCards) // ?name=...&pg=1
 
 	// Decks
 	r.Post("/decks", app.handleCreateDeck)
@@ -101,40 +114,72 @@ func main() {
    ハンドラ - Cards
 ========================= */
 
-func (a *App) handleGetCard(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	cardID := chi.URLParam(r, "cardId")
-
-	card, err := a.getCard(ctx, cardID)
-	if err != nil {
-		if errors.Is(err, errNotFound) {
-			writeError(w, http.StatusNotFound, "カードが見つかりません")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, card)
-}
-
 func (a *App) handleSearchCards(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	name := strings.TrimSpace(r.URL.Query().Get("name"))
-	reg := strings.TrimSpace(r.URL.Query().Get("reg"))
-
-	limit := 50
-	if s := r.URL.Query().Get("limit"); s != "" {
-		if v, err := strconv.Atoi(s); err == nil && v > 0 && v <= 200 {
-			limit = v
-		}
+	pg := r.URL.Query().Get("pg")
+	if pg == "" {
+		pg = "1"
 	}
 
-	cards, err := a.searchCards(ctx, name, reg, limit)
+	cards, err := searchCardsFromOfficial(name, pg)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeError(w, http.StatusBadGateway, "カード検索に失敗しました")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": cards})
+}
+
+func searchCardsFromOfficial(name, pg string) ([]Card, error) {
+	apiURL := fmt.Sprintf(
+		"https://www.pokemon-card.com/card-search/resultAPI.php?keyword=%s&regulation_sidebar_form=XY&pg=&illust=&sm_and_keyword=true",
+		name,
+	)
+	_ = pg // ページネーションは将来対応
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+	req.Header.Set("Referer", "https://www.pokemon-card.com/card-search/")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var apiResp pokemonAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, err
+	}
+
+	cards := make([]Card, 0, len(apiResp.CardList))
+	for _, c := range apiResp.CardList {
+		cards = append(cards, Card{
+			CardID:       c.CardID,
+			Name:         c.CardNameViewText,
+			Regulation:   "H",
+			CardType:     extractCardType(c.CardThumbFile),
+			Illustration: "https://www.pokemon-card.com" + c.CardThumbFile,
+		})
+	}
+	return cards, nil
+}
+
+// カード画像ファイル名からカード種別を判定（_P_=ポケモン, _T_=トレーナーズ, _E_=エネルギー）
+func extractCardType(thumbFile string) string {
+	switch {
+	case strings.Contains(thumbFile, "_P_"):
+		return "ポケモン"
+	case strings.Contains(thumbFile, "_T_"):
+		return "トレーナーズ"
+	case strings.Contains(thumbFile, "_E_"):
+		return "エネルギー"
+	default:
+		return ""
+	}
 }
 
 /* =========================
@@ -203,7 +248,6 @@ func (a *App) handleUpdateDeck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	deckID := chi.URLParam(r, "deckId")
 
-	// 存在確認
 	existing, err := a.getDeck(ctx, deckID)
 	if err != nil {
 		if errors.Is(err, errNotFound) {
@@ -264,65 +308,10 @@ func (a *App) handleDeleteDeck(w http.ResponseWriter, r *http.Request) {
 }
 
 /* =========================
-   DB アクセス - Cards
+   DB アクセス - Decks
 ========================= */
 
 var errNotFound = errors.New("not found")
-
-func (a *App) getCard(ctx context.Context, cardID string) (Card, error) {
-	var c Card
-	err := a.db.QueryRow(ctx,
-		`SELECT card_id, name, COALESCE(regulation,''), COALESCE(card_type,''), COALESCE(illustration,'')
-		 FROM cards WHERE card_id = $1`, cardID,
-	).Scan(&c.CardID, &c.Name, &c.Regulation, &c.CardType, &c.Illustration)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Card{}, errNotFound
-	}
-	return c, err
-}
-
-func (a *App) searchCards(ctx context.Context, name, reg string, limit int) ([]Card, error) {
-	query := `SELECT card_id, name, COALESCE(regulation,''), COALESCE(card_type,''), COALESCE(illustration,'')
-	          FROM cards WHERE 1=1`
-	args := []any{}
-	i := 1
-
-	if name != "" {
-		query += ` AND name ILIKE $` + strconv.Itoa(i)
-		args = append(args, "%"+name+"%")
-		i++
-	}
-	if reg != "" {
-		query += ` AND regulation = $` + strconv.Itoa(i)
-		args = append(args, reg)
-		i++
-	}
-	query += ` ORDER BY name LIMIT $` + strconv.Itoa(i)
-	args = append(args, limit)
-
-	rows, err := a.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var cards []Card
-	for rows.Next() {
-		var c Card
-		if err := rows.Scan(&c.CardID, &c.Name, &c.Regulation, &c.CardType, &c.Illustration); err != nil {
-			return nil, err
-		}
-		cards = append(cards, c)
-	}
-	if cards == nil {
-		cards = []Card{}
-	}
-	return cards, rows.Err()
-}
-
-/* =========================
-   DB アクセス - Decks
-========================= */
 
 func (a *App) getDeck(ctx context.Context, deckID string) (Deck, error) {
 	var d Deck
@@ -337,7 +326,7 @@ func (a *App) getDeck(ctx context.Context, deckID string) (Deck, error) {
 	}
 
 	rows, err := a.db.Query(ctx,
-		`SELECT card_id, count FROM deck_cards WHERE deck_id = $1 ORDER BY card_id`, deckID,
+		`SELECT card_id, card_name, count FROM deck_cards WHERE deck_id = $1 ORDER BY card_id`, deckID,
 	)
 	if err != nil {
 		return Deck{}, err
@@ -347,7 +336,7 @@ func (a *App) getDeck(ctx context.Context, deckID string) (Deck, error) {
 	d.Cards = []DeckCard{}
 	for rows.Next() {
 		var dc DeckCard
-		if err := rows.Scan(&dc.CardID, &dc.Count); err != nil {
+		if err := rows.Scan(&dc.CardID, &dc.CardName, &dc.Count); err != nil {
 			return Deck{}, err
 		}
 		d.Cards = append(d.Cards, dc)
@@ -413,8 +402,8 @@ func (a *App) deleteDeck(ctx context.Context, deckID string) (bool, error) {
 func insertDeckCards(ctx context.Context, tx pgx.Tx, deckID string, cards []DeckCard) error {
 	for _, c := range cards {
 		_, err := tx.Exec(ctx,
-			`INSERT INTO deck_cards (deck_id, card_id, count) VALUES ($1, $2, $3)`,
-			deckID, c.CardID, c.Count,
+			`INSERT INTO deck_cards (deck_id, card_id, card_name, count) VALUES ($1, $2, $3, $4)`,
+			deckID, c.CardID, c.CardName, c.Count,
 		)
 		if err != nil {
 			return err
@@ -445,20 +434,22 @@ func validateDeckCards(cards []DeckCard) error {
 }
 
 func normalizeCards(cards []DeckCard) []DeckCard {
-	m := map[string]int{}
+	type cardKey struct{ id, name string }
+	m := map[cardKey]int{}
 	for _, c := range cards {
 		id := strings.TrimSpace(c.CardID)
 		if id == "" {
 			continue
 		}
-		m[id] += c.Count
-		if m[id] > 4 {
-			m[id] = 4
+		k := cardKey{id: id, name: c.CardName}
+		m[k] += c.Count
+		if m[k] > 4 {
+			m[k] = 4
 		}
 	}
 	out := make([]DeckCard, 0, len(m))
-	for id, cnt := range m {
-		out = append(out, DeckCard{CardID: id, Count: cnt})
+	for k, cnt := range m {
+		out = append(out, DeckCard{CardID: k.id, CardName: k.name, Count: cnt})
 	}
 	return out
 }
