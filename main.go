@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
@@ -48,8 +47,8 @@ type Deck struct {
 }
 
 type App struct {
-	db  *pgxpool.Pool
-	ai  *anthropic.Client
+	db     *pgxpool.Pool
+	gemini string // Gemini API key
 }
 
 // pokemon-card.com API レスポンス用
@@ -85,8 +84,8 @@ func main() {
 		log.Fatalf("DBへの疎通確認に失敗しました: %v", err)
 	}
 
-	aiClient := anthropic.NewClient()
-	app := &App{db: pool, ai: &aiClient}
+	geminiKey := mustGetenv("GEMINI_API_KEY")
+	app := &App{db: pool, gemini: geminiKey}
 
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -519,7 +518,6 @@ func (a *App) handleGenerateDeck(w http.ResponseWriter, r *http.Request) {
 func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing []DeckCard) ([]suggestedCard, error) {
 	var prompt string
 	if len(existing) == 0 {
-		// Pattern A: テーマからデッキを生成
 		prompt = fmt.Sprintf(`ポケモンカードゲームの60枚デッキを作ってください。
 テーマ: %s
 
@@ -536,7 +534,6 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
   ...
 ]`, theme)
 	} else {
-		// Pattern C: 既存デッキの改善
 		existingJSON, _ := json.Marshal(existing)
 		prompt = fmt.Sprintf(`以下のポケモンカードデッキを60枚になるように改善・最適化してください。
 テーマ・方向性: %s
@@ -557,35 +554,55 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 ]`, theme, string(existingJSON))
 	}
 
-	resp, err := a.ai.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaudeOpus4_6,
-		MaxTokens: 2048,
-		Messages: []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+	// Gemini REST API を直接呼び出す
+	reqBody := map[string]any{
+		"contents": []map[string]any{
+			{"parts": []map[string]any{{"text": prompt}}},
 		},
-	})
+		"generationConfig": map[string]any{
+			"maxOutputTokens": 2048,
+			"temperature":     0.7,
+		},
+	}
+	reqJSON, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resp.Content) == 0 {
-		return nil, fmt.Errorf("Claude からの応答が空です")
+	url := fmt.Sprintf(
+		"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s",
+		a.gemini,
+	)
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Post(url, "application/json", strings.NewReader(string(reqJSON)))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
+		return nil, err
+	}
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("Gemini からの応答が空です")
 	}
 
-	// テキストブロックを取得
-	var text string
-	for _, block := range resp.Content {
-		if tb, ok := block.AsAny().(anthropic.TextBlock); ok {
-			text = tb.Text
-			break
-		}
-	}
+	text := geminiResp.Candidates[0].Content.Parts[0].Text
 
 	// JSONのみを抽出（```json ... ``` や余分なテキストに対応）
 	start := strings.Index(text, "[")
 	end := strings.LastIndex(text, "]")
 	if start == -1 || end == -1 || end <= start {
-		return nil, fmt.Errorf("Claudeの応答からJSONを抽出できませんでした: %s", text)
+		return nil, fmt.Errorf("Geminiの応答からJSONを抽出できませんでした: %s", text)
 	}
 	jsonStr := text[start : end+1]
 
