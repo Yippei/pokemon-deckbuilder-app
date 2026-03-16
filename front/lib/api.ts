@@ -89,3 +89,15 @@ export async function deleteDeck(deckId: string): Promise<void> {
   const res = await fetch(`${API_URL}/decks/${deckId}`, { method: "DELETE" });
   if (!res.ok) throw new Error("デッキの削除に失敗しました");
 }
+
+// デッキ自動生成
+export async function generateDeck(body: { theme: string; existingDeck?: DeckCard[] }): Promise<DeckCard[]> {
+  const res = await fetch(`${API_URL}/decks/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("デッキの生成に失敗しました");
+  const data = await res.json();
+  return data.cards;
+}

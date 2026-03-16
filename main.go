@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/google/uuid"
@@ -47,7 +48,8 @@ type Deck struct {
 }
 
 type App struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	ai  *anthropic.Client
 }
 
 // pokemon-card.com API レスポンス用
@@ -83,7 +85,8 @@ func main() {
 		log.Fatalf("DBへの疎通確認に失敗しました: %v", err)
 	}
 
-	app := &App{db: pool}
+	aiClient := anthropic.NewClient()
+	app := &App{db: pool, ai: &aiClient}
 
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -103,6 +106,7 @@ func main() {
 
 	// Decks
 	r.Post("/decks", app.handleCreateDeck)
+	r.Post("/decks/generate", app.handleGenerateDeck)
 	r.Get("/decks/{deckId}", app.handleGetDeck)
 	r.Put("/decks/{deckId}", app.handleUpdateDeck)
 	r.Delete("/decks/{deckId}", app.handleDeleteDeck)
@@ -453,6 +457,143 @@ func normalizeCards(cards []DeckCard) []DeckCard {
 		out = append(out, DeckCard{CardID: k.id, CardName: k.name, Illustration: k.illustration, Count: cnt})
 	}
 	return out
+}
+
+/* =========================
+   ハンドラ - デッキ自動生成
+========================= */
+
+type generateDeckRequest struct {
+	Theme        string     `json:"theme"`
+	ExistingDeck []DeckCard `json:"existingDeck,omitempty"`
+}
+
+type suggestedCard struct {
+	CardName string `json:"cardName"`
+	Count    int    `json:"count"`
+}
+
+func (a *App) handleGenerateDeck(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req generateDeckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "JSONが不正です")
+		return
+	}
+	req.Theme = strings.TrimSpace(req.Theme)
+	if req.Theme == "" {
+		writeError(w, http.StatusBadRequest, "theme は必須です")
+		return
+	}
+
+	// Claude にデッキ構成を依頼
+	cards, err := a.generateDeckWithClaude(ctx, req.Theme, req.ExistingDeck)
+	if err != nil {
+		log.Printf("Claude API error: %v", err)
+		writeError(w, http.StatusInternalServerError, "デッキ生成に失敗しました")
+		return
+	}
+
+	// 各カード名で pokemon-card.com を検索して実際のカードデータを取得
+	deckCards := make([]DeckCard, 0, len(cards))
+	for _, sc := range cards {
+		results, err := searchCardsFromOfficial(sc.CardName, "1")
+		if err != nil || len(results) == 0 {
+			// 見つからなければカード名のみでスキップ
+			continue
+		}
+		found := results[0]
+		deckCards = append(deckCards, DeckCard{
+			CardID:       found.CardID,
+			CardName:     found.Name,
+			Illustration: found.Illustration,
+			Count:        sc.Count,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"cards": deckCards})
+}
+
+func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing []DeckCard) ([]suggestedCard, error) {
+	var prompt string
+	if len(existing) == 0 {
+		// Pattern A: テーマからデッキを生成
+		prompt = fmt.Sprintf(`ポケモンカードゲームの60枚デッキを作ってください。
+テーマ: %s
+
+以下のルールに従ってください:
+- 合計枚数は必ず60枚
+- 同じカードは最大4枚まで
+- ポケモン、トレーナーズ、エネルギーをバランスよく構成
+- 強くて実用的なデッキにする
+- カード名は日本語の正式名称で記載
+
+必ず以下のJSON形式のみで返してください（説明文は不要）:
+[
+  {"cardName": "カード名", "count": 枚数},
+  ...
+]`, theme)
+	} else {
+		// Pattern C: 既存デッキの改善
+		existingJSON, _ := json.Marshal(existing)
+		prompt = fmt.Sprintf(`以下のポケモンカードデッキを60枚になるように改善・最適化してください。
+テーマ・方向性: %s
+
+現在のデッキ構成:
+%s
+
+以下のルールに従ってください:
+- 合計枚数は必ず60枚
+- 同じカードは最大4枚まで
+- 現在のデッキのテーマを活かしつつ強化する
+- カード名は日本語の正式名称で記載
+
+必ず以下のJSON形式のみで返してください（説明文は不要）:
+[
+  {"cardName": "カード名", "count": 枚数},
+  ...
+]`, theme, string(existingJSON))
+	}
+
+	resp, err := a.ai.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.ModelClaudeOpus4_6,
+		MaxTokens: 2048,
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.Content) == 0 {
+		return nil, fmt.Errorf("Claude からの応答が空です")
+	}
+
+	// テキストブロックを取得
+	var text string
+	for _, block := range resp.Content {
+		if tb, ok := block.AsAny().(anthropic.TextBlock); ok {
+			text = tb.Text
+			break
+		}
+	}
+
+	// JSONのみを抽出（```json ... ``` や余分なテキストに対応）
+	start := strings.Index(text, "[")
+	end := strings.LastIndex(text, "]")
+	if start == -1 || end == -1 || end <= start {
+		return nil, fmt.Errorf("Claudeの応答からJSONを抽出できませんでした: %s", text)
+	}
+	jsonStr := text[start : end+1]
+
+	var cards []suggestedCard
+	if err := json.Unmarshal([]byte(jsonStr), &cards); err != nil {
+		return nil, fmt.Errorf("JSONパースエラー: %v / 応答: %s", err, text)
+	}
+	return cards, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

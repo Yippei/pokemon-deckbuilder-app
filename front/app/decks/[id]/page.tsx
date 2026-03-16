@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId } from "@/lib/api";
+import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId, generateDeck } from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 
 export default function DeckPage() {
@@ -17,6 +17,11 @@ export default function DeckPage() {
   const [cards, setCards] = useState<DeckCard[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // AI改善
+  const [theme, setTheme] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
 
   useEffect(() => {
     getDeck(id)
@@ -52,6 +57,22 @@ export default function DeckPage() {
   };
 
   const removeCard = (id: string) => setCards((prev) => prev.filter((c) => c.cardId !== id));
+
+  const handleGenerate = async () => {
+    setGenerateError("");
+    setGenerating(true);
+    try {
+      const generated = await generateDeck({
+        theme: theme.trim() || name,
+        existingDeck: cards,
+      });
+      setCards(generated);
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : "生成に失敗しました");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSave = async () => {
     setError("");
@@ -114,6 +135,39 @@ export default function DeckPage() {
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
+      {/* AI改善提案（編集中のみ） */}
+      {editing && (
+        <div className="mb-6 border rounded-lg p-4 bg-blue-50">
+          <h2 className="text-sm font-bold mb-2 text-blue-700">✨ AIでデッキを改善</h2>
+          <p className="text-xs text-blue-600 mb-3">
+            現在のデッキをAIが分析して60枚の最適な構成を提案します。
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+              className="flex-1 border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+              placeholder={`改善の方向性（任意）例：もっと速いデッキにしたい`}
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-sm rounded font-medium whitespace-nowrap"
+            >
+              {generating ? "生成中..." : "改善する"}
+            </button>
+          </div>
+          {generateError && <p className="text-red-500 text-xs mt-2">{generateError}</p>}
+          {generating && (
+            <p className="text-blue-500 text-xs mt-2 animate-pulse">
+              AIがデッキを分析しています...しばらくお待ちください
+            </p>
+          )}
+        </div>
+      )}
+
       {/* カード追加（編集中のみ） */}
       {editing && (
         <div className="mb-6">
@@ -125,7 +179,9 @@ export default function DeckPage() {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium">カード一覧</span>
-          <span className="text-sm text-gray-500">{totalCount} / 60 枚</span>
+          <span className={`text-sm ${totalCount === 60 ? "text-green-600 font-medium" : "text-gray-500"}`}>
+            {totalCount} / 60 枚
+          </span>
         </div>
         {cards.length === 0 ? (
           <p className="text-gray-400 text-sm">カードがありません</p>
