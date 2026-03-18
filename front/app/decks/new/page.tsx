@@ -158,7 +158,7 @@ export default function NewDeckPage() {
               <li key={c.cardId} className="flex items-center justify-between border rounded px-3 py-2">
                 <div className="flex items-center gap-3">
                   {c.illustration && (
-                    <img src={c.illustration} alt={c.cardName} className="w-8 h-11 object-contain" />
+                    <img src={c.illustration} alt={c.cardName} className="w-8 h-11 object-contain transition-transform duration-200 hover:scale-[2.5] hover:z-10 relative" />
                   )}
                   <span className="text-sm">{c.cardName || c.cardId}</span>
                 </div>
