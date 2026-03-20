@@ -543,19 +543,16 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 - exポケモンは「〇〇ex」、VMAXは「〇〇VMAX」のように正確に記載`
 
 	if len(existing) == 0 {
-		prompt = fmt.Sprintf(`あなたはポケモンカードゲームの上級プレイヤーです。以下のテーマで競技レベルの60枚デッキを構築してください。
+		prompt = fmt.Sprintf(`以下のテーマで競技レベルの60枚デッキを構築してください。
 
 テーマ: %s
 %s
 
-必ず以下のJSON形式のみで返してください（説明文・コメント不要）:
-[
-  {"cardName": "カード名", "count": 枚数},
-  ...
-]`, theme, deckRules)
+必ず以下のJSONオブジェクト形式のみで返してください:
+{"cards": [{"cardName": "カード名", "count": 枚数}, ...]}`, theme, deckRules)
 	} else {
 		existingJSON, _ := json.Marshal(existing)
-		prompt = fmt.Sprintf(`あなたはポケモンカードゲームの上級プレイヤーです。以下のデッキを分析し、競技レベルに改善してください。
+		prompt = fmt.Sprintf(`以下のデッキを分析し、競技レベルに改善してください。
 
 テーマ・強化方針: %s
 
@@ -563,21 +560,20 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 %s
 %s
 
-必ず以下のJSON形式のみで返してください（説明文・コメント不要）:
-[
-  {"cardName": "カード名", "count": 枚数},
-  ...
-]`, theme, string(existingJSON), deckRules)
+必ず以下のJSONオブジェクト形式のみで返してください:
+{"cards": [{"cardName": "カード名", "count": 枚数}, ...]}`, theme, string(existingJSON), deckRules)
 	}
 
 	// Groq API を呼び出す（OpenAI互換フォーマット）
 	reqBody := map[string]any{
 		"model": "llama-3.3-70b-versatile",
 		"messages": []map[string]any{
+			{"role": "system", "content": "あなたはポケモンカードゲームの専門家です。指示に厳密に従い、必ずJSON配列形式のみで返答してください。説明文・コメント・コードブロックは一切不要です。"},
 			{"role": "user", "content": prompt},
 		},
-		"max_tokens":  2048,
-		"temperature": 0.7,
+		"response_format": map[string]any{"type": "json_object"},
+		"max_tokens":      2048,
+		"temperature":     0.3,
 	}
 	reqJSON, err := json.Marshal(reqBody)
 	if err != nil {
@@ -625,19 +621,17 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 
 	text := groqResp.Choices[0].Message.Content
 
-	// JSONのみを抽出（```json ... ``` や余分なテキストに対応）
-	start := strings.Index(text, "[")
-	end := strings.LastIndex(text, "]")
-	if start == -1 || end == -1 || end <= start {
-		return nil, fmt.Errorf("Groqの応答からJSONを抽出できませんでした: %s", text)
+	// {"cards": [...]} 形式でパース
+	var wrapper struct {
+		Cards []suggestedCard `json:"cards"`
 	}
-	jsonStr := text[start : end+1]
-
-	var cards []suggestedCard
-	if err := json.Unmarshal([]byte(jsonStr), &cards); err != nil {
+	if err := json.Unmarshal([]byte(text), &wrapper); err != nil {
 		return nil, fmt.Errorf("JSONパースエラー: %v / 応答: %s", err, text)
 	}
-	return cards, nil
+	if len(wrapper.Cards) == 0 {
+		return nil, fmt.Errorf("カードリストが空です / 応答: %s", text)
+	}
+	return wrapper.Cards, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
