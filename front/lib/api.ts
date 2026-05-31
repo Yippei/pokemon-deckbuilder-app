@@ -24,6 +24,25 @@ export type Deck = {
   updatedAt: string;
 };
 
+export type GenerateDeckWarning = {
+  type: string;
+  message: string;
+};
+
+export type GenerateDeckResult = {
+  cards: DeckCard[];
+  warnings?: GenerateDeckWarning[];
+};
+
+export function isBasicEnergyName(name?: string): boolean {
+  const normalized = (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
+  return normalized.includes("基本") && normalized.includes("エネルギー");
+}
+
+export function maxCountForCard(card: Pick<DeckCard, "cardName">): number {
+  return isBasicEnergyName(card.cardName) ? 60 : 4;
+}
+
 // カード検索
 export async function searchCards(params: { name?: string; pg?: number }): Promise<Card[]> {
   const query = new URLSearchParams();
@@ -91,13 +110,12 @@ export async function deleteDeck(deckId: string): Promise<void> {
 }
 
 // デッキ自動生成
-export async function generateDeck(body: { theme: string; existingDeck?: DeckCard[] }): Promise<DeckCard[]> {
+export async function generateDeck(body: { theme: string; existingDeck?: DeckCard[] }): Promise<GenerateDeckResult> {
   const res = await fetch(`${API_URL}/decks/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error("デッキの生成に失敗しました");
-  const data = await res.json();
-  return data.cards;
+  return res.json();
 }

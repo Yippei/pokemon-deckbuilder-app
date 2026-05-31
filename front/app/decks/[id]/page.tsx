@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId, generateDeck } from "@/lib/api";
+import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId, generateDeck, maxCountForCard } from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 
 export default function DeckPage() {
@@ -22,6 +22,7 @@ export default function DeckPage() {
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+  const [generateWarnings, setGenerateWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     getDeck(id)
@@ -41,7 +42,7 @@ export default function DeckPage() {
       const existing = prev.find((c) => c.cardId === card.cardId);
       if (existing) {
         return prev.map((c) =>
-          c.cardId === card.cardId ? { ...c, count: Math.min(4, c.count + 1) } : c
+          c.cardId === card.cardId ? { ...c, count: Math.min(maxCountForCard(c), c.count + 1) } : c
         );
       }
       return [...prev, card];
@@ -51,7 +52,7 @@ export default function DeckPage() {
   const changeCount = (id: string, delta: number) => {
     setCards((prev) =>
       prev
-        .map((c) => c.cardId === id ? { ...c, count: Math.min(4, Math.max(0, c.count + delta)) } : c)
+        .map((c) => c.cardId === id ? { ...c, count: Math.min(maxCountForCard(c), Math.max(0, c.count + delta)) } : c)
         .filter((c) => c.count > 0)
     );
   };
@@ -60,13 +61,15 @@ export default function DeckPage() {
 
   const handleGenerate = async () => {
     setGenerateError("");
+    setGenerateWarnings([]);
     setGenerating(true);
     try {
       const generated = await generateDeck({
         theme: theme.trim() || name,
         existingDeck: cards,
       });
-      setCards(generated);
+      setCards(generated.cards);
+      setGenerateWarnings((generated.warnings || []).map((warning) => warning.message));
     } catch (e) {
       setGenerateError(e instanceof Error ? e.message : "生成に失敗しました");
     } finally {
@@ -159,6 +162,13 @@ export default function DeckPage() {
             </button>
           </div>
           {generateError && <p className="text-red-500 text-xs mt-2">{generateError}</p>}
+          {generateWarnings.length > 0 && (
+            <ul className="text-amber-600 text-xs mt-2 space-y-1">
+              {generateWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          )}
           {generating && (
             <p className="text-blue-500 text-xs mt-2 animate-pulse">
               AIがデッキを分析しています...しばらくお待ちください
@@ -204,7 +214,7 @@ export default function DeckPage() {
                       <span className="w-6 text-center text-sm font-medium">{c.count}</span>
                       <button
                         onClick={() => changeCount(c.cardId, 1)}
-                        disabled={c.count >= 4}
+                        disabled={c.count >= maxCountForCard(c)}
                         className="w-7 h-7 rounded border text-gray-600 hover:bg-gray-100 disabled:opacity-30 text-lg leading-none"
                       >＋</button>
                       <button

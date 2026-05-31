@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS decks (
     deck_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id   TEXT NOT NULL,
@@ -7,11 +9,11 @@ CREATE TABLE IF NOT EXISTS decks (
 );
 
 CREATE TABLE IF NOT EXISTS deck_cards (
-    deck_id   UUID NOT NULL REFERENCES decks(deck_id) ON DELETE CASCADE,
-    card_id   TEXT NOT NULL,
-    card_name TEXT NOT NULL DEFAULT '',
+    deck_id      UUID NOT NULL REFERENCES decks(deck_id) ON DELETE CASCADE,
+    card_id      TEXT NOT NULL,
+    card_name    TEXT NOT NULL DEFAULT '',
     illustration TEXT NOT NULL DEFAULT '',
-    count     INT  NOT NULL CHECK (count >= 1),
+    count        INT  NOT NULL CHECK (count >= 1),
     PRIMARY KEY (deck_id, card_id)
 );
 

@@ -8,8 +8,11 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -48,8 +51,9 @@ type Deck struct {
 }
 
 type App struct {
-	db   *pgxpool.Pool
-	groq string // Groq API key
+	db     *pgxpool.Pool
+	groq   string
+	gemini string
 }
 
 // pokemon-card.com API レスポンス用
@@ -85,8 +89,12 @@ func main() {
 		log.Fatalf("DBへの疎通確認に失敗しました: %v", err)
 	}
 
-	groqKey := mustGetenv("GROQ_API_KEY")
-	app := &App{db: pool, groq: groqKey}
+	groqKey := os.Getenv("GROQ_API_KEY")
+	geminiKey := os.Getenv("GEMINI_API_KEY")
+	if groqKey == "" && geminiKey == "" {
+		log.Fatal("環境変数 GROQ_API_KEY または GEMINI_API_KEY のどちらかを設定してください")
+	}
+	app := &App{db: pool, groq: groqKey, gemini: geminiKey}
 
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
@@ -100,6 +108,7 @@ func main() {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 	})
+	r.Get("/readyz", app.handleReadiness)
 
 	// Cards（pokemon-card.com にプロキシ）
 	r.Get("/cards", app.handleSearchCards) // ?name=...&pg=1
@@ -111,8 +120,28 @@ func main() {
 	r.Put("/decks/{deckId}", app.handleUpdateDeck)
 	r.Delete("/decks/{deckId}", app.handleDeleteDeck)
 
-	log.Printf("サーバーを起動しました: :%s\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		log.Printf("サーバーを起動しました: :%s\n", port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("サーバーが異常終了しました: %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("サーバーのシャットダウンに失敗しました: %v", err)
+	}
 }
 
 /* =========================
@@ -134,10 +163,21 @@ func (a *App) handleSearchCards(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": cards})
 }
 
+func (a *App) handleReadiness(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	if err := a.db.Ping(ctx); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "DBへの疎通確認に失敗しました")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
 func searchCardsFromOfficial(name, pg string) ([]Card, error) {
 	apiURL := fmt.Sprintf(
 		"https://www.pokemon-card.com/card-search/resultAPI.php?keyword=%s&regulation_sidebar_form=XY&pg=&illust=&sm_and_keyword=true",
-		name,
+		url.QueryEscape(name),
 	)
 	_ = pg // ページネーションは将来対応
 
@@ -427,8 +467,11 @@ func validateDeckCards(cards []DeckCard) error {
 		if strings.TrimSpace(c.CardID) == "" {
 			return errors.New("cardId は必須です")
 		}
-		if c.Count <= 0 || c.Count > 4 {
-			return errors.New("count は 1〜4 の範囲で指定してください")
+		if c.Count <= 0 {
+			return errors.New("count は 1 以上で指定してください")
+		}
+		if c.Count > 4 && !isBasicEnergyName(c.CardName) {
+			return errors.New("基本エネルギー以外の count は 1〜4 の範囲で指定してください")
 		}
 		total += c.Count
 	}
@@ -448,7 +491,7 @@ func normalizeCards(cards []DeckCard) []DeckCard {
 		}
 		k := cardKey{id: id, name: c.CardName, illustration: c.Illustration}
 		m[k] += c.Count
-		if m[k] > 4 {
+		if m[k] > 4 && !isBasicEnergyName(c.CardName) {
 			m[k] = 4
 		}
 	}
@@ -473,6 +516,11 @@ type suggestedCard struct {
 	Count    int    `json:"count"`
 }
 
+type generateDeckWarning struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
 func (a *App) handleGenerateDeck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -488,35 +536,38 @@ func (a *App) handleGenerateDeck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Claude にデッキ構成を依頼
-	cards, err := a.generateDeckWithClaude(ctx, req.Theme, req.ExistingDeck)
+	cards, err := a.generateDeckWithAI(ctx, req.Theme, req.ExistingDeck)
 	if err != nil {
-		log.Printf("Claude API error: %v", err)
+		log.Printf("AI deck generation error: %v", err)
 		writeError(w, http.StatusInternalServerError, "デッキ生成に失敗しました")
 		return
 	}
 
-	// 各カード名で pokemon-card.com を検索して実際のカードデータを取得
-	deckCards := make([]DeckCard, 0, len(cards))
-	for _, sc := range cards {
-		results, err := searchCardsFromOfficial(sc.CardName, "1")
-		if err != nil || len(results) == 0 {
-			// 見つからなければカード名のみでスキップ
-			continue
-		}
-		found := results[0]
-		deckCards = append(deckCards, DeckCard{
-			CardID:       found.CardID,
-			CardName:     found.Name,
-			Illustration: found.Illustration,
-			Count:        sc.Count,
-		})
+	deckCards, warnings, err := resolveGeneratedDeck(cards, req.Theme)
+	if err != nil {
+		log.Printf("generated deck validation error: %v", err)
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"cards": deckCards})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"cards":    deckCards,
+		"warnings": warnings,
+	})
 }
 
-func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing []DeckCard) ([]suggestedCard, error) {
+func (a *App) generateDeckWithAI(ctx context.Context, theme string, existing []DeckCard) ([]suggestedCard, error) {
+	prompt := buildDeckGenerationPrompt(theme, existing)
+	if a.groq != "" {
+		return a.generateDeckWithGroq(ctx, prompt)
+	}
+	if a.gemini != "" {
+		return a.generateDeckWithGemini(ctx, prompt)
+	}
+	return nil, errors.New("AI APIキーが設定されていません")
+}
+
+func buildDeckGenerationPrompt(theme string, existing []DeckCard) string {
 	var prompt string
 	deckRules := `
 【デッキ構成の鉄則】
@@ -563,7 +614,10 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 必ず以下のJSONオブジェクト形式のみで返してください:
 {"cards": [{"cardName": "カード名", "count": 枚数}, ...]}`, theme, string(existingJSON), deckRules)
 	}
+	return prompt
+}
 
+func (a *App) generateDeckWithGroq(ctx context.Context, prompt string) ([]suggestedCard, error) {
 	// Groq API を呼び出す（OpenAI互換フォーマット）
 	reqBody := map[string]any{
 		"model": "llama-3.3-70b-versatile",
@@ -632,6 +686,266 @@ func (a *App) generateDeckWithClaude(ctx context.Context, theme string, existing
 		return nil, fmt.Errorf("カードリストが空です / 応答: %s", text)
 	}
 	return wrapper.Cards, nil
+}
+
+func (a *App) generateDeckWithGemini(ctx context.Context, prompt string) ([]suggestedCard, error) {
+	reqBody := map[string]any{
+		"systemInstruction": map[string]any{
+			"parts": []map[string]any{
+				{"text": "あなたはポケモンカードゲームの専門家です。指示に厳密に従い、必ずJSONオブジェクトのみで返答してください。説明文・コメント・コードブロックは一切不要です。"},
+			},
+		},
+		"contents": []map[string]any{
+			{
+				"role": "user",
+				"parts": []map[string]any{
+					{"text": prompt},
+				},
+			},
+		},
+		"generationConfig": map[string]any{
+			"temperature":      0.3,
+			"maxOutputTokens":  2048,
+			"responseMimeType": "application/json",
+		},
+	}
+	reqJSON, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST",
+		"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+		strings.NewReader(string(reqJSON)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-goog-api-key", a.gemini)
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Gemini API error: status=%d body=%s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var geminiResp struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(bodyBytes, &geminiResp); err != nil {
+		return nil, err
+	}
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("Gemini からの応答が空です")
+	}
+
+	text := geminiResp.Candidates[0].Content.Parts[0].Text
+	var wrapper struct {
+		Cards []suggestedCard `json:"cards"`
+	}
+	if err := json.Unmarshal([]byte(text), &wrapper); err != nil {
+		return nil, fmt.Errorf("JSONパースエラー: %v / 応答: %s", err, text)
+	}
+	if len(wrapper.Cards) == 0 {
+		return nil, fmt.Errorf("カードリストが空です / 応答: %s", text)
+	}
+	return wrapper.Cards, nil
+}
+
+func resolveGeneratedDeck(suggestions []suggestedCard, theme string) ([]DeckCard, []generateDeckWarning, error) {
+	deckCards := make([]DeckCard, 0, len(suggestions))
+	warnings := []generateDeckWarning{}
+
+	for _, sc := range suggestions {
+		name := strings.TrimSpace(sc.CardName)
+		if name == "" || sc.Count <= 0 {
+			warnings = append(warnings, generateDeckWarning{
+				Type:    "invalid_suggestion",
+				Message: fmt.Sprintf("不正な候補を除外しました: %q x%d", sc.CardName, sc.Count),
+			})
+			continue
+		}
+
+		results, err := searchCardsFromOfficial(name, "1")
+		if err != nil {
+			warnings = append(warnings, generateDeckWarning{
+				Type:    "card_search_failed",
+				Message: fmt.Sprintf("%s の検索に失敗しました", name),
+			})
+			continue
+		}
+		if len(results) == 0 {
+			warnings = append(warnings, generateDeckWarning{
+				Type:    "card_not_found",
+				Message: fmt.Sprintf("%s が公式カード検索で見つかりませんでした", name),
+			})
+			continue
+		}
+
+		found := chooseBestCardMatch(name, results)
+		deckCards = append(deckCards, DeckCard{
+			CardID:       found.CardID,
+			CardName:     found.Name,
+			Illustration: found.Illustration,
+			Count:        sc.Count,
+		})
+	}
+
+	deckCards = normalizeCards(deckCards)
+	deckCards, warnings = enforceGeneratedDeckSize(deckCards, theme, warnings)
+	if err := validateGeneratedDeckCards(deckCards); err != nil {
+		return nil, warnings, err
+	}
+	return deckCards, warnings, nil
+}
+
+func chooseBestCardMatch(query string, results []Card) Card {
+	normalizedQuery := normalizeCardName(query)
+	for _, card := range results {
+		if normalizeCardName(card.Name) == normalizedQuery {
+			return card
+		}
+	}
+	for _, card := range results {
+		if strings.Contains(normalizeCardName(card.Name), normalizedQuery) {
+			return card
+		}
+	}
+	return results[0]
+}
+
+func enforceGeneratedDeckSize(cards []DeckCard, theme string, warnings []generateDeckWarning) ([]DeckCard, []generateDeckWarning) {
+	total := totalDeckCount(cards)
+	if total > 60 {
+		cards, total = trimDeckToSize(cards, 60)
+		warnings = append(warnings, generateDeckWarning{
+			Type:    "trimmed_to_60",
+			Message: "AIの候補が60枚を超えたため、末尾のカードから枚数を減らしました",
+		})
+	}
+	if total < 60 {
+		deficit := 60 - total
+		filled, addedName := addBasicEnergy(cards, theme, deficit)
+		if totalDeckCount(filled) > total {
+			cards = filled
+			warnings = append(warnings, generateDeckWarning{
+				Type:    "filled_to_60",
+				Message: fmt.Sprintf("不足していた%d枚を%sで補完しました", deficit, addedName),
+			})
+		}
+	}
+	return cards, warnings
+}
+
+func trimDeckToSize(cards []DeckCard, size int) ([]DeckCard, int) {
+	total := totalDeckCount(cards)
+	for i := len(cards) - 1; i >= 0 && total > size; i-- {
+		remove := total - size
+		if cards[i].Count < remove {
+			remove = cards[i].Count
+		}
+		cards[i].Count -= remove
+		total -= remove
+	}
+	out := cards[:0]
+	for _, card := range cards {
+		if card.Count > 0 {
+			out = append(out, card)
+		}
+	}
+	return out, total
+}
+
+func addBasicEnergy(cards []DeckCard, theme string, count int) ([]DeckCard, string) {
+	if count <= 0 {
+		return cards, ""
+	}
+	for i, card := range cards {
+		if isBasicEnergyName(card.CardName) {
+			cards[i].Count += count
+			return cards, card.CardName
+		}
+	}
+
+	energyName := guessBasicEnergyName(theme)
+	results, err := searchCardsFromOfficial(energyName, "1")
+	if err != nil || len(results) == 0 {
+		return cards, ""
+	}
+	found := chooseBestCardMatch(energyName, results)
+	return append(cards, DeckCard{
+		CardID:       found.CardID,
+		CardName:     found.Name,
+		Illustration: found.Illustration,
+		Count:        count,
+	}), found.Name
+}
+
+func guessBasicEnergyName(theme string) string {
+	switch {
+	case strings.Contains(theme, "炎"):
+		return "基本炎エネルギー"
+	case strings.Contains(theme, "水"):
+		return "基本水エネルギー"
+	case strings.Contains(theme, "草"):
+		return "基本草エネルギー"
+	case strings.Contains(theme, "雷"), strings.Contains(theme, "ピカチュウ"):
+		return "基本雷エネルギー"
+	case strings.Contains(theme, "超"):
+		return "基本超エネルギー"
+	case strings.Contains(theme, "闘"):
+		return "基本闘エネルギー"
+	case strings.Contains(theme, "悪"):
+		return "基本悪エネルギー"
+	case strings.Contains(theme, "鋼"):
+		return "基本鋼エネルギー"
+	default:
+		return "基本雷エネルギー"
+	}
+}
+
+func validateGeneratedDeckCards(cards []DeckCard) error {
+	if err := validateDeckCards(cards); err != nil {
+		return err
+	}
+	if total := totalDeckCount(cards); total != 60 {
+		return fmt.Errorf("AI生成デッキの合計枚数が60枚ではありません（現在%d枚）", total)
+	}
+	return nil
+}
+
+func totalDeckCount(cards []DeckCard) int {
+	total := 0
+	for _, card := range cards {
+		total += card.Count
+	}
+	return total
+}
+
+func isBasicEnergyName(name string) bool {
+	normalized := normalizeCardName(name)
+	return strings.Contains(normalized, "基本") && strings.Contains(normalized, "エネルギー")
+}
+
+func normalizeCardName(name string) string {
+	replacer := strings.NewReplacer(" ", "", "　", "", "・", "", "-", "", "－", "")
+	return strings.ToLower(replacer.Replace(strings.TrimSpace(name)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

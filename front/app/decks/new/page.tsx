@@ -3,12 +3,33 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { DeckCard, createDeck, saveDeckId, generateDeck } from "@/lib/api";
+import { DeckCard, createDeck, saveDeckId, generateDeck, maxCountForCard } from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 
 export default function NewDeckPage() {
   const router = useRouter();
+  const deckTypes = [
+    { type: "normal", label: "無", color: "#9ca3af", light: "#d1d5db" },
+    { type: "fire", label: "炎", color: "#ef4444", light: "#fb923c" },
+    { type: "water", label: "水", color: "#2563eb", light: "#38bdf8" },
+    { type: "grass", label: "草", color: "#16a34a", light: "#86efac" },
+    { type: "fighting", label: "闘", color: "#c2410c", light: "#fb923c" },
+    { type: "psychic", label: "超", color: "#db2777", light: "#f9a8d4" },
+    { type: "dark", label: "悪", color: "#1f2937", light: "#64748b" },
+    { type: "dragon", label: "ドラゴン", color: "#d97706", light: "#fde68a" },
+    { type: "electric", label: "雷", color: "#facc15", light: "#fef08a" },
+  ];
+  const backgroundBalls = [
+    "great",
+    "ultra",
+    "master",
+    "great",
+    "master",
+    "ultra",
+    "great",
+  ];
   const [name, setName] = useState("");
+  const [selectedType, setSelectedType] = useState("");
   const [cards, setCards] = useState<DeckCard[]>([]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -17,6 +38,7 @@ export default function NewDeckPage() {
   const [theme, setTheme] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+  const [generateWarnings, setGenerateWarnings] = useState<string[]>([]);
 
   const totalCount = cards.reduce((sum, c) => sum + c.count, 0);
 
@@ -25,7 +47,7 @@ export default function NewDeckPage() {
       const existing = prev.find((c) => c.cardId === card.cardId);
       if (existing) {
         return prev.map((c) =>
-          c.cardId === card.cardId ? { ...c, count: Math.min(4, c.count + 1) } : c
+          c.cardId === card.cardId ? { ...c, count: Math.min(maxCountForCard(c), c.count + 1) } : c
         );
       }
       return [...prev, card];
@@ -35,7 +57,7 @@ export default function NewDeckPage() {
   const changeCount = (id: string, delta: number) => {
     setCards((prev) =>
       prev
-        .map((c) => c.cardId === id ? { ...c, count: Math.min(4, Math.max(0, c.count + delta)) } : c)
+        .map((c) => c.cardId === id ? { ...c, count: Math.min(maxCountForCard(c), Math.max(0, c.count + delta)) } : c)
         .filter((c) => c.count > 0)
     );
   };
@@ -46,6 +68,7 @@ export default function NewDeckPage() {
 
   const handleGenerate = async () => {
     setGenerateError("");
+    setGenerateWarnings([]);
     if (!theme.trim()) {
       setGenerateError("テーマを入力してください");
       return;
@@ -56,9 +79,11 @@ export default function NewDeckPage() {
         theme: theme.trim(),
         existingDeck: cards.length > 0 ? cards : undefined,
       });
-      setCards(generated);
+      setCards(generated.cards);
+      setGenerateWarnings((generated.warnings || []).map((warning) => warning.message));
       if (!name.trim()) {
-        setName(theme.trim() + "デッキ");
+        const typeLabel = deckTypes.find((deckType) => deckType.type === selectedType)?.label;
+        setName(`${typeLabel ? `${typeLabel} ` : ""}${theme.trim()}デッキ`);
       }
     } catch (e) {
       setGenerateError(e instanceof Error ? e.message : "生成に失敗しました");
@@ -86,11 +111,17 @@ export default function NewDeckPage() {
   };
 
   return (
-    <main className="max-w-2xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
-        <h1 className="text-2xl font-bold">デッキ作成</h1>
+    <main className="deck-create-bg min-h-screen">
+      <div className="pokeball-field" aria-hidden="true">
+        {backgroundBalls.map((variant, index) => (
+          <span key={`${variant}-${index}`} className={`ball-deco ball-deco-${variant}`} />
+        ))}
       </div>
+      <div className="deck-create-content max-w-2xl mx-auto p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
+          <h1 className="text-2xl font-bold">デッキ作成</h1>
+        </div>
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
@@ -118,11 +149,49 @@ export default function NewDeckPage() {
           </button>
         </div>
         {generateError && <p className="text-red-500 text-xs mt-2">{generateError}</p>}
+        {generateWarnings.length > 0 && (
+          <ul className="text-amber-600 text-xs mt-2 space-y-1">
+            {generateWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        )}
         {generating && (
           <p className="text-blue-500 text-xs mt-2 animate-pulse">
             AIがデッキを考えています...しばらくお待ちください
           </p>
         )}
+      </div>
+
+      {/* デッキ名 */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium mb-2">タイプ選択</label>
+        <div className="flex flex-wrap gap-2">
+          {deckTypes.map((deckType) => (
+            <button
+              key={deckType.type}
+              type="button"
+              onClick={() => setSelectedType(deckType.type)}
+              className={`type-action-button type-action-${deckType.type} flex h-10 w-[116px] shrink-0 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 ${
+                selectedType === deckType.type ? "bg-white text-gray-950" : "bg-white/80 text-slate-700"
+              } ${selectedType === deckType.type ? "type-filter-active" : ""}`}
+              style={{
+                borderColor: selectedType === deckType.type ? deckType.color : "rgba(148, 163, 184, 0.45)",
+                boxShadow: selectedType === deckType.type ? `0 0 0 2px ${deckType.light}` : undefined,
+              }}
+            >
+              <span
+                className="h-3.5 w-3.5 rounded-full"
+                style={{
+                  background: `linear-gradient(135deg, ${deckType.light}, ${deckType.color})`,
+                  boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.18)",
+                }}
+                aria-hidden="true"
+              />
+              <span>{deckType.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* デッキ名 */}
@@ -170,7 +239,7 @@ export default function NewDeckPage() {
                   <span className="w-6 text-center text-sm font-medium">{c.count}</span>
                   <button
                     onClick={() => changeCount(c.cardId, 1)}
-                    disabled={c.count >= 4}
+                    disabled={c.count >= maxCountForCard(c)}
                     className="w-7 h-7 rounded border text-gray-600 hover:bg-gray-100 disabled:opacity-30 text-lg leading-none"
                   >＋</button>
                   <button
@@ -191,6 +260,7 @@ export default function NewDeckPage() {
       >
         {submitting ? "作成中..." : "デッキを作成する"}
       </button>
+      </div>
     </main>
   );
 }

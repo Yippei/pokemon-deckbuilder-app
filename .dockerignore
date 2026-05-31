@@ -1,0 +1,10 @@
+.git
+.claude
+.vscode
+.env
+front/.env.local
+front/.next
+front/node_modules
+seed
+Dockerfile
+README.md
