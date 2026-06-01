@@ -56,7 +56,7 @@ export default function CardSearch({ onAdd }: Props) {
 
   return (
     <div ref={ref} className="relative">
-      <label className="block text-sm font-medium mb-1">カードを追加（カード名で検索）</label>
+      <label className="block text-sm font-bold text-slate-900 mb-1">カードを追加（カード名で検索）</label>
       <input
         type="text"
         value={query}

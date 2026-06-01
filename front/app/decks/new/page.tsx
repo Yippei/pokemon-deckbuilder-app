@@ -120,7 +120,7 @@ export default function NewDeckPage() {
       <div className="deck-create-content max-w-2xl mx-auto p-6">
         <div className="flex items-center gap-3 mb-6">
           <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
-          <h1 className="text-2xl font-bold">デッキ作成</h1>
+          <h1 className="text-2xl font-bold text-slate-950">デッキ作成</h1>
         </div>
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
@@ -165,7 +165,7 @@ export default function NewDeckPage() {
 
       {/* デッキ名 */}
       <div className="mb-6">
-        <label className="block text-sm font-medium mb-2">タイプ選択</label>
+        <label className="block text-sm font-bold text-slate-900 mb-2">タイプ選択</label>
         <div className="flex flex-wrap gap-2">
           {deckTypes.map((deckType) => (
             <button
@@ -196,7 +196,7 @@ export default function NewDeckPage() {
 
       {/* デッキ名 */}
       <div className="mb-6">
-        <label className="block text-sm font-medium mb-1">デッキ名</label>
+        <label className="block text-sm font-bold text-slate-900 mb-1">デッキ名</label>
         <input
           type="text"
           value={name}
@@ -214,7 +214,7 @@ export default function NewDeckPage() {
       {/* カード一覧 */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium">カード一覧</span>
+          <span className="text-sm font-bold text-slate-900">カード一覧</span>
           <span className={`text-sm ${totalCount === 60 ? "text-green-600 font-medium" : "text-gray-500"}`}>
             {totalCount} / 60 枚
           </span>
