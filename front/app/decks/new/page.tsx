@@ -202,7 +202,6 @@ export default function NewDeckPage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          placeholder="例：れんげきウーラオスデッキ"
         />
       </div>
 
