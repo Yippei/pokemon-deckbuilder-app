@@ -1,13 +1,3 @@
-FROM node:22-alpine AS frontend
-
-WORKDIR /app/front
-
-COPY front/package.json front/package-lock.json ./
-RUN npm ci
-
-COPY front ./
-RUN npm run build
-
 FROM golang:1.25-alpine AS build
 
 WORKDIR /app
@@ -16,7 +6,6 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-COPY --from=frontend /app/front/out ./front/out
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/server .
 
 FROM alpine:3.22
