@@ -19,6 +19,19 @@ NEXT_PUBLIC_API_URL=https://pokemon-deckbuilder-app.onrender.com
 設定対象はProduction / Preview / Developmentのうち、少なくともProductionに入れてください。
 環境変数を変更した後は、Vercelで再デプロイが必要です。
 
+## Vercel側のProject設定
+
+Vercel Projectの `Settings` -> `General` でRoot Directoryが `front` になっていることを確認してください。
+
+```text
+Root Directory: front
+Framework Preset: Next.js
+Build Command: npm run build
+Install Command: npm ci
+```
+
+Root Directoryがリポジトリ直下になっていると、フロントエンドではない場所をデプロイして500になることがあります。
+
 ## Renderバックエンド側の環境変数
 
 Vercelの公開URLが決まったら、Renderの既存バックエンドサービスで `ALLOWED_ORIGINS` に追加します。
