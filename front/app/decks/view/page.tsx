@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId, generateDeck, maxCountForCard } from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 
 export default function DeckPage() {
-  const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
+  const [id, setId] = useState("");
   const [deck, setDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -25,7 +25,14 @@ export default function DeckPage() {
   const [generateWarnings, setGenerateWarnings] = useState<string[]>([]);
 
   useEffect(() => {
-    getDeck(id)
+    const deckId = new URLSearchParams(window.location.search).get("id");
+    if (!deckId) {
+      router.push("/");
+      return;
+    }
+
+    setId(deckId);
+    getDeck(deckId)
       .then((d) => {
         setDeck(d);
         setName(d.name);
@@ -33,7 +40,7 @@ export default function DeckPage() {
       })
       .catch(() => router.push("/"))
       .finally(() => setLoading(false));
-  }, [id, router]);
+  }, [router]);
 
   const totalCount = cards.reduce((sum, c) => sum + c.count, 0);
 

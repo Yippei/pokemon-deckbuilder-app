@@ -183,7 +183,7 @@ export default function Home() {
             {visibleDecks.map((deck) => (
               <li key={deck.deckId}>
                 <Link
-                  href={`/decks/${deck.deckId}`}
+                  href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
                   className="block border rounded-lg p-4 hover:bg-gray-50 transition"
                 >
                   <div className="font-semibold text-lg">{deck.name}</div>

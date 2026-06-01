@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -106,6 +107,13 @@ func main() {
 		MaxAge:           300,
 	}))
 
+	frontend := serveFrontend("front/out")
+	r.Get("/", frontend)
+	r.Get("/decks/new", frontend)
+	r.Get("/decks/view", frontend)
+	r.Get("/_next/*", frontend)
+	r.Get("/favicon.ico", frontend)
+
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 	})
@@ -120,6 +128,7 @@ func main() {
 	r.Get("/decks/{deckId}", app.handleGetDeck)
 	r.Put("/decks/{deckId}", app.handleUpdateDeck)
 	r.Delete("/decks/{deckId}", app.handleDeleteDeck)
+	r.NotFound(frontend)
 
 	server := &http.Server{
 		Addr:              ":" + port,
@@ -959,6 +968,42 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func serveFrontend(root string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			writeError(w, http.StatusNotFound, "not found")
+			return
+		}
+
+		requestPath := filepath.Clean(r.URL.Path)
+		if strings.HasPrefix(requestPath, "..") {
+			writeError(w, http.StatusNotFound, "not found")
+			return
+		}
+		if requestPath == "." || requestPath == "/" {
+			http.ServeFile(w, r, filepath.Join(root, "index.html"))
+			return
+		}
+
+		relativePath := strings.TrimPrefix(requestPath, "/")
+		candidates := []string{relativePath}
+		if filepath.Ext(relativePath) == "" {
+			candidates = append(candidates, filepath.Join(relativePath, "index.html"), relativePath+".html")
+		}
+
+		for _, candidate := range candidates {
+			fullPath := filepath.Join(root, candidate)
+			info, err := os.Stat(fullPath)
+			if err == nil && !info.IsDir() {
+				http.ServeFile(w, r, fullPath)
+				return
+			}
+		}
+
+		http.ServeFile(w, r, filepath.Join(root, "index.html"))
+	}
 }
 
 func getenv(key, def string) string {

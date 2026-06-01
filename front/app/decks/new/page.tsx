@@ -102,7 +102,7 @@ export default function NewDeckPage() {
     try {
       const deck = await createDeck({ ownerId: "user1", name: name.trim(), cards });
       saveDeckId(deck.deckId);
-      router.push(`/decks/${deck.deckId}`);
+      router.push(`/decks/view?id=${encodeURIComponent(deck.deckId)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "エラーが発生しました");
     } finally {
