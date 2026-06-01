@@ -85,8 +85,9 @@ func main() {
 	}
 	defer pool.Close()
 
+	log.Printf("DB接続先を確認します: %s", safeDatabaseURL(databaseURL))
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("DBへの疎通確認に失敗しました: %v", err)
+		log.Fatalf("DBへの疎通確認に失敗しました: %T: %v", err, err)
 	}
 
 	groqKey := os.Getenv("GROQ_API_KEY")
@@ -965,6 +966,18 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func safeDatabaseURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "(DATABASE_URLのパースに失敗)"
+	}
+	if u.User != nil {
+		username := u.User.Username()
+		u.User = url.UserPassword(username, "xxxxx")
+	}
+	return u.String()
 }
 
 func mustGetenv(key string) string {
