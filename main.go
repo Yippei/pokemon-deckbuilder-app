@@ -90,6 +90,9 @@ func main() {
 	if err := pool.Ping(ctx); err != nil {
 		log.Fatalf("DBへの疎通確認に失敗しました: %T: %v", err, err)
 	}
+	if err := ensureDatabaseSchema(ctx, pool); err != nil {
+		log.Fatalf("DBスキーマの確認に失敗しました: %v", err)
+	}
 
 	groqKey := os.Getenv("GROQ_API_KEY")
 	geminiKey := os.Getenv("GEMINI_API_KEY")
@@ -367,6 +370,20 @@ func (a *App) handleDeleteDeck(w http.ResponseWriter, r *http.Request) {
 ========================= */
 
 var errNotFound = errors.New("not found")
+
+func ensureDatabaseSchema(ctx context.Context, db *pgxpool.Pool) error {
+	_, err := db.Exec(ctx, `
+		ALTER TABLE deck_cards
+			ADD COLUMN IF NOT EXISTS illustration TEXT NOT NULL DEFAULT '';
+
+		ALTER TABLE deck_cards
+			DROP CONSTRAINT IF EXISTS deck_cards_count_check;
+
+		ALTER TABLE deck_cards
+			ADD CONSTRAINT deck_cards_count_check CHECK (count >= 1);
+	`)
+	return err
+}
 
 func (a *App) getDeck(ctx context.Context, deckID string) (Deck, error) {
 	var d Deck
