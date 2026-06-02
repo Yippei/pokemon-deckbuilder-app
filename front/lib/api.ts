@@ -58,26 +58,45 @@ export async function searchCards(params: { name?: string; pg?: number }): Promi
 // デッキ一覧はAPIにないので作成済みIDをlocalStorageで管理
 export function getSavedDeckIds(): string[] {
   if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem("deckIds");
-  return raw ? JSON.parse(raw) : [];
+  try {
+    const raw = localStorage.getItem("deckIds");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      localStorage.removeItem("deckIds");
+      return [];
+    }
+    return parsed.filter((id): id is string => typeof id === "string" && id.length > 0);
+  } catch {
+    localStorage.removeItem("deckIds");
+    return [];
+  }
 }
 
 export function saveDeckId(deckId: string) {
-  const ids = getSavedDeckIds();
-  if (!ids.includes(deckId)) {
-    localStorage.setItem("deckIds", JSON.stringify([...ids, deckId]));
+  try {
+    const ids = getSavedDeckIds();
+    if (!ids.includes(deckId)) {
+      localStorage.setItem("deckIds", JSON.stringify([...ids, deckId]));
+    }
+  } catch {
+    // DBへの作成は完了しているので、ローカル保存の失敗で作成失敗扱いにしない。
   }
 }
 
 export function removeDeckId(deckId: string) {
-  const ids = getSavedDeckIds().filter((id) => id !== deckId);
-  localStorage.setItem("deckIds", JSON.stringify(ids));
+  try {
+    const ids = getSavedDeckIds().filter((id) => id !== deckId);
+    localStorage.setItem("deckIds", JSON.stringify(ids));
+  } catch {
+    localStorage.removeItem("deckIds");
+  }
 }
 
 // デッキ取得
 export async function getDeck(deckId: string): Promise<Deck> {
   const res = await fetch(`${API_URL}/decks/${deckId}`);
-  if (!res.ok) throw new Error("デッキの取得に失敗しました");
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの取得に失敗しました"));
   return res.json();
 }
 
@@ -88,7 +107,7 @@ export async function createDeck(body: { ownerId: string; name: string; cards: D
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("デッキの作成に失敗しました");
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの作成に失敗しました"));
   return res.json();
 }
 
@@ -99,14 +118,14 @@ export async function updateDeck(deckId: string, body: { name?: string; cards?: 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("デッキの更新に失敗しました");
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの更新に失敗しました"));
   return res.json();
 }
 
 // デッキ削除
 export async function deleteDeck(deckId: string): Promise<void> {
   const res = await fetch(`${API_URL}/decks/${deckId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error("デッキの削除に失敗しました");
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの削除に失敗しました"));
 }
 
 // デッキ自動生成
@@ -116,6 +135,15 @@ export async function generateDeck(body: { theme: string; existingDeck?: DeckCar
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("デッキの生成に失敗しました");
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成に失敗しました"));
   return res.json();
+}
+
+async function getAPIErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json();
+    if (typeof data?.error === "string" && data.error) return data.error;
+  } catch {
+  }
+  return fallback;
 }
