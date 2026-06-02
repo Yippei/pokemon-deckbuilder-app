@@ -201,7 +201,7 @@ export default function NewDeckPage() {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="w-full border rounded px-3 py-2 text-slate-950 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
       </div>
 
