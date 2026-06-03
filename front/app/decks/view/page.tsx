@@ -121,13 +121,13 @@ export default function DeckPage() {
     <main className="max-w-2xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
-        <h1 className="text-2xl font-bold flex-1">
+        <h1 className="text-2xl font-bold text-slate-950 flex-1">
           {editing ? (
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full border rounded px-3 py-1 text-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border rounded px-3 py-1 text-xl text-slate-950 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           ) : (
             deck.name
@@ -136,7 +136,7 @@ export default function DeckPage() {
         {!editing && (
           <button
             onClick={() => setEditing(true)}
-            className="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded"
+            className="text-sm bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-3 py-1 rounded font-bold"
           >
             編集
           </button>
@@ -251,7 +251,7 @@ export default function DeckPage() {
           </button>
           <button
             onClick={() => { setEditing(false); setCards(deck.cards); setName(deck.name); }}
-            className="px-6 bg-gray-100 hover:bg-gray-200 rounded font-medium"
+            className="px-6 bg-gray-100 hover:bg-gray-200 text-slate-800 rounded font-medium"
           >
             キャンセル
           </button>
