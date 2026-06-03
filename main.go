@@ -70,6 +70,13 @@ type pokemonAPICard struct {
 	CardNameViewText string `json:"cardNameViewText"`
 }
 
+const (
+	generatedDeckSize              = 60
+	maxGeneratedEnergyCards        = 11
+	officialStandardRegulationForm = "XY"
+	officialStandardRegulationName = "スタンダード"
+)
+
 /* =========================
    エントリーポイント
 ========================= */
@@ -189,8 +196,8 @@ func (a *App) handleReadiness(w http.ResponseWriter, r *http.Request) {
 
 func searchCardsFromOfficial(name, pg string) ([]Card, error) {
 	apiURL := fmt.Sprintf(
-		"https://www.pokemon-card.com/card-search/resultAPI.php?keyword=%s&regulation_sidebar_form=XY&pg=&illust=&sm_and_keyword=true",
-		url.QueryEscape(name),
+		"https://www.pokemon-card.com/card-search/resultAPI.php?keyword=%s&regulation_sidebar_form=%s&pg=&illust=&sm_and_keyword=true",
+		url.QueryEscape(name), officialStandardRegulationForm,
 	)
 	_ = pg // ページネーションは将来対応
 
@@ -218,7 +225,7 @@ func searchCardsFromOfficial(name, pg string) ([]Card, error) {
 		cards = append(cards, Card{
 			CardID:       c.CardID,
 			Name:         c.CardNameViewText,
-			Regulation:   "H",
+			Regulation:   officialStandardRegulationName,
 			CardType:     extractCardType(c.CardThumbFile),
 			Illustration: "https://www.pokemon-card.com" + c.CardThumbFile,
 		})
@@ -599,6 +606,7 @@ func buildDeckGenerationPrompt(theme string, existing []DeckCard) string {
 	deckRules := `
 【デッキ構成の鉄則】
 - 合計枚数: 必ず60枚（厳守）
+- 使用カード: スタンダードレギュレーション（H・I・J）で使えるカードのみ
 - 同名カード: 最大4枚まで（エネルギーは除く）
 - ポケモン: 12〜20枚が目安
   - メインアタッカーは3〜4枚
@@ -609,15 +617,17 @@ func buildDeckGenerationPrompt(theme string, existing []DeckCard) string {
   - グッズ（必須）: ネストボール×4、ハイパーボール×3〜4、なかよしポフィン×4（たねポケモン多めなら）
   - グッズ（推奨）: カウンターキャッチャー×2、ポケモンいれかえ×2〜3、キャプチャーアロマ×2
   - スタジアム: 2〜4枚（テーマに合ったものを選ぶ）
-- エネルギー: 8〜15枚が目安
+- エネルギー: 8〜11枚（最大11枚、厳守）
   - メインアタッカーのタイプに合わせた基本エネルギーを最低5枚以上入れること
   - 特殊エネルギー（ダブルターボエネルギーなど）も活用する
+- エネルギー全体の合計枚数は、基本エネルギーと特殊エネルギーを合わせて11枚以下にすること
 - 進化ラインの注意:
   - タネポケモンと一進化・二進化の枚数を必ず揃えること（例: タネ4枚→一進化3枚→二進化2〜3枚）
   - 進化前と進化後が途切れないよう枚数バランスを意識すること
 
 【カード名の注意】
 - 日本語の正式名称で記載すること
+- スタンダードレギュレーション外のカードは絶対に記載しないこと
 - exポケモンは「〇〇ex」、VMAXは「〇〇VMAX」のように正確に記載`
 
 	if len(existing) == 0 {
@@ -820,7 +830,7 @@ func resolveGeneratedDeck(suggestions []suggestedCard, theme string) ([]DeckCard
 		if len(results) == 0 {
 			warnings = append(warnings, generateDeckWarning{
 				Type:    "card_not_found",
-				Message: fmt.Sprintf("%s が公式カード検索で見つかりませんでした", name),
+				Message: fmt.Sprintf("%s がスタンダードの公式カード検索で見つからなかったため除外しました", name),
 			})
 			continue
 		}
@@ -835,6 +845,7 @@ func resolveGeneratedDeck(suggestions []suggestedCard, theme string) ([]DeckCard
 	}
 
 	deckCards = normalizeCards(deckCards)
+	deckCards, warnings = enforceGeneratedEnergyLimit(deckCards, warnings)
 	deckCards, warnings = enforceGeneratedDeckSize(deckCards, theme, warnings)
 	if err := validateGeneratedDeckCards(deckCards); err != nil {
 		return nil, warnings, err
@@ -857,27 +868,84 @@ func chooseBestCardMatch(query string, results []Card) Card {
 	return results[0]
 }
 
+func enforceGeneratedEnergyLimit(cards []DeckCard, warnings []generateDeckWarning) ([]DeckCard, []generateDeckWarning) {
+	energyTotal := totalEnergyCount(cards)
+	if energyTotal <= maxGeneratedEnergyCards {
+		return cards, warnings
+	}
+
+	cards, energyTotal = trimEnergyToLimit(cards, maxGeneratedEnergyCards)
+	warnings = append(warnings, generateDeckWarning{
+		Type:    "trimmed_energy_to_11",
+		Message: fmt.Sprintf("エネルギーが多すぎたため、合計%d枚以下に調整しました", maxGeneratedEnergyCards),
+	})
+	return cards, warnings
+}
+
 func enforceGeneratedDeckSize(cards []DeckCard, theme string, warnings []generateDeckWarning) ([]DeckCard, []generateDeckWarning) {
 	total := totalDeckCount(cards)
-	if total > 60 {
-		cards, total = trimDeckToSize(cards, 60)
+	if total > generatedDeckSize {
+		cards, total = trimDeckToSize(cards, generatedDeckSize)
 		warnings = append(warnings, generateDeckWarning{
 			Type:    "trimmed_to_60",
 			Message: "AIの候補が60枚を超えたため、末尾のカードから枚数を減らしました",
 		})
 	}
-	if total < 60 {
-		deficit := 60 - total
-		filled, addedName := addBasicEnergy(cards, theme, deficit)
-		if totalDeckCount(filled) > total {
-			cards = filled
+	if total < generatedDeckSize {
+		deficit := generatedDeckSize - total
+		filled, added := addStandardFillerCards(cards, deficit)
+		if added > 0 {
+			cards = normalizeCards(filled)
 			warnings = append(warnings, generateDeckWarning{
 				Type:    "filled_to_60",
-				Message: fmt.Sprintf("不足していた%d枚を%sで補完しました", deficit, addedName),
+				Message: fmt.Sprintf("不足していた%d枚をスタンダードの汎用カードで補完しました", added),
 			})
+			total = totalDeckCount(cards)
+		}
+		if total < generatedDeckSize {
+			remaining := generatedDeckSize - total
+			energyCapacity := maxGeneratedEnergyCards - totalEnergyCount(cards)
+			if energyCapacity > 0 {
+				addCount := remaining
+				if addCount > energyCapacity {
+					addCount = energyCapacity
+				}
+				filled, addedName := addBasicEnergy(cards, theme, addCount)
+				if totalDeckCount(filled) > total {
+					cards = filled
+					warnings = append(warnings, generateDeckWarning{
+						Type:    "filled_energy_to_60",
+						Message: fmt.Sprintf("不足していた%d枚を%sで補完しました", addCount, addedName),
+					})
+				}
+			}
 		}
 	}
+	cards, warnings = enforceGeneratedEnergyLimit(normalizeCards(cards), warnings)
 	return cards, warnings
+}
+
+func trimEnergyToLimit(cards []DeckCard, limit int) ([]DeckCard, int) {
+	energyTotal := totalEnergyCount(cards)
+	for i := len(cards) - 1; i >= 0 && energyTotal > limit; i-- {
+		if !isEnergyName(cards[i].CardName) {
+			continue
+		}
+		remove := energyTotal - limit
+		if cards[i].Count < remove {
+			remove = cards[i].Count
+		}
+		cards[i].Count -= remove
+		energyTotal -= remove
+	}
+
+	out := cards[:0]
+	for _, card := range cards {
+		if card.Count > 0 {
+			out = append(out, card)
+		}
+	}
+	return out, energyTotal
 }
 
 func trimDeckToSize(cards []DeckCard, size int) ([]DeckCard, int) {
@@ -897,6 +965,78 @@ func trimDeckToSize(cards []DeckCard, size int) ([]DeckCard, int) {
 		}
 	}
 	return out, total
+}
+
+func addStandardFillerCards(cards []DeckCard, count int) ([]DeckCard, int) {
+	if count <= 0 {
+		return cards, 0
+	}
+
+	fillers := []string{
+		"ネストボール",
+		"ハイパーボール",
+		"ナンジャモ",
+		"博士の研究",
+		"ボスの指令",
+		"ポケモンいれかえ",
+		"カウンターキャッチャー",
+		"なかよしポフィン",
+		"ふしぎなアメ",
+	}
+
+	added := 0
+	for _, name := range fillers {
+		if added >= count {
+			break
+		}
+
+		existing := countCardCopiesByName(cards, name)
+		if existing >= 4 {
+			continue
+		}
+
+		results, err := searchCardsFromOfficial(name, "1")
+		if err != nil || len(results) == 0 {
+			continue
+		}
+		found := chooseBestCardMatch(name, results)
+		addCount := count - added
+		if maxAdd := 4 - existing; addCount > maxAdd {
+			addCount = maxAdd
+		}
+		cards = addOrIncrementCard(cards, DeckCard{
+			CardID:       found.CardID,
+			CardName:     found.Name,
+			Illustration: found.Illustration,
+			Count:        addCount,
+		})
+		added += addCount
+	}
+	return cards, added
+}
+
+func countCardCopiesByName(cards []DeckCard, name string) int {
+	total := 0
+	normalized := normalizeCardName(name)
+	for _, card := range cards {
+		if normalizeCardName(card.CardName) == normalized {
+			total += card.Count
+		}
+	}
+	return total
+}
+
+func addOrIncrementCard(cards []DeckCard, addition DeckCard) []DeckCard {
+	for i, card := range cards {
+		if card.CardID == addition.CardID {
+			cards[i].Count += addition.Count
+			if cards[i].Count > 4 && !isBasicEnergyName(cards[i].CardName) {
+				cards[i].Count = 4
+			}
+			return cards
+		}
+	}
+	return append(cards, addition)
 }
 
 func addBasicEnergy(cards []DeckCard, theme string, count int) ([]DeckCard, string) {
@@ -951,6 +1091,9 @@ func validateGeneratedDeckCards(cards []DeckCard) error {
 	if err := validateDeckCards(cards); err != nil {
 		return err
 	}
+	if energyTotal := totalEnergyCount(cards); energyTotal > maxGeneratedEnergyCards {
+		return fmt.Errorf("AI生成デッキのエネルギー枚数が%d枚を超えています（現在%d枚）", maxGeneratedEnergyCards, energyTotal)
+	}
 	if total := totalDeckCount(cards); total != 60 {
 		return fmt.Errorf("AI生成デッキの合計枚数が60枚ではありません（現在%d枚）", total)
 	}
@@ -963,6 +1106,20 @@ func totalDeckCount(cards []DeckCard) int {
 		total += card.Count
 	}
 	return total
+}
+
+func totalEnergyCount(cards []DeckCard) int {
+	total := 0
+	for _, card := range cards {
+		if isEnergyName(card.CardName) {
+			total += card.Count
+		}
+	}
+	return total
+}
+
+func isEnergyName(name string) bool {
+	return strings.Contains(normalizeCardName(name), "エネルギー")
 }
 
 func isBasicEnergyName(name string) bool {

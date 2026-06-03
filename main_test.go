@@ -40,6 +40,44 @@ func TestValidateGeneratedDeckCardsRequiresExactlySixty(t *testing.T) {
 	}
 }
 
+func TestValidateGeneratedDeckCardsRejectsEnergyOverEleven(t *testing.T) {
+	cards := []DeckCard{
+		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 12},
+		{CardID: "nest-ball", CardName: "ネストボール", Count: 4},
+		{CardID: "ultra-ball", CardName: "ハイパーボール", Count: 4},
+		{CardID: "research", CardName: "博士の研究", Count: 4},
+		{CardID: "iono", CardName: "ナンジャモ", Count: 4},
+		{CardID: "boss", CardName: "ボスの指令", Count: 3},
+		{CardID: "switch", CardName: "ポケモンいれかえ", Count: 4},
+		{CardID: "counter", CardName: "カウンターキャッチャー", Count: 4},
+		{CardID: "poffin", CardName: "なかよしポフィン", Count: 4},
+		{CardID: "rare-candy", CardName: "ふしぎなアメ", Count: 4},
+		{CardID: "pokemon-a", CardName: "たねポケモンA", Count: 4},
+		{CardID: "pokemon-b", CardName: "たねポケモンB", Count: 4},
+		{CardID: "pokemon-c", CardName: "たねポケモンC", Count: 3},
+	}
+
+	if err := validateGeneratedDeckCards(cards); err == nil {
+		t.Fatal("validateGeneratedDeckCards returned nil; want error")
+	}
+}
+
+func TestEnforceGeneratedEnergyLimitTrimsEnergyToEleven(t *testing.T) {
+	cards := []DeckCard{
+		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 10},
+		{CardID: "special-energy", CardName: "ダブルターボエネルギー", Count: 4},
+		{CardID: "nest-ball", CardName: "ネストボール", Count: 4},
+	}
+
+	trimmed, warnings := enforceGeneratedEnergyLimit(cards, nil)
+	if total := totalEnergyCount(trimmed); total != maxGeneratedEnergyCards {
+		t.Fatalf("energy total = %d; want %d", total, maxGeneratedEnergyCards)
+	}
+	if len(warnings) != 1 || warnings[0].Type != "trimmed_energy_to_11" {
+		t.Fatalf("warnings = %#v; want trimmed_energy_to_11", warnings)
+	}
+}
+
 func TestTrimDeckToSize(t *testing.T) {
 	cards := []DeckCard{
 		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 8},
