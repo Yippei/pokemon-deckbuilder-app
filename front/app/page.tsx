@@ -99,7 +99,7 @@ export default function Home() {
     ? decks
     : decks.filter((deck) => inferDeckType(deck) === selectedType);
   const selectedTypeLabel = deckTypes.find((deckType) => deckType.type === selectedType)?.label || "全て";
-  const listTitle = selectedType === "all" ? "作成した全てのデッキ" : `${selectedTypeLabel}属性のデッキ`;
+  const listTitle = selectedType === "all" ? "作成した全てのデッキ" : `${selectedTypeLabel}タイプのデッキ`;
   const getTypeDeckCount = (type: string) => (
     type === "all" ? decks.length : decks.filter((deck) => inferDeckType(deck) === type).length
   );
@@ -124,7 +124,7 @@ export default function Home() {
       </div>
       <div className="home-content max-w-2xl mx-auto p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">デッキ一覧</h1>
+          <h1 className="text-2xl font-bold text-slate-950">デッキ一覧</h1>
           <Link
             href="/decks/new"
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
@@ -133,7 +133,7 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="mb-6 flex flex-wrap gap-2" aria-label="属性別デッキ一覧">
+        <div className="mb-6 flex flex-wrap gap-2" aria-label="タイプ別デッキ一覧">
           {deckTypes.map((deckType) => (
             <button
               key={deckType.type}
@@ -177,17 +177,17 @@ export default function Home() {
         ) : decks.length === 0 ? (
           <p className="text-gray-500">デッキがまだありません。新規作成してみましょう！</p>
         ) : visibleDecks.length === 0 ? (
-          <p className="text-gray-500">{selectedTypeLabel}属性のデッキはまだありません。</p>
+          <p className="text-slate-700">{selectedTypeLabel}タイプのデッキはまだありません。</p>
         ) : (
           <ul className="space-y-3">
             {visibleDecks.map((deck) => (
               <li key={deck.deckId}>
                 <Link
                   href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
-                  className="block border rounded-lg p-4 hover:bg-gray-50 transition"
+                  className="block border rounded-lg bg-white p-4 text-slate-950 hover:bg-gray-50 transition"
                 >
-                  <div className="font-semibold text-lg">{deck.name}</div>
-                  <div className="text-sm text-gray-500 mt-1">
+                  <div className="font-semibold text-lg text-slate-950">{deck.name}</div>
+                  <div className="text-sm font-medium text-slate-700 mt-1">
                     {deck.cards.reduce((sum, c) => sum + c.count, 0)} 枚
                   </div>
                 </Link>
