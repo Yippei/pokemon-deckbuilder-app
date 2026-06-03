@@ -75,6 +75,7 @@ const (
 	maxGeneratedEnergyCards        = 11
 	officialStandardRegulationForm = "XY"
 	officialStandardRegulationName = "スタンダード"
+	startupDBTimeout               = 30 * time.Second
 )
 
 /* =========================
@@ -93,11 +94,14 @@ func main() {
 	}
 	defer pool.Close()
 
+	startupCtx, startupCancel := context.WithTimeout(ctx, startupDBTimeout)
+	defer startupCancel()
+
 	log.Printf("DB接続先を確認します: %s", safeDatabaseURL(databaseURL))
-	if err := pool.Ping(ctx); err != nil {
+	if err := pool.Ping(startupCtx); err != nil {
 		log.Fatalf("DBへの疎通確認に失敗しました: %T: %v", err, err)
 	}
-	if err := ensureDatabaseSchema(ctx, pool); err != nil {
+	if err := ensureDatabaseSchema(startupCtx, pool); err != nil {
 		log.Fatalf("DBスキーマの確認に失敗しました: %v", err)
 	}
 
