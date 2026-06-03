@@ -209,8 +209,8 @@ export default function DeckPage() {
       {/* カード一覧 */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium">カード一覧</span>
-          <span className={`text-sm ${totalCount === 60 ? "text-green-600 font-medium" : "text-gray-500"}`}>
+          <span className="text-sm font-bold text-slate-950">カード一覧</span>
+          <span className={`text-sm font-medium ${totalCount === 60 ? "text-green-600" : "text-slate-800"}`}>
             {totalCount} / 60 枚
           </span>
         </div>
@@ -219,12 +219,12 @@ export default function DeckPage() {
         ) : (
           <ul className="space-y-2">
             {cards.map((c) => (
-              <li key={c.cardId} className="flex items-center justify-between border rounded px-3 py-2">
+              <li key={c.cardId} className="flex items-center justify-between border rounded px-3 py-2 bg-white text-slate-950">
                 <div className="flex items-center gap-3">
                   {c.illustration && (
                     <img src={c.illustration} alt={c.cardName} className="w-8 h-11 object-contain transition-transform duration-200 hover:scale-[4] hover:z-10 relative" />
                   )}
-                  <span className="text-sm">{c.cardName || c.cardId}</span>
+                  <span className="text-sm text-slate-950">{c.cardName || c.cardId}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {editing ? (
@@ -245,7 +245,7 @@ export default function DeckPage() {
                       >削除</button>
                     </>
                   ) : (
-                    <span className="text-sm text-gray-500">×{c.count}</span>
+                    <span className="text-sm font-medium text-slate-950">×{c.count}</span>
                   )}
                 </div>
               </li>
