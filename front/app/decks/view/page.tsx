@@ -8,6 +8,15 @@ import CardSearch from "@/components/CardSearch";
 
 export default function DeckPage() {
   const router = useRouter();
+  const backgroundBalls = [
+    "great",
+    "ultra",
+    "master",
+    "great",
+    "master",
+    "ultra",
+    "great",
+  ];
 
   const [id, setId] = useState("");
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -118,7 +127,13 @@ export default function DeckPage() {
   if (!deck) return null;
 
   return (
-    <main className="max-w-2xl mx-auto p-6">
+    <main className="deck-create-bg min-h-screen">
+      <div className="pokeball-field" aria-hidden="true">
+        {backgroundBalls.map((variant, index) => (
+          <span key={`${variant}-${index}`} className={`ball-deco ball-deco-${variant}`} />
+        ))}
+      </div>
+      <div className="deck-create-content max-w-2xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
         <h1 className="text-2xl font-bold text-slate-950 flex-1">
@@ -264,6 +279,7 @@ export default function DeckPage() {
           デッキを削除する
         </button>
       )}
+      </div>
     </main>
   );
 }
