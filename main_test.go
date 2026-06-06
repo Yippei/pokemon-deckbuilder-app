@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -75,6 +76,55 @@ func TestEnforceGeneratedEnergyLimitTrimsEnergyToEleven(t *testing.T) {
 	}
 	if len(warnings) != 1 || warnings[0].Type != "trimmed_energy_to_11" {
 		t.Fatalf("warnings = %#v; want trimmed_energy_to_11", warnings)
+	}
+}
+
+func TestBuildDeckGenerationPromptIncludesDetailedThemeRules(t *testing.T) {
+	prompt := buildDeckGenerationPrompt("炎デッキ", nil)
+
+	required := []string{
+		"エネルギー全体の合計枚数は、基本エネルギーと特殊エネルギーを合わせて必ず11枚以下",
+		"60枚に満たない場合は、デッキの軸を崩さない範囲で必要なカードを追加",
+		"合計が60枚になるまでカード追加を続けること",
+		"スタンダードレギュレーションのティア表・入賞デッキ傾向を参考",
+		"入力キーワードにタイプ（炎・水・草・雷・超・闘・悪・鋼など）が含まれる場合、そのタイプと関係ないタイプのポケモンは構築に入れない",
+		"入力キーワードに特定のポケモン名が含まれる場合は、そのポケモンを最優先で採用",
+		"ポケモンを山札から呼び出すグッズカード",
+		"必ず2種類以上入れること",
+		"トラッシュからポケモンまたはエネルギーカードを手札または山札に戻すグッズカード",
+		"0〜2種類までに抑えること",
+		"手札をリセットするサポートカード",
+		"必ず合計4枚入れること",
+		"山札を引いて手札を増やす効果",
+		"相手のベンチポケモンをバトル場に呼び出す効果",
+		"バトルポケモンを入れ替える効果",
+	}
+
+	for _, want := range required {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt does not contain %q\nprompt:\n%s", want, prompt)
+		}
+	}
+
+	forbidden := []string{
+		"博士の研究",
+		"ナンジャモ",
+		"ボスの指令",
+		"ネストボール",
+		"ハイパーボール",
+		"なかよしポフィン",
+		"キャプチャーアロマ",
+		"すごいつりざお",
+		"夜のタンカ",
+		"カウンターキャッチャー",
+		"ポケモンいれかえ",
+		"ダブルターボエネルギー",
+	}
+
+	for _, name := range forbidden {
+		if strings.Contains(prompt, name) {
+			t.Fatalf("prompt contains forbidden card name %q\nprompt:\n%s", name, prompt)
+		}
 	}
 }
 
