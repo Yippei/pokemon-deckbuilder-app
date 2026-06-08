@@ -31,14 +31,14 @@ func TestValidateDeckCardsRejectsNonBasicEnergyOverFour(t *testing.T) {
 	}
 }
 
-func TestValidateGeneratedDeckCardsRequiresExactlySixty(t *testing.T) {
+func TestValidateGeneratedDeckCardsAllowsUnderSixty(t *testing.T) {
 	cards := []DeckCard{
 		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 8},
 		{CardID: "nest-ball", CardName: "ネストボール", Count: 4},
 	}
 
-	if err := validateGeneratedDeckCards(cards); err == nil {
-		t.Fatal("validateGeneratedDeckCards returned nil; want error")
+	if err := validateGeneratedDeckCards(cards); err != nil {
+		t.Fatalf("validateGeneratedDeckCards returned error: %v", err)
 	}
 }
 
@@ -207,6 +207,31 @@ func TestResolveGeneratedDeckSuppressesStandardNotFoundWarnings(t *testing.T) {
 	}
 }
 
+func TestResolveGeneratedDeckReturnsUnderSixtyWithWarning(t *testing.T) {
+	withSearchCards(t, func(name, pg string) ([]Card, error) {
+		if name == "基本炎エネルギー" || name == "トレーナーズA" {
+			return []Card{{CardID: "stub-" + name, Name: name, CardType: "トレーナーズ"}}, nil
+		}
+		return nil, errors.New("search failed")
+	})
+
+	suggestions := []suggestedCard{
+		{CardName: "基本炎エネルギー", Count: 8},
+		{CardName: "トレーナーズA", Count: 4},
+	}
+
+	cards, warnings, err := resolveGeneratedDeck(suggestions, "炎デッキ")
+	if err != nil {
+		t.Fatalf("resolveGeneratedDeck returned error: %v", err)
+	}
+	if total := totalDeckCount(cards); total >= generatedDeckSize {
+		t.Fatalf("total = %d; want under %d", total, generatedDeckSize)
+	}
+	if !hasWarningType(warnings, "generated_deck_under_60") {
+		t.Fatalf("warnings = %#v; want generated_deck_under_60", warnings)
+	}
+}
+
 func TestBuildDeckGenerationPromptIncludesDetailedThemeRules(t *testing.T) {
 	prompt := buildDeckGenerationPrompt("炎デッキ", nil)
 
@@ -269,6 +294,15 @@ func withSearchCards(t *testing.T, fn func(string, string) ([]Card, error)) {
 	t.Cleanup(func() {
 		searchCards = original
 	})
+}
+
+func hasWarningType(warnings []generateDeckWarning, warningType string) bool {
+	for _, warning := range warnings {
+		if warning.Type == warningType {
+			return true
+		}
+	}
+	return false
 }
 
 func TestTrimDeckToSize(t *testing.T) {

@@ -866,6 +866,12 @@ func resolveGeneratedDeck(suggestions []suggestedCard, theme string) ([]DeckCard
 	deckCards = normalizeCards(deckCards)
 	deckCards, warnings = enforceGeneratedEnergyLimit(deckCards, warnings)
 	deckCards, warnings = enforceGeneratedDeckSize(deckCards, theme, warnings)
+	if total := totalDeckCount(deckCards); total < generatedDeckSize {
+		warnings = append(warnings, generateDeckWarning{
+			Type:    "generated_deck_under_60",
+			Message: fmt.Sprintf("AI生成デッキが60枚未満のため、現在%d枚の構成として返しました", total),
+		})
+	}
 	if err := validateGeneratedDeckCards(deckCards); err != nil {
 		return nil, warnings, err
 	}
@@ -1174,9 +1180,6 @@ func validateGeneratedDeckCards(cards []DeckCard) error {
 	}
 	if energyTotal := totalEnergyCount(cards); energyTotal > maxGeneratedEnergyCards {
 		return fmt.Errorf("AI生成デッキのエネルギー枚数が%d枚を超えています（現在%d枚）", maxGeneratedEnergyCards, energyTotal)
-	}
-	if total := totalDeckCount(cards); total != 60 {
-		return fmt.Errorf("AI生成デッキの合計枚数が60枚ではありません（現在%d枚）", total)
 	}
 	return nil
 }
