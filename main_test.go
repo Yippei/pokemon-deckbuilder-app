@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -79,6 +80,93 @@ func TestEnforceGeneratedEnergyLimitTrimsEnergyToEleven(t *testing.T) {
 	}
 }
 
+func TestEnforceGeneratedDeckSizeFillsToSixtyWithStandardFiller(t *testing.T) {
+	withSearchCards(t, func(name, pg string) ([]Card, error) {
+		return []Card{{CardID: "stub-" + name, Name: name, CardType: "トレーナーズ"}}, nil
+	})
+
+	cards := []DeckCard{
+		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 11},
+		{CardID: "pokemon-a", CardName: "たねポケモンA", Count: 4},
+		{CardID: "pokemon-b", CardName: "たねポケモンB", Count: 4},
+		{CardID: "pokemon-c", CardName: "たねポケモンC", Count: 4},
+		{CardID: "pokemon-d", CardName: "たねポケモンD", Count: 4},
+		{CardID: "trainer-a", CardName: "トレーナーズA", Count: 4},
+		{CardID: "trainer-b", CardName: "トレーナーズB", Count: 4},
+		{CardID: "trainer-c", CardName: "トレーナーズC", Count: 4},
+		{CardID: "trainer-d", CardName: "トレーナーズD", Count: 4},
+		{CardID: "trainer-e", CardName: "トレーナーズE", Count: 4},
+		{CardID: "trainer-f", CardName: "トレーナーズF", Count: 4},
+		{CardID: "trainer-g", CardName: "トレーナーズG", Count: 4},
+		{CardID: "trainer-h", CardName: "トレーナーズH", Count: 1},
+	}
+
+	filled, warnings := enforceGeneratedDeckSize(cards, "炎デッキ", nil)
+	if total := totalDeckCount(filled); total != generatedDeckSize {
+		t.Fatalf("total = %d; want %d", total, generatedDeckSize)
+	}
+	if totalEnergyCount(filled) != maxGeneratedEnergyCards {
+		t.Fatalf("energy total = %d; want %d", totalEnergyCount(filled), maxGeneratedEnergyCards)
+	}
+	if len(warnings) != 2 ||
+		warnings[0].Type != "filled_existing_cards_to_60" ||
+		warnings[1].Type != "filled_to_60" {
+		t.Fatalf("warnings = %#v; want existing fill then standard filler", warnings)
+	}
+}
+
+func TestEnforceGeneratedDeckSizeFillsExistingCardsWhenFillerSearchFails(t *testing.T) {
+	withSearchCards(t, func(name, pg string) ([]Card, error) {
+		return nil, errors.New("search failed")
+	})
+
+	cards := []DeckCard{
+		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 11},
+		{CardID: "pokemon-a", CardName: "たねポケモンA", Count: 3},
+		{CardID: "pokemon-b", CardName: "たねポケモンB", Count: 3},
+		{CardID: "pokemon-c", CardName: "たねポケモンC", Count: 3},
+		{CardID: "pokemon-d", CardName: "たねポケモンD", Count: 3},
+		{CardID: "trainer-a", CardName: "トレーナーズA", Count: 3},
+		{CardID: "trainer-b", CardName: "トレーナーズB", Count: 3},
+		{CardID: "trainer-c", CardName: "トレーナーズC", Count: 3},
+		{CardID: "trainer-d", CardName: "トレーナーズD", Count: 3},
+		{CardID: "trainer-e", CardName: "トレーナーズE", Count: 3},
+		{CardID: "trainer-f", CardName: "トレーナーズF", Count: 3},
+		{CardID: "trainer-g", CardName: "トレーナーズG", Count: 3},
+		{CardID: "trainer-i", CardName: "トレーナーズI", Count: 3},
+		{CardID: "trainer-h", CardName: "トレーナーズH", Count: 1},
+	}
+
+	filled, warnings := enforceGeneratedDeckSize(cards, "炎デッキ", nil)
+	if total := totalDeckCount(filled); total != generatedDeckSize {
+		t.Fatalf("total = %d; want %d", total, generatedDeckSize)
+	}
+	if totalEnergyCount(filled) != maxGeneratedEnergyCards {
+		t.Fatalf("energy total = %d; want %d", totalEnergyCount(filled), maxGeneratedEnergyCards)
+	}
+	if len(warnings) != 1 || warnings[0].Type != "filled_existing_cards_to_60" {
+		t.Fatalf("warnings = %#v; want filled_existing_cards_to_60", warnings)
+	}
+}
+
+func TestEnforceGeneratedDeckSizeDoesNotAddEnergy(t *testing.T) {
+	withSearchCards(t, func(name, pg string) ([]Card, error) {
+		return nil, errors.New("search failed")
+	})
+
+	cards := []DeckCard{
+		{CardID: "basic-fire", CardName: "基本炎エネルギー", Count: 8},
+		{CardID: "pokemon-a", CardName: "たねポケモンA", Count: 4},
+		{CardID: "pokemon-b", CardName: "たねポケモンB", Count: 4},
+		{CardID: "trainer-a", CardName: "トレーナーズA", Count: 4},
+	}
+
+	filled, _ := enforceGeneratedDeckSize(cards, "炎デッキ", nil)
+	if energyTotal := totalEnergyCount(filled); energyTotal != 8 {
+		t.Fatalf("energy total = %d; want 8", energyTotal)
+	}
+}
+
 func TestBuildDeckGenerationPromptIncludesDetailedThemeRules(t *testing.T) {
 	prompt := buildDeckGenerationPrompt("炎デッキ", nil)
 
@@ -89,6 +177,10 @@ func TestBuildDeckGenerationPromptIncludesDetailedThemeRules(t *testing.T) {
 		"スタンダードレギュレーションのティア表・入賞デッキ傾向を参考",
 		"入力キーワードにタイプ（炎・水・草・雷・超・闘・悪・鋼など）が含まれる場合、そのタイプと関係ないタイプのポケモンは構築に入れない",
 		"入力キーワードに特定のポケモン名が含まれる場合は、そのポケモンを最優先で採用",
+		"ポケモンは最低9枚以上入れること",
+		"グッズは効果が重複しすぎないよう最低5種類以上入れること",
+		"サポートは役割が偏らないよう最低5種類以上入れること",
+		"AI出力後の不足補完でエネルギーを増やさない前提",
 		"ポケモンを山札から呼び出すグッズカード",
 		"必ず2種類以上入れること",
 		"トラッシュからポケモンまたはエネルギーカードを手札または山札に戻すグッズカード",
@@ -126,6 +218,16 @@ func TestBuildDeckGenerationPromptIncludesDetailedThemeRules(t *testing.T) {
 			t.Fatalf("prompt contains forbidden card name %q\nprompt:\n%s", name, prompt)
 		}
 	}
+}
+
+func withSearchCards(t *testing.T, fn func(string, string) ([]Card, error)) {
+	t.Helper()
+
+	original := searchCards
+	searchCards = fn
+	t.Cleanup(func() {
+		searchCards = original
+	})
 }
 
 func TestTrimDeckToSize(t *testing.T) {
