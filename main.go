@@ -850,10 +850,6 @@ func resolveGeneratedDeck(suggestions []suggestedCard, theme string) ([]DeckCard
 			continue
 		}
 		if len(results) == 0 {
-			warnings = append(warnings, generateDeckWarning{
-				Type:    "card_not_found",
-				Message: fmt.Sprintf("%s がスタンダードの公式カード検索で見つからなかったため除外しました", name),
-			})
 			continue
 		}
 

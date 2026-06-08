@@ -167,6 +167,46 @@ func TestEnforceGeneratedDeckSizeDoesNotAddEnergy(t *testing.T) {
 	}
 }
 
+func TestResolveGeneratedDeckSuppressesStandardNotFoundWarnings(t *testing.T) {
+	withSearchCards(t, func(name, pg string) ([]Card, error) {
+		if name == "スタンダード外カード" {
+			return []Card{}, nil
+		}
+		return []Card{{CardID: "stub-" + name, Name: name, CardType: "トレーナーズ"}}, nil
+	})
+
+	suggestions := []suggestedCard{
+		{CardName: "基本炎エネルギー", Count: 11},
+		{CardName: "たねポケモンA", Count: 4},
+		{CardName: "たねポケモンB", Count: 4},
+		{CardName: "たねポケモンC", Count: 4},
+		{CardName: "たねポケモンD", Count: 4},
+		{CardName: "トレーナーズA", Count: 4},
+		{CardName: "トレーナーズB", Count: 4},
+		{CardName: "トレーナーズC", Count: 4},
+		{CardName: "トレーナーズD", Count: 4},
+		{CardName: "トレーナーズE", Count: 4},
+		{CardName: "トレーナーズF", Count: 4},
+		{CardName: "トレーナーズG", Count: 4},
+		{CardName: "トレーナーズH", Count: 4},
+		{CardName: "トレーナーズI", Count: 1},
+		{CardName: "スタンダード外カード", Count: 1},
+	}
+
+	cards, warnings, err := resolveGeneratedDeck(suggestions, "炎デッキ")
+	if err != nil {
+		t.Fatalf("resolveGeneratedDeck returned error: %v", err)
+	}
+	if total := totalDeckCount(cards); total != generatedDeckSize {
+		t.Fatalf("total = %d; want %d", total, generatedDeckSize)
+	}
+	for _, warning := range warnings {
+		if warning.Type == "card_not_found" {
+			t.Fatalf("warnings contain card_not_found: %#v", warnings)
+		}
+	}
+}
+
 func TestBuildDeckGenerationPromptIncludesDetailedThemeRules(t *testing.T) {
 	prompt := buildDeckGenerationPrompt("炎デッキ", nil)
 
