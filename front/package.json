@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:aws": "next build --webpack",
+    "deploy:aws": "bash ./scripts/deploy-aws.sh",
     "start": "next start",
     "lint": "eslint"
   },

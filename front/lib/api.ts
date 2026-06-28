@@ -1,3 +1,5 @@
+import { getIdToken, login } from "@/lib/auth";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export type Card = {
@@ -6,6 +8,17 @@ export type Card = {
   regulation?: string;
   cardType?: string;
   illustration?: string;
+};
+
+export type CardDetail = {
+  cardId: string;
+  name?: string;
+  cardKind?: string;
+  subKind?: string;
+  stage: string;
+  stageCategory?: "basic" | "evolution" | "unknown";
+  stageOrder?: number;
+  hp?: number | null;
 };
 
 export type DeckCard = {
@@ -34,6 +47,13 @@ export type GenerateDeckResult = {
   warnings?: GenerateDeckWarning[];
 };
 
+export type GenerateDeckContext = {
+  selectedType?: string;
+  selectedPlan?: string;
+  pokemonName?: string;
+  supplementalTheme?: string;
+};
+
 export function isBasicEnergyName(name?: string): boolean {
   const normalized = (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
   return normalized.includes("基本") && normalized.includes("エネルギー");
@@ -49,13 +69,20 @@ export async function searchCards(params: { name?: string; pg?: number }): Promi
   if (params.name) query.set("name", params.name);
   if (params.pg) query.set("pg", String(params.pg));
 
-  const res = await fetch(`${API_URL}/cards?${query}`);
+  const res = await authFetch(`${API_URL}/cards?${query}`);
   if (!res.ok) throw new Error("カードの取得に失敗しました");
   const data = await res.json();
   return data.items;
 }
 
-// デッキ一覧はAPIにないので作成済みIDをlocalStorageで管理
+// カード詳細
+export async function getCardDetail(cardId: string): Promise<CardDetail> {
+  const res = await authFetch(`${API_URL}/cards/${encodeURIComponent(cardId)}`);
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "カード詳細の取得に失敗しました"));
+  return res.json();
+}
+
+// 旧ローカル保存との互換用。一覧表示はAPIから取得する。
 export function getSavedDeckIds(): string[] {
   if (typeof window === "undefined") return [];
   try {
@@ -93,16 +120,24 @@ export function removeDeckId(deckId: string) {
   }
 }
 
+// デッキ一覧
+export async function listDecks(): Promise<Deck[]> {
+  const res = await authFetch(`${API_URL}/decks`);
+  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキ一覧の取得に失敗しました"));
+  const data = await res.json();
+  return Array.isArray(data.items) ? data.items : [];
+}
+
 // デッキ取得
 export async function getDeck(deckId: string): Promise<Deck> {
-  const res = await fetch(`${API_URL}/decks/${deckId}`);
+  const res = await authFetch(`${API_URL}/decks/${deckId}`);
   if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの取得に失敗しました"));
   return res.json();
 }
 
 // デッキ作成
-export async function createDeck(body: { ownerId: string; name: string; cards: DeckCard[] }): Promise<Deck> {
-  const res = await fetch(`${API_URL}/decks`, {
+export async function createDeck(body: { name: string; cards: DeckCard[] }): Promise<Deck> {
+  const res = await authFetch(`${API_URL}/decks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -113,7 +148,7 @@ export async function createDeck(body: { ownerId: string; name: string; cards: D
 
 // デッキ更新
 export async function updateDeck(deckId: string, body: { name?: string; cards?: DeckCard[] }): Promise<Deck> {
-  const res = await fetch(`${API_URL}/decks/${deckId}`, {
+  const res = await authFetch(`${API_URL}/decks/${deckId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -124,19 +159,41 @@ export async function updateDeck(deckId: string, body: { name?: string; cards?: 
 
 // デッキ削除
 export async function deleteDeck(deckId: string): Promise<void> {
-  const res = await fetch(`${API_URL}/decks/${deckId}`, { method: "DELETE" });
+  const res = await authFetch(`${API_URL}/decks/${deckId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの削除に失敗しました"));
 }
 
 // デッキ自動生成
-export async function generateDeck(body: { theme: string; existingDeck?: DeckCard[] }): Promise<GenerateDeckResult> {
-  const res = await fetch(`${API_URL}/decks/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成に失敗しました"));
-  return res.json();
+export async function generateDeck(body: {
+  theme: string;
+  existingDeck?: DeckCard[];
+  generationContext?: GenerateDeckContext;
+}): Promise<GenerateDeckResult> {
+  try {
+    const res = await authFetch(`${API_URL}/decks/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成に失敗しました"));
+    return res.json();
+  } catch (error) {
+    throw new Error(toJapaneseFetchError(error, "デッキの生成に失敗しました"));
+  }
+}
+
+async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const token = getIdToken();
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401 && typeof window !== "undefined") {
+    await login();
+  }
+  return res;
 }
 
 async function getAPIErrorMessage(res: Response, fallback: string): Promise<string> {
@@ -145,5 +202,13 @@ async function getAPIErrorMessage(res: Response, fallback: string): Promise<stri
     if (typeof data?.error === "string" && data.error) return data.error;
   } catch {
   }
+  return fallback;
+}
+
+function toJapaneseFetchError(error: unknown, fallback: string): string {
+  if (error instanceof TypeError && /fetch/i.test(error.message)) {
+    return "APIに接続できませんでした。ログイン状態または通信環境を確認してください。";
+  }
+  if (error instanceof Error && error.message) return error.message;
   return fallback;
 }

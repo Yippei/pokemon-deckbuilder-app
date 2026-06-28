@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId, generateDeck, maxCountForCard } from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
+import AuthGate from "@/components/AuthGate";
+import AuthStatus from "@/components/AuthStatus";
 
 export default function DeckPage() {
   const router = useRouter();
@@ -17,15 +19,28 @@ export default function DeckPage() {
     "ultra",
     "great",
   ];
+  const deckTypes = [
+    { type: "normal", label: "無", color: "#9ca3af", light: "#d1d5db" },
+    { type: "fire", label: "炎", color: "#ef4444", light: "#fb923c" },
+    { type: "water", label: "水", color: "#2563eb", light: "#38bdf8" },
+    { type: "grass", label: "草", color: "#16a34a", light: "#86efac" },
+    { type: "fighting", label: "闘", color: "#c2410c", light: "#fb923c" },
+    { type: "psychic", label: "超", color: "#db2777", light: "#f9a8d4" },
+    { type: "dark", label: "悪", color: "#1f2937", light: "#64748b" },
+    { type: "dragon", label: "ドラゴン", color: "#d97706", light: "#fde68a" },
+    { type: "electric", label: "雷", color: "#facc15", light: "#fef08a" },
+  ];
 
   const [id, setId] = useState("");
   const [deck, setDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
   const [cards, setCards] = useState<DeckCard[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // AI改善
   const [theme, setTheme] = useState("");
@@ -80,8 +95,9 @@ export default function DeckPage() {
     setGenerateWarnings([]);
     setGenerating(true);
     try {
+      const typeLabel = deckTypes.find((deckType) => deckType.type === selectedType)?.label;
       const generated = await generateDeck({
-        theme: theme.trim() || name,
+        theme: theme.trim() || [typeLabel, name].filter(Boolean).join(" ") || name,
         existingDeck: cards,
       });
       setCards(generated.cards);
@@ -113,7 +129,7 @@ export default function DeckPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("このデッキを削除しますか？")) return;
+    setDeleteConfirmOpen(false);
     try {
       await deleteDeck(id);
       removeDeckId(id);
@@ -127,6 +143,7 @@ export default function DeckPage() {
   if (!deck) return null;
 
   return (
+    <AuthGate>
     <main className="deck-create-bg min-h-screen">
       <div className="pokeball-field" aria-hidden="true">
         {backgroundBalls.map((variant, index) => (
@@ -148,6 +165,7 @@ export default function DeckPage() {
             deck.name
           )}
         </h1>
+        <AuthStatus compact />
         {!editing && (
           <button
             onClick={() => setEditing(true)}
@@ -196,6 +214,39 @@ export default function DeckPage() {
               AIがデッキを分析しています...しばらくお待ちください
             </p>
           )}
+        </div>
+      )}
+
+      {/* タイプ選択（編集中のみ） */}
+      {editing && (
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-slate-900 mb-2">タイプ選択</label>
+          <div className="flex flex-wrap gap-2">
+            {deckTypes.map((deckType) => (
+              <button
+                key={deckType.type}
+                type="button"
+                onClick={() => setSelectedType(deckType.type)}
+                className={`type-action-button type-action-${deckType.type} flex h-10 w-[116px] shrink-0 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 ${
+                  selectedType === deckType.type ? "bg-white text-gray-950" : "bg-white/80 text-slate-700"
+                } ${selectedType === deckType.type ? "type-filter-active" : ""}`}
+                style={{
+                  borderColor: selectedType === deckType.type ? deckType.color : "rgba(148, 163, 184, 0.45)",
+                  boxShadow: selectedType === deckType.type ? `0 0 0 2px ${deckType.light}` : undefined,
+                }}
+              >
+                <span
+                  className="h-3.5 w-3.5 rounded-full"
+                  style={{
+                    background: `linear-gradient(135deg, ${deckType.light}, ${deckType.color})`,
+                    boxShadow: "inset 0 0 0 1px rgba(15, 23, 42, 0.18)",
+                  }}
+                  aria-hidden="true"
+                />
+                <span>{deckType.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -270,16 +321,50 @@ export default function DeckPage() {
           >
             キャンセル
           </button>
+          <button
+            onClick={() => setDeleteConfirmOpen(true)}
+            className="px-6 bg-red-50 hover:bg-red-100 text-red-600 rounded font-medium"
+          >
+            デッキ削除
+          </button>
         </div>
-      ) : (
-        <button
-          onClick={handleDelete}
-          className="w-full bg-red-50 hover:bg-red-100 text-red-500 py-3 rounded font-medium"
-        >
-          デッキを削除する
-        </button>
+      ) : null}
+
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl"
+          >
+            <h2 id="delete-dialog-title" className="mb-3 text-lg font-bold text-slate-950">
+              デッキを削除した場合、復元できません。本当に宜しいですか？
+            </h2>
+            <p className="mb-6 text-sm text-slate-600">
+              この操作は取り消せません。削除するとデッキは完全に消えます。
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                className="flex-1 rounded border border-slate-200 bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="flex-1 rounded bg-red-500 px-4 py-3 font-medium text-white hover:bg-red-600"
+              >
+                削除
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       </div>
     </main>
+    </AuthGate>
   );
 }

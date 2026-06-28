@@ -1,5 +1,8 @@
 # Render integrated deploy
 
+> 注意: この文書はRender統合時代の記録です。  
+> 現在の本番系は AWS サーバーレス配信です。
+
 Renderの1つのWeb Serviceで、Go APIとフロントエンドを同じURLから配信します。
 
 ```text

@@ -33,4 +33,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy to AWS
+
+AWS 本番へ同期する場合は、フロントディレクトリで次を実行します。
+
+```bash
+npm run deploy:aws
+```
+
+このコマンドは `build:aws` を実行してから、S3 同期と CloudFront 無効化までまとめて行います。
+
+## GitHub Actions
+
+`main` ブランチへ push すると、自動で AWS 本番へ同期する workflow を用意しています。
+
+必要な GitHub Secrets:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `FRONTEND_BUCKET_NAME`
+- `FRONTEND_CLOUDFRONT_DISTRIBUTION_ID`

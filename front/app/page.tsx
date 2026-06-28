@@ -3,7 +3,9 @@
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Deck, getDeck, getSavedDeckIds, removeDeckId } from "@/lib/api";
+import { Deck, listDecks } from "@/lib/api";
+import { isAuthConfigured, isLoggedIn } from "@/lib/auth";
+import AuthStatus from "@/components/AuthStatus";
 
 const deckTypes = [
   { type: "all", label: "全て", color: "#3b82f6", light: "#bfdbfe", keywords: [] },
@@ -19,15 +21,34 @@ const deckTypes = [
 ];
 
 const typeMarks = [
-  { type: "normal", size: "72px", rotate: "-14deg", top: "7%", left: "5%" },
-  { type: "fire", size: "90px", rotate: "18deg", top: "13%", right: "14%" },
-  { type: "water", size: "58px", rotate: "-28deg", top: "30%", left: "18%" },
-  { type: "grass", size: "64px", rotate: "31deg", top: "56%", right: "8%" },
-  { type: "fighting", size: "54px", rotate: "15deg", top: "6%", left: "39%" },
-  { type: "psychic", size: "54px", rotate: "9deg", top: "23%", right: "34%" },
-  { type: "dark", size: "58px", rotate: "-25deg", top: "42%", left: "37%" },
-  { type: "dragon", size: "96px", rotate: "22deg", bottom: "-24px", left: "43%" },
-  { type: "electric", size: "104px", rotate: "8deg", top: "44%", left: "-26px" },
+  { type: "normal", size: "74px", rotate: "-14deg", top: "6%", left: "4%", opacity: 0.18 },
+  { type: "fire", size: "94px", rotate: "18deg", top: "11%", right: "13%", opacity: 0.16 },
+  { type: "water", size: "66px", rotate: "-28deg", top: "28%", left: "16%", opacity: 0.14 },
+  { type: "grass", size: "72px", rotate: "31deg", top: "54%", right: "9%", opacity: 0.15 },
+  { type: "fighting", size: "54px", rotate: "15deg", top: "6%", left: "40%", opacity: 0.13 },
+  { type: "psychic", size: "58px", rotate: "9deg", top: "21%", right: "34%", opacity: 0.14 },
+  { type: "dark", size: "62px", rotate: "-25deg", top: "41%", left: "36%", opacity: 0.14 },
+  { type: "dragon", size: "100px", rotate: "22deg", bottom: "-22px", left: "42%", opacity: 0.18 },
+  { type: "electric", size: "112px", rotate: "8deg", top: "44%", left: "-28px", opacity: 0.2 },
+  { type: "ice", size: "66px", rotate: "-10deg", top: "68%", left: "10%", opacity: 0.12 },
+  { type: "poison", size: "58px", rotate: "16deg", top: "72%", right: "18%", opacity: 0.12 },
+  { type: "ground", size: "62px", rotate: "-20deg", top: "18%", left: "56%", opacity: 0.11 },
+  { type: "flying", size: "54px", rotate: "26deg", top: "17%", left: "72%", opacity: 0.12 },
+  { type: "bug", size: "62px", rotate: "12deg", top: "34%", right: "3%", opacity: 0.12 },
+  { type: "rock", size: "58px", rotate: "-16deg", top: "82%", left: "32%", opacity: 0.12 },
+  { type: "ghost", size: "60px", rotate: "7deg", top: "78%", right: "34%", opacity: 0.11 },
+  { type: "steel", size: "70px", rotate: "-8deg", top: "2%", right: "46%", opacity: 0.12 },
+  { type: "fairy", size: "56px", rotate: "20deg", top: "61%", left: "48%", opacity: 0.13 },
+];
+
+const starterRules = [
+  "カードを大切に扱う",
+  "シャッフルはしっかり行なってから相手にカットしてもらう",
+  "対戦相手へのリスペクトを忘れない",
+  "ワザやカードの効果をしっかり宣言する",
+  "カードの効果がわからないときはジャッジもしくはQ&Aを確認",
+  "ダメージ計算を正確に行う",
+  "楽しむ心を忘れない！！",
 ];
 
 function getInitialSelectedType() {
@@ -36,46 +57,29 @@ function getInitialSelectedType() {
   return type && deckTypes.some((deckType) => deckType.type === type) ? type : "all";
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      window.setTimeout(() => reject(new Error("デッキ取得がタイムアウトしました")), ms);
-    }),
-  ]);
-}
-
 export default function Home() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [selectedType, setSelectedType] = useState(getInitialSelectedType);
+  const [playTipsOpen, setPlayTipsOpen] = useState(false);
 
   useEffect(() => {
     const fetchDecks = async () => {
-      const ids = getSavedDeckIds();
-      if (ids.length === 0) {
+      if (isAuthConfigured() && !isLoggedIn()) {
         setDecks([]);
         setLoading(false);
         return;
       }
 
-      const results = await Promise.allSettled(ids.map((id) => withTimeout(getDeck(id), 8000)));
-      const loaded: Deck[] = [];
-      let failedCount = 0;
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
-          loaded.push(r.value);
-        } else {
-          failedCount += 1;
-          removeDeckId(ids[i]);
-        }
-      });
-      setDecks(loaded);
-      if (failedCount > 0) {
-        setLoadError(`${failedCount}件のデッキを取得できませんでした。`);
+      try {
+        setDecks(await listDecks());
+      } catch {
+        setDecks([]);
+        setLoadError("デッキ一覧を取得できませんでした。");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchDecks();
   }, []);
@@ -103,6 +107,9 @@ export default function Home() {
   const getTypeDeckCount = (type: string) => (
     type === "all" ? decks.length : decks.filter((deck) => inferDeckType(deck) === type).length
   );
+  const totalCards = decks.reduce((sum, deck) => (
+    sum + deck.cards.reduce((cardSum, card) => cardSum + card.count, 0)
+  ), 0);
 
   return (
     <main className="home-type-bg min-h-screen">
@@ -114,6 +121,7 @@ export default function Home() {
             style={{
               "--type-size": mark.size,
               "--type-rotation": mark.rotate,
+              opacity: mark.opacity,
               top: mark.top,
               right: mark.right,
               bottom: mark.bottom,
@@ -122,25 +130,166 @@ export default function Home() {
           />
         ))}
       </div>
-      <div className="home-content max-w-2xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-950">デッキ一覧</h1>
-          <Link
-            href="/decks/new"
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            ＋ 新規作成
-          </Link>
+      <div className="home-content mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="home-hero mb-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/78 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+          <div className="home-hero__grid">
+            <div className="home-hero__copy">
+              <div className="home-kicker">POKEMON CARD WORKSHOP</div>
+              <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+                ポケカデッキメーカー
+              </h1>
+              <p className="max-w-2xl text-sm leading-7 text-slate-700 sm:text-base">
+                事故りにくい構成を基準に、タイプやポケモン指定に合わせてデッキを作成します。
+                そのまま使える形に寄せつつ、編集もすぐに始められます。
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  href="/decks/new"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800"
+                >
+                  新規デッキを作成
+                </Link>
+                <a
+                  href="#deck-list"
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-400"
+                >
+                  デッキ一覧を見る
+                </a>
+                <AuthStatus compact />
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="home-metric">
+                  <span className="home-metric__label">デッキ</span>
+                  <span className="home-metric__value">{decks.length}</span>
+                </div>
+                <div className="home-metric">
+                  <span className="home-metric__label">合計枚数</span>
+                  <span className="home-metric__value">{totalCards}</span>
+                </div>
+                <div className="home-metric">
+                  <span className="home-metric__label">表示中</span>
+                  <span className="home-metric__value">{visibleDecks.length}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="home-hero__visual" aria-hidden="true">
+              <div className="home-hero__orb home-hero__orb--top" />
+              <div className="home-hero__orb home-hero__orb--middle" />
+              <div className="home-hero__orb home-hero__orb--bottom" />
+              <div className="home-hero__card">
+                <div className="home-hero__card-top">
+                  <span>STRUCTURE</span>
+                  <span>LIVE</span>
+                </div>
+                <div className="home-hero__card-center">
+                  <div className="home-hero__pokeball">
+                    <span className="home-hero__pokeball-core" />
+                  </div>
+                </div>
+                <div className="home-hero__card-bottom">
+                  <span>POKEMON</span>
+                  <span>CARD</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <section className="rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+            <h2 className="text-lg font-black text-slate-950">ポケモンカードの心得</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-700">
+              対戦前に押さえると、プレイ全体が安定します。
+            </p>
+            <ul className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+              {starterRules.map((rule) => (
+                <li
+                  key={rule}
+                  className="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5"
+                >
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">プレイラボ</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-700">
+                  AI対戦と一人回しをまとめた、練習用の入口です。
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Link
+                  href="/ai-battle-room?mode=ai"
+                  className="inline-flex h-12 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800"
+                >
+                  AI対戦を始める
+                </Link>
+                <Link
+                  href="/ai-battle-room?mode=solo"
+                  className="inline-flex h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-400"
+                >
+                  一人回しを始める
+                </Link>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                AIとの練習と一人回しを切り替えて、動きの確認や調整を行えます。
+              </p>
+            </div>
+          </section>
         </div>
 
-        <div className="mb-6 flex flex-wrap gap-2" aria-label="タイプ別デッキ一覧">
+        <section className="mb-6 rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">プレイワンポイント</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-700">
+                構築とプレイの基準を合わせると、デッキの再現性が上がります。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPlayTipsOpen((open) => !open)}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-lg font-bold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50"
+              aria-expanded={playTipsOpen}
+              aria-controls="play-tips-panel"
+              aria-label={playTipsOpen ? "プレイワンポイントを閉じる" : "プレイワンポイントを開く"}
+            >
+              {playTipsOpen ? "−" : "+"}
+            </button>
+          </div>
+          <div
+            id="play-tips-panel"
+            className={`overflow-hidden transition-all duration-300 ${
+              playTipsOpen ? "mt-4 max-h-80 opacity-100" : "max-h-0 opacity-0"
+            }`}
+            aria-hidden={!playTipsOpen}
+          >
+            <ul className="space-y-2 text-sm leading-6 text-slate-800">
+              <li>デッキテーマをしっかり決め、それに沿って構築やプレイを行う</li>
+              <li>たねポケモンはベンチいっぱいまで置かず、1体置ける余裕をもつ</li>
+              <li>エネルギーを過剰に入れない</li>
+              <li>たねポケモンを呼ぶカードは最低8枚入れる</li>
+              <li>できる限り最大パフォーマンスをし、次のターンに余力を残すことは基本考えない</li>
+              <li>最後まで思考を諦めず、突破口を見落とさない</li>
+            </ul>
+          </div>
+        </section>
+
+        <div className="mb-4 flex flex-wrap gap-2" aria-label="タイプ別デッキ一覧">
           {deckTypes.map((deckType) => (
             <button
               key={deckType.type}
               type="button"
               onClick={() => selectType(deckType.type)}
-              className={`type-action-button type-action-${deckType.type} flex h-10 w-[116px] shrink-0 items-center justify-center gap-2 rounded-lg border px-2 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 ${
-                selectedType === deckType.type ? "bg-white text-gray-950" : "bg-white/80 text-slate-700"
+              className={`type-action-button type-action-${deckType.type} flex h-11 w-[122px] shrink-0 items-center justify-center gap-2 rounded-full border px-3 text-sm font-bold shadow-sm transition hover:-translate-y-0.5 ${
+                selectedType === deckType.type ? "bg-white text-gray-950" : "bg-white/82 text-slate-700"
               } ${selectedType === deckType.type ? "type-filter-active" : ""}`}
               style={{
                 borderColor: selectedType === deckType.type ? deckType.color : "rgba(148, 163, 184, 0.45)",
@@ -165,36 +314,45 @@ export default function Home() {
 
         {loadError && <p className="mb-4 text-sm text-amber-600">{loadError}</p>}
 
-        {!loading && decks.length > 0 && (
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-700">{listTitle}</h2>
-            <span className="text-xs text-slate-500">{visibleDecks.length}件</span>
-          </div>
-        )}
+        <section id="deck-list" className="rounded-[28px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+          {!loading && decks.length > 0 && (
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-700">{listTitle}</h2>
+              <span className="text-xs text-slate-500">{visibleDecks.length}件</span>
+            </div>
+          )}
 
-        {loading ? (
-          <p className="text-gray-500">読み込み中...</p>
-        ) : decks.length === 0 ? (
-          <p className="text-gray-500">デッキがまだありません。新規作成してみましょう！</p>
-        ) : visibleDecks.length === 0 ? (
-          <p className="text-slate-700">{selectedTypeLabel}タイプのデッキはまだありません。</p>
-        ) : (
-          <ul className="space-y-3">
-            {visibleDecks.map((deck) => (
-              <li key={deck.deckId}>
-                <Link
-                  href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
-                  className="block border rounded-lg bg-white p-4 text-slate-950 hover:bg-gray-50 transition"
-                >
-                  <div className="font-semibold text-lg text-slate-950">{deck.name}</div>
-                  <div className="text-sm font-medium text-slate-700 mt-1">
-                    {deck.cards.reduce((sum, c) => sum + c.count, 0)} 枚
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+          {loading ? (
+            <p className="text-gray-500">読み込み中...</p>
+          ) : decks.length === 0 ? (
+            <p className="text-gray-500">デッキがまだありません。新規作成してみましょう！</p>
+          ) : visibleDecks.length === 0 ? (
+            <p className="text-slate-700">{selectedTypeLabel}タイプのデッキはまだありません。</p>
+          ) : (
+            <ul className="space-y-3">
+              {visibleDecks.map((deck) => (
+                <li key={deck.deckId}>
+                  <Link
+                    href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
+                    className="group block rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-slate-950 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-lg font-semibold text-slate-950 group-hover:text-slate-900">{deck.name}</div>
+                        <div className="mt-1 text-sm font-medium text-slate-700">
+                          {deck.cards.reduce((sum, c) => sum + c.count, 0)} 枚
+                        </div>
+                      </div>
+                      <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                        OPEN
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </main>
   );
