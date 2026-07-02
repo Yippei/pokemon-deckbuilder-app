@@ -151,18 +151,18 @@ export default function NewDeckPage() {
         </div>
 
         <div className="deck-create-content mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <header className="mb-6 flex items-center gap-3">
+          <header className="mb-6 flex flex-wrap items-center gap-3">
             <Link
               href="/"
-              className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 text-sm font-bold text-slate-700 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 text-sm font-bold text-slate-700 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
             >
               ← 戻る
             </Link>
-            <div>
+            <div className="min-w-[180px] flex-1">
               <h1 className="text-3xl font-black tracking-tight text-slate-950">デッキ作成</h1>
               <p className="text-sm text-slate-600">AI生成と手動編集を同じ画面で扱う作成スペース</p>
             </div>
-            <div className="ml-auto">
+            <div className="shrink-0 sm:ml-auto">
               <AuthStatus compact />
             </div>
           </header>
@@ -400,9 +400,9 @@ export default function NewDeckPage() {
                     {cards.map((c) => (
                       <li
                         key={c.cardId}
-                        className="deck-card-row flex items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white px-3 py-2 text-black shadow-sm"
+                        className="deck-card-row flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-2 text-black shadow-sm"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex min-w-0 items-center gap-3">
                           {c.illustration && (
                             <img
                               src={c.illustration}

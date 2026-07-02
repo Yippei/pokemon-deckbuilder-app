@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { isAuthConfigured, isLoggedIn, login } from "@/lib/auth";
 
 type Props = {
@@ -8,19 +8,8 @@ type Props = {
 };
 
 export default function AuthGate({ children }: Props) {
-  const [ready, setReady] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [configured, setConfigured] = useState(false);
-
-  useEffect(() => {
-    setConfigured(isAuthConfigured());
-    setLoggedIn(isLoggedIn());
-    setReady(true);
-  }, []);
-
-  if (!ready) {
-    return <p className="p-6 text-gray-500">読み込み中...</p>;
-  }
+  const configured = isAuthConfigured();
+  const loggedIn = useSyncExternalStore(subscribeAuth, isLoggedIn, () => false);
 
   if (!configured) {
     return <>{children}</>;
@@ -47,4 +36,13 @@ export default function AuthGate({ children }: Props) {
   }
 
   return <>{children}</>;
+}
+
+function subscribeAuth(onStoreChange: () => void) {
+  window.addEventListener("auth-changed", onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    window.removeEventListener("auth-changed", onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
 }

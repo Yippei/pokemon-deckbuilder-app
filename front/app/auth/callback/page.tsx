@@ -7,27 +7,26 @@ export default function AuthCallbackPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-    const errorDescription = params.get("error_description") || params.get("error");
+    const completeLogin = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+      const errorDescription = params.get("error_description") || params.get("error");
 
-    if (errorDescription) {
-      setError(errorDescription);
-      return;
-    }
-    if (!code || !state) {
-      setError("ログイン情報が不足しています");
-      return;
-    }
+      if (errorDescription) {
+        throw new Error(errorDescription);
+      }
+      if (!code || !state) {
+        throw new Error("ログイン情報が不足しています");
+      }
 
-    handleAuthCallback(code, state)
-      .then((returnTo) => {
-        window.location.replace(returnTo);
-      })
-      .catch((err) => {
+      const returnTo = await handleAuthCallback(code, state);
+      window.location.replace(returnTo);
+    };
+
+    completeLogin().catch((err) => {
         setError(err instanceof Error ? err.message : "ログインに失敗しました");
-      });
+    });
   }, []);
 
   return (

@@ -27,7 +27,7 @@ body {
 
 .home-type-bg {
   background-color: #f8fafc;
-  overflow: hidden;
+  overflow-x: hidden;
   position: relative;
 }
 
@@ -985,7 +985,7 @@ body {
 
 .home-hero__visual {
   position: relative;
-  min-height: 290px;
+  min-height: 500px;
   overflow: hidden;
   border-top: 1px solid rgba(148, 163, 184, 0.2);
   background:
@@ -1055,6 +1055,102 @@ body {
   height: calc(100% - 92px);
 }
 
+.home-hero__card-center--gyms {
+  align-items: stretch;
+  height: auto;
+  min-height: 248px;
+  padding: 0 16px;
+}
+
+.home-gym-panel {
+  width: 100%;
+  max-width: 340px;
+  align-self: center;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 14px;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
+}
+
+.home-gym-panel__header {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.home-gym-panel__ball {
+  position: relative;
+  width: 54px;
+  aspect-ratio: 1;
+  border: 5px solid #1f2937;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.76) 18%, rgba(255, 255, 255, 0) 36%),
+    linear-gradient(180deg, #ef4444 0 49.5%, #ffffff 49.5% 100%);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+}
+
+.home-gym-panel__ball::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 5px;
+  transform: translateY(-50%);
+  background: #1f2937;
+}
+
+.home-gym-panel__ball .home-hero__pokeball-core {
+  width: 19px;
+  height: 19px;
+  border-width: 4px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+.home-gym-panel__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.92);
+  padding: 8px;
+}
+
+.home-gym-panel__rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.home-gym-panel__guide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #047857;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  transition: background 160ms ease;
+}
+
+.home-gym-panel__guide:hover {
+  background: #065f46;
+}
+
 .home-hero__pokeball {
   position: relative;
   width: min(48vw, 220px);
@@ -1067,6 +1163,27 @@ body {
   box-shadow:
     0 22px 60px rgba(15, 23, 42, 0.18),
     inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.home-hero__pokeball--button {
+  display: block;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.home-hero__pokeball--button:hover {
+  transform: translateY(-4px) rotate(-2deg);
+  box-shadow:
+    0 28px 70px rgba(15, 23, 42, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.home-hero__pokeball--button:focus-visible {
+  outline: 4px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 6px;
 }
 
 .home-hero__pokeball::before {
@@ -1259,6 +1376,7 @@ body {
   background:
     radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.08), transparent 30%),
     linear-gradient(180deg, rgba(9, 51, 36, 0.9), rgba(7, 36, 25, 0.96));
+  overflow: visible;
 }
 
 .solo-active-slot__title {
@@ -1283,7 +1401,7 @@ body {
 
 .solo-bench-slot {
   position: relative;
-  min-height: 72px;
+  min-height: 96px;
   border-radius: 16px;
   border: 1px dashed rgba(255, 255, 255, 0.16);
   background:
@@ -1293,6 +1411,7 @@ body {
   align-items: flex-end;
   justify-content: flex-end;
   padding: 8px;
+  overflow: hidden;
 }
 
 .solo-bench-slot--clickable {
@@ -1462,6 +1581,14 @@ body {
   min-height: 104px;
 }
 
+.solo-board-stack--active {
+  overflow: visible;
+}
+
+.solo-board-stack--bench {
+  margin-bottom: 12px;
+}
+
 .solo-board-stack__count {
   position: absolute;
   right: 6px;
@@ -1478,6 +1605,102 @@ body {
   font-weight: 800;
   color: #fff;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.solo-board-energies {
+  position: absolute;
+  pointer-events: none;
+}
+
+.solo-board-energies--active {
+  left: 56px;
+  top: 10px;
+  z-index: 1;
+  width: 48px;
+  height: 78px;
+}
+
+.solo-board-energies--bench {
+  left: 7px;
+  bottom: -15px;
+  z-index: 1;
+  width: 60px;
+  height: 38px;
+}
+
+.solo-board-energy-card {
+  position: absolute;
+  display: block;
+  width: 42px;
+  height: 58px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  background: rgba(254, 243, 199, 0.92);
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.22);
+}
+
+.solo-board-energies--active .solo-board-energy-card {
+  left: calc(var(--energy-index) * 8px);
+  top: calc(var(--energy-index) * 5px);
+  transform: rotate(4deg);
+}
+
+.solo-board-energies--bench .solo-board-energy-card {
+  left: calc(var(--energy-index) * 8px);
+  top: calc(var(--energy-index) * 4px);
+}
+
+.solo-card-face--attached-energy {
+  width: 42px;
+  min-height: 58px;
+  border-radius: 7px;
+}
+
+.solo-board-energy-count {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  min-width: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 900;
+  color: #fef3c7;
+}
+
+.solo-board-energy-count--active {
+  right: -18px;
+  bottom: 0;
+}
+
+.solo-board-energy-count--bench {
+  right: -4px;
+  bottom: 2px;
+}
+
+.solo-board-tool {
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  z-index: 3;
+  max-width: 92px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(191, 219, 254, 0.42);
+  background: rgba(15, 23, 42, 0.88);
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #dbeafe;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.22);
 }
 
 .solo-trash-modal {
@@ -1517,8 +1740,27 @@ body {
 }
 
 @media (max-width: 768px) {
+  .solo-playmat-shell {
+    border-radius: 20px;
+    padding: 10px;
+  }
+
+  .solo-playmat {
+    gap: 10px;
+    padding: 10px;
+    border-radius: 18px;
+  }
+
   .solo-playmat__board {
     grid-template-columns: 1fr;
+  }
+
+  .solo-bench-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .solo-bench-slot {
+    min-height: 112px;
   }
 
   .solo-trash-modal {
@@ -2261,7 +2503,7 @@ body {
 
 .deck-create-bg {
   background-color: #f8fafc;
-  overflow: hidden;
+  overflow-x: hidden;
   position: relative;
 }
 
@@ -2593,6 +2835,16 @@ body {
 
 .deck-card-actions {
   flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .deck-card-row {
+    gap: 8px;
+  }
+
+  .deck-card-actions {
+    gap: 6px;
+  }
 }
 
 .deck-action-button {

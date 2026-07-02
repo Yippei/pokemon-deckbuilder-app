@@ -1,9 +1,9 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Deck, listDecks } from "@/lib/api";
+import { Deck, deleteDeck, listDecks, removeDeckId } from "@/lib/api";
 import { isAuthConfigured, isLoggedIn } from "@/lib/auth";
 import AuthStatus from "@/components/AuthStatus";
 
@@ -51,10 +51,63 @@ const starterRules = [
   "楽しむ心を忘れない！！",
 ];
 
+type CardGym = {
+  id: string;
+  name: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  officialUrl?: string;
+};
+
+type CardGymMaster = {
+  gyms?: CardGym[];
+};
+
+type UserLocation = {
+  lat: number;
+  lng: number;
+};
+
 function getInitialSelectedType() {
   if (typeof window === "undefined") return "all";
   const type = new URLSearchParams(window.location.search).get("type");
   return type && deckTypes.some((deckType) => deckType.type === type) ? type : "all";
+}
+
+function getDistanceKm(from: UserLocation, to: Pick<CardGym, "lat" | "lng">) {
+  const earthRadiusKm = 6371;
+  const toRadians = (degree: number) => (degree * Math.PI) / 180;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLng = toRadians(to.lng - from.lng);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(km: number) {
+  if (!Number.isFinite(km)) return "-";
+  return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(km < 10 ? 1 : 0)}km`;
+}
+
+function buildMapsSearchUrl(location?: UserLocation | null) {
+  const query = location
+    ? `ポケモンカードジム ${location.lat.toFixed(5)},${location.lng.toFixed(5)}`
+    : "ポケモンカードジム";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function buildMapsDirectionsUrl(gym: CardGym, location?: UserLocation | null) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${gym.lat},${gym.lng}`,
+    travelmode: "transit",
+  });
+  if (location) {
+    params.set("origin", `${location.lat},${location.lng}`);
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 export default function Home() {
@@ -63,6 +116,11 @@ export default function Home() {
   const [loadError, setLoadError] = useState("");
   const [selectedType, setSelectedType] = useState(getInitialSelectedType);
   const [playTipsOpen, setPlayTipsOpen] = useState(false);
+  const [deletingDeckId, setDeletingDeckId] = useState<string | null>(null);
+  const [cardGyms, setCardGyms] = useState<CardGym[]>([]);
+  const [gymMasterLoading, setGymMasterLoading] = useState(false);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [locationStatus, setLocationStatus] = useState("");
 
   useEffect(() => {
     const fetchDecks = async () => {
@@ -82,6 +140,33 @@ export default function Home() {
       }
     };
     fetchDecks();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadGyms = async () => {
+      setGymMasterLoading(true);
+      try {
+        const res = await fetch("/card-gyms.json", { cache: "force-cache" });
+        if (!res.ok) throw new Error("card-gyms.json を取得できませんでした");
+        const data = (await res.json()) as CardGymMaster;
+        if (!cancelled) {
+          setCardGyms(Array.isArray(data.gyms) ? data.gyms : []);
+        }
+      } catch {
+        if (!cancelled) {
+          setCardGyms([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setGymMasterLoading(false);
+        }
+      }
+    };
+    loadGyms();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const inferDeckType = (deck: Deck) => {
@@ -110,6 +195,53 @@ export default function Home() {
   const totalCards = decks.reduce((sum, deck) => (
     sum + deck.cards.reduce((cardSum, card) => cardSum + card.count, 0)
   ), 0);
+  const nearestGyms = useMemo(() => {
+    if (!userLocation) {
+      return cardGyms.slice(0, 5).map((gym) => ({ gym, distanceKm: null as number | null }));
+    }
+    return cardGyms
+      .map((gym) => ({ gym, distanceKm: getDistanceKm(userLocation, gym) }))
+      .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0))
+      .slice(0, 5);
+  }, [cardGyms, userLocation]);
+
+  const locateUser = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationStatus("このブラウザでは現在地を取得できません。");
+      return;
+    }
+    setLocationStatus("現在地を取得しています。");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setLocationStatus("現在地を取得しました。");
+      },
+      () => {
+        setLocationStatus("現在地の取得が許可されませんでした。Googleマップ検索は利用できます。");
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
+  const handleDeleteDeck = async (deck: Deck) => {
+    const ok = window.confirm(`「${deck.name}」を削除しますか？`);
+    if (!ok) return;
+
+    setLoadError("");
+    setDeletingDeckId(deck.deckId);
+    try {
+      await deleteDeck(deck.deckId);
+      removeDeckId(deck.deckId);
+      setDecks((currentDecks) => currentDecks.filter((currentDeck) => currentDeck.deckId !== deck.deckId));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "デッキの削除に失敗しました。");
+    } finally {
+      setDeletingDeckId(null);
+    }
+  };
 
   return (
     <main className="home-type-bg min-h-screen">
@@ -173,23 +305,92 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="home-hero__visual" aria-hidden="true">
+            <div className="home-hero__visual">
               <div className="home-hero__orb home-hero__orb--top" />
               <div className="home-hero__orb home-hero__orb--middle" />
               <div className="home-hero__orb home-hero__orb--bottom" />
               <div className="home-hero__card">
                 <div className="home-hero__card-top">
-                  <span>STRUCTURE</span>
-                  <span>LIVE</span>
+                  <span>CARD GYM</span>
+                  <span>{userLocation ? "NEARBY" : "LOCATION"}</span>
                 </div>
-                <div className="home-hero__card-center">
-                  <div className="home-hero__pokeball">
-                    <span className="home-hero__pokeball-core" />
+                <div className="home-hero__card-center home-hero__card-center--gyms">
+                  <div className="home-gym-panel" id="card-gym-finder">
+                    <div className="home-gym-panel__header">
+                      <div className="home-gym-panel__ball" aria-hidden="true">
+                        <span className="home-hero__pokeball-core" />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-base font-black text-slate-950">近くのポケモンカードジム</h2>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">
+                          {userLocation ? "現在地から近い順に表示" : "現在地を取得すると近い順に並びます"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={locateUser}
+                        className="inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-slate-800"
+                      >
+                        現在地を取得
+                      </button>
+                      <a
+                        href={buildMapsSearchUrl(userLocation)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 transition hover:bg-slate-50"
+                      >
+                        Mapsで探す
+                      </a>
+                    </div>
+
+                    {locationStatus ? (
+                      <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                        {locationStatus}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-3 grid gap-2">
+                      {gymMasterLoading ? (
+                        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                          店舗データを読み込み中です。
+                        </p>
+                      ) : nearestGyms.length > 0 ? (
+                        nearestGyms.map(({ gym, distanceKm }, index) => (
+                          <div key={gym.id} className="home-gym-panel__row">
+                            <div className="home-gym-panel__rank">{index + 1}</div>
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-black text-slate-950">{gym.name}</p>
+                              <p className="mt-0.5 text-[11px] font-bold text-emerald-700">
+                                {distanceKm === null ? "距離未取得" : `約${formatDistance(distanceKm)}`}
+                              </p>
+                            </div>
+                            <a
+                              href={buildMapsDirectionsUrl(gym, userLocation)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="home-gym-panel__guide"
+                            >
+                              案内
+                            </a>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <p className="text-xs font-bold text-slate-800">店舗マスター未投入</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">
+                            `card-gyms.json` に店舗の緯度経度を入れると、この場所に近い順で表示されます。
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="home-hero__card-bottom">
-                  <span>POKEMON</span>
-                  <span>CARD</span>
+                  <span>GOOGLE MAPS</span>
+                  <span>FREE URL</span>
                 </div>
               </div>
             </div>
@@ -332,22 +533,35 @@ export default function Home() {
             <ul className="space-y-3">
               {visibleDecks.map((deck) => (
                 <li key={deck.deckId}>
-                  <Link
-                    href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
-                    className="group block rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-slate-950 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
+                  <div className="group rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-slate-950 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <Link
+                        href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
+                        className="min-w-0 flex-1"
+                      >
                         <div className="text-lg font-semibold text-slate-950 group-hover:text-slate-900">{deck.name}</div>
                         <div className="mt-1 text-sm font-medium text-slate-700">
                           {deck.cards.reduce((sum, c) => sum + c.count, 0)} 枚
                         </div>
-                      </div>
-                      <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                        OPEN
+                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
+                          className="inline-flex h-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                        >
+                          OPEN
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDeck(deck)}
+                          disabled={deletingDeckId === deck.deckId}
+                          className="inline-flex h-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingDeckId === deck.deckId ? "削除中" : "削除"}
+                        </button>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 </li>
               ))}
             </ul>

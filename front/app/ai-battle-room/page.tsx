@@ -5,21 +5,120 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AuthGate from "@/components/AuthGate";
 import AuthStatus from "@/components/AuthStatus";
-import { CardDetail, Deck, DeckCard, getCardDetail, listDecks } from "@/lib/api";
+import { Deck, DeckCard, listDecks } from "@/lib/api";
 
 type PracticeMode = "ai" | "solo";
 type AiStyle = "speed" | "control" | "stability" | "random";
 type SoloStartingPlayer = "first" | "second";
-type SoloPlacementType = "pokemon" | "trainer" | "stadium" | "energy" | "unknown";
+type SoloPlacementType = "pokemon" | "item" | "supporter" | "tool" | "stadium" | "energy" | "trainer" | "unknown";
 type SoloCard = DeckCard & {
   name?: string;
   cardKind?: string;
   subKind?: string;
+  regulation?: string;
+  setCode?: string;
+  setName?: string;
   stage?: string;
   stageCategory?: "basic" | "evolution" | "unknown";
   stageOrder?: number;
+  hp?: number | null;
+  ruleText?: string;
+  searchTokens?: string[];
+  effectProfile?: EffectProfile | null;
+  playedTurn?: number;
 };
 type SoloStack = SoloCard[];
+type SoloToolState = {
+  active: SoloCard | null;
+  bench: Array<SoloCard | null>;
+};
+type SoloEnergyState = {
+  active: SoloCard[];
+  bench: SoloCard[][];
+};
+type SearchTarget =
+  | "any_card"
+  | "pokemon"
+  | "basic_pokemon"
+  | "pokemon_hp_70_or_less"
+  | "pokemon_or_basic_energy"
+  | "supporter"
+  | "mega_evolution_pokemon"
+  | "terastal_pokemon"
+  | "energy"
+  | "basic_energy"
+  | "stadium";
+type EffectAction =
+  | { type: "draw_cards"; count: number; discardRemainingHand?: boolean }
+  | { type: "search_deck"; target: SearchTarget; count: number; destination: "hand" | "bench" | "stadium" }
+  | { type: "recover_from_trash"; target: SearchTarget; count: number; destination: "hand" }
+  | { type: "switch_active" }
+  | { type: "heal_pokemon"; note: string }
+  | { type: "discard_tool"; note: string }
+  | { type: "discard_stadium"; note: string }
+  | { type: "resolve_effect"; note: string };
+type EffectProfile = {
+  label: string;
+  costs?: Array<{ type: "discard_from_hand"; count: number }>;
+  actions: EffectAction[];
+};
+type StaticCardDetail = {
+  cardId: string;
+  name?: string;
+  cardKind?: string;
+  subKind?: string;
+  regulation?: string;
+  setCode?: string;
+  setName?: string;
+  stage?: string;
+  stageCategory?: "basic" | "evolution" | "unknown";
+  stageOrder?: number;
+  hp?: number | null;
+  ruleText?: string;
+  searchTokens?: string[];
+  effectProfile?: EffectProfile | null;
+};
+type StaticCardMaster = {
+  generatedAt?: string;
+  totalCards?: number;
+  profiledCards?: number;
+  cards?: Record<string, StaticCardDetail>;
+};
+type SoloEffectPrompt =
+  | {
+      kind: "discard_from_hand";
+      sourceHandIndex: number;
+      sourceCard: SoloCard;
+      nextAction: EffectAction;
+      count: number;
+      selectedHandIndexes: number[];
+    }
+  | {
+      kind: "search_deck";
+      sourceHandIndex: number | null;
+      sourceCard: SoloCard;
+      action: Extract<EffectAction, { type: "search_deck" }>;
+      selectedPileIndexes: number[];
+    }
+  | {
+      kind: "recover_from_trash";
+      sourceHandIndex: number | null;
+      sourceCard: SoloCard;
+      action: Extract<EffectAction, { type: "recover_from_trash" }>;
+      selectedDiscardIndexes: number[];
+    }
+  | {
+      kind: "switch_active";
+      sourceHandIndex: number | null;
+      sourceCard: SoloCard;
+      selectedBenchIndex: number | null;
+    }
+  | {
+      kind: "select_board_pokemon";
+      sourceHandIndex: number | null;
+      sourceCard: SoloCard;
+      action: Extract<EffectAction, { type: "heal_pokemon" | "discard_tool" }>;
+    };
 type RareCandyTarget = {
   location: "active" | "bench";
   benchIndex?: number;
@@ -92,6 +191,153 @@ function isRareCandyCard(card?: Pick<SoloCard, "cardName">) {
   return normalizePokemonNameCore(card?.cardName) === "ふしぎなアメ";
 }
 
+function wasPokemonPutInPlayThisTurn(card: SoloCard | null | undefined, currentTurn: number) {
+  if (!card) return false;
+  return getCardPlacementType(card) === "pokemon" && card?.playedTurn === currentTurn;
+}
+
+function createEmptySoloTools(): SoloToolState {
+  return {
+    active: null,
+    bench: Array.from({ length: 5 }, () => null),
+  };
+}
+
+function createEmptySoloEnergies(): SoloEnergyState {
+  return {
+    active: [],
+    bench: Array.from({ length: 5 }, () => []),
+  };
+}
+
+function getTrainerSubtype(card?: Pick<SoloCard, "cardKind" | "subKind" | "stage" | "cardName">) {
+  const kind = String(card?.cardKind || "").trim().toLowerCase();
+  const subKind = String(card?.subKind || "").trim();
+  const stage = normalizeStage(card?.stage);
+  const name = normalizePokemonNameCore(card?.cardName);
+
+  if (subKind.includes("ポケモンのどうぐ") || stage.includes("ポケモンのどうぐ") || subKind.includes("どうぐ")) {
+    return "tool";
+  }
+  if (subKind.includes("スタジアム") || stage.includes("スタジアム")) {
+    return "stadium";
+  }
+  if (kind.includes("support") || subKind.includes("サポート") || stage.includes("サポート")) {
+    return "supporter";
+  }
+  if (kind.includes("item") || subKind.includes("グッズ") || stage.includes("グッズ") || name.includes("ボール")) {
+    return "item";
+  }
+  if (kind.includes("trainer") || subKind || stage) {
+    return "trainer";
+  }
+  return "unknown";
+}
+
+function getEffectProfile(card?: SoloCard | null): EffectProfile | null {
+  if (card?.effectProfile) return card.effectProfile;
+
+  const name = normalizePokemonNameCore(card?.cardName);
+  if (!name) return null;
+
+  if (name === "博士の研究" || name.includes("博士の研究")) {
+    return {
+      label: "手札をすべてトラッシュし、山札を7枚引く",
+      actions: [{ type: "draw_cards", count: 7, discardRemainingHand: true }],
+    };
+  }
+  if (name === "ネストボール") {
+    return {
+      label: "山札からたねポケモンを1枚ベンチに出す",
+      actions: [{ type: "search_deck", target: "basic_pokemon", count: 1, destination: "bench" }],
+    };
+  }
+  if (name === "なかよしポフィン") {
+    return {
+      label: "山札からHP70以下のたねポケモンを2枚までベンチに出す",
+      actions: [{ type: "search_deck", target: "pokemon_hp_70_or_less", count: 2, destination: "bench" }],
+    };
+  }
+  if (name === "ハイパーボール") {
+    return {
+      label: "手札を2枚トラッシュし、山札からポケモンを1枚手札に加える",
+      costs: [{ type: "discard_from_hand", count: 2 }],
+      actions: [{ type: "search_deck", target: "pokemon", count: 1, destination: "hand" }],
+    };
+  }
+  if (name === "大地の器") {
+    return {
+      label: "手札を1枚トラッシュし、山札から基本エネルギーを2枚まで手札に加える",
+      costs: [{ type: "discard_from_hand", count: 1 }],
+      actions: [{ type: "search_deck", target: "basic_energy", count: 2, destination: "hand" }],
+    };
+  }
+  if (name === "エネルギー転送") {
+    return {
+      label: "山札から基本エネルギーを1枚手札に加える",
+      actions: [{ type: "search_deck", target: "basic_energy", count: 1, destination: "hand" }],
+    };
+  }
+  if (name === "ふしぎなアメ") {
+    return {
+      label: "たねポケモンを1進化を飛ばして2進化にする",
+      actions: [{ type: "resolve_effect", note: "既存のふしぎなアメ操作を使います。" }],
+    };
+  }
+  return null;
+}
+
+function matchesSearchTarget(card: SoloCard, target: SearchTarget): boolean {
+  const placementType = getCardPlacementType(card);
+  const stageOrder = getStageOrder(card);
+  const name = String(card.cardName || "");
+  const ruleText = String(card.ruleText || "");
+  const searchText = [name, ruleText, ...(card.searchTokens || [])].join(" ");
+  switch (target) {
+    case "any_card":
+      return true;
+    case "pokemon":
+      return placementType === "pokemon";
+    case "basic_pokemon":
+      return placementType === "pokemon" && stageOrder === 0;
+    case "pokemon_hp_70_or_less":
+      return placementType === "pokemon" && stageOrder === 0 && Number(card.hp || 0) <= 70;
+    case "pokemon_or_basic_energy":
+      return placementType === "pokemon" || (placementType === "energy" && name.includes("基本"));
+    case "supporter":
+      return placementType === "supporter";
+    case "mega_evolution_pokemon":
+      return placementType === "pokemon" && (name.includes("メガ") || searchText.includes("メガシンカ"));
+    case "terastal_pokemon":
+      return placementType === "pokemon" && searchText.includes("テラスタル");
+    case "energy":
+      return placementType === "energy";
+    case "basic_energy":
+      return placementType === "energy" && name.includes("基本");
+    case "stadium":
+      return placementType === "stadium";
+    default:
+      return false;
+  }
+}
+
+function getSearchTargetLabel(target: SearchTarget): string {
+  const labels: Record<SearchTarget, string> = {
+    any_card: "カード",
+    pokemon: "ポケモン",
+    basic_pokemon: "たねポケモン",
+    pokemon_hp_70_or_less: "HP70以下のたねポケモン",
+    pokemon_or_basic_energy: "ポケモンまたは基本エネルギー",
+    supporter: "サポート",
+    mega_evolution_pokemon: "メガシンカex",
+    terastal_pokemon: "テラスタルのポケモン",
+    energy: "エネルギー",
+    basic_energy: "基本エネルギー",
+    stadium: "スタジアム",
+  };
+  return labels[target];
+}
+
 function getStageCategory(stage?: string, stageCategory?: string) {
   const normalizedCategory = String(stageCategory || "").trim();
   if (normalizedCategory === "basic" || normalizedCategory === "evolution") {
@@ -142,8 +388,18 @@ function getCardPlacementType(card?: Pick<SoloCard, "cardKind" | "subKind" | "st
   if (kind.includes("energy") || subKind.includes("エネルギー") || stage.includes("エネルギー")) {
     return "energy";
   }
-  if (subKind.includes("スタジアム") || stage.includes("スタジアム")) {
+  const trainerSubtype = getTrainerSubtype(card);
+  if (trainerSubtype === "stadium") {
     return "stadium";
+  }
+  if (trainerSubtype === "tool") {
+    return "tool";
+  }
+  if (trainerSubtype === "supporter") {
+    return "supporter";
+  }
+  if (trainerSubtype === "item") {
+    return "item";
   }
   if (
     kind.includes("trainer") ||
@@ -227,7 +483,7 @@ function getInitialMode(): PracticeMode {
   return mode === "solo" ? "solo" : "ai";
 }
 
-function expandDeck(cards: DeckCard[], cardDetails: Record<string, CardDetail> = {}): SoloCard[] {
+function expandDeck(cards: DeckCard[], cardDetails: Record<string, StaticCardDetail> = {}): SoloCard[] {
   return cards.flatMap((card) =>
       Array.from({ length: card.count }, () => ({
       cardId: card.cardId,
@@ -237,9 +493,16 @@ function expandDeck(cards: DeckCard[], cardDetails: Record<string, CardDetail> =
       name: cardDetails[card.cardId]?.name || card.cardName,
       cardKind: cardDetails[card.cardId]?.cardKind || "unknown",
       subKind: cardDetails[card.cardId]?.subKind || "",
+      regulation: cardDetails[card.cardId]?.regulation,
+      setCode: cardDetails[card.cardId]?.setCode,
+      setName: cardDetails[card.cardId]?.setName,
       stage: cardDetails[card.cardId]?.stage || "",
       stageCategory: cardDetails[card.cardId]?.stageCategory || "unknown",
       stageOrder: cardDetails[card.cardId]?.stageOrder,
+      hp: cardDetails[card.cardId]?.hp,
+      ruleText: cardDetails[card.cardId]?.ruleText,
+      searchTokens: cardDetails[card.cardId]?.searchTokens || [],
+      effectProfile: cardDetails[card.cardId]?.effectProfile || null,
     }))
   );
 }
@@ -258,6 +521,23 @@ function takeRandomCards(pile: SoloCard[], count: number) {
   }
 
   return { drawn, rest: nextPile };
+}
+
+function getNoBasicOpeningProbability(totalCards: number, basicPokemonCount: number, handSize = 7) {
+  if (totalCards <= 0 || basicPokemonCount <= 0 || handSize <= 0) return 1;
+  if (basicPokemonCount >= totalCards) return 0;
+  const drawCount = Math.min(handSize, totalCards);
+  let probability = 1;
+  for (let index = 0; index < drawCount; index += 1) {
+    probability *= Math.max(0, totalCards - basicPokemonCount - index) / Math.max(1, totalCards - index);
+  }
+  return probability;
+}
+
+function formatProbability(value: number) {
+  if (!Number.isFinite(value)) return "0.0%";
+  const percent = Math.max(0, Math.min(100, value * 100));
+  return `${percent.toFixed(percent < 1 && percent > 0 ? 2 : 1)}%`;
 }
 
 function inferType(deck?: Deck | null): string {
@@ -336,8 +616,8 @@ export default function AIBattleRoomPage() {
   const [battleStarted, setBattleStarted] = useState(false);
   const [aiGoingFirst, setAiGoingFirst] = useState(false);
 
-  const [soloCardDetails, setSoloCardDetails] = useState<Record<string, CardDetail>>({});
-  const [soloCardDetailsLoading, setSoloCardDetailsLoading] = useState(false);
+  const [cardMasterDetails, setCardMasterDetails] = useState<Record<string, StaticCardDetail>>({});
+  const [cardMasterLoading, setCardMasterLoading] = useState(false);
   const [soloPile, setSoloPile] = useState<SoloCard[]>([]);
   const [soloHand, setSoloHand] = useState<SoloCard[]>([]);
   const [soloDiscard, setSoloDiscard] = useState<SoloCard[]>([]);
@@ -345,12 +625,20 @@ export default function AIBattleRoomPage() {
   const [soloStadiumCard, setSoloStadiumCard] = useState<SoloCard | null>(null);
   const [soloActiveStack, setSoloActiveStack] = useState<SoloStack>([]);
   const [soloBenchStacks, setSoloBenchStacks] = useState<SoloStack[]>(() => Array.from({ length: 5 }, () => []));
+  const [soloAttachedTools, setSoloAttachedTools] = useState<SoloToolState>(createEmptySoloTools);
+  const [soloAttachedEnergies, setSoloAttachedEnergies] = useState<SoloEnergyState>(createEmptySoloEnergies);
   const [soloSelectedHandIndex, setSoloSelectedHandIndex] = useState<number | null>(null);
   const [soloNotice, setSoloNotice] = useState("");
   const [soloStartingPlayer, setSoloStartingPlayer] = useState<SoloStartingPlayer>("first");
   const [soloTurn, setSoloTurn] = useState(1);
   const [soloStarted, setSoloStarted] = useState(false);
+  const [soloSupporterUsedTurn, setSoloSupporterUsedTurn] = useState<number | null>(null);
+  const [soloEnergyAttachedTurn, setSoloEnergyAttachedTurn] = useState<number | null>(null);
   const [soloTrashOpen, setSoloTrashOpen] = useState(false);
+  const [soloOpeningRedrawCount, setSoloOpeningRedrawCount] = useState(0);
+  const [soloCustomShuffleOpen, setSoloCustomShuffleOpen] = useState(false);
+  const [soloCustomShuffleDrawCount, setSoloCustomShuffleDrawCount] = useState(7);
+  const [soloEffectPrompt, setSoloEffectPrompt] = useState<SoloEffectPrompt | null>(null);
   const [soloRareCandyMode, setSoloRareCandyMode] = useState<"idle" | "select_basic" | "select_evolution">("idle");
   const [soloRareCandyTarget, setSoloRareCandyTarget] = useState<RareCandyTarget | null>(null);
   const [soloRareCandyCandidates, setSoloRareCandyCandidates] = useState<RareCandyCandidate[]>([]);
@@ -360,6 +648,31 @@ export default function AIBattleRoomPage() {
     [decks, selectedDeckId]
   );
   const selectedSoloCard = soloSelectedHandIndex !== null ? soloHand[soloSelectedHandIndex] || null : null;
+  const selectedEffectProfile = getEffectProfile(selectedSoloCard);
+  const isSoloFirstTurnSupporterLocked = soloStarted && soloStartingPlayer === "first" && soloTurn === 1;
+  const openingHandStats = useMemo(() => {
+    if (!selectedDeck) {
+      return {
+        totalCards: 0,
+        basicPokemonCount: 0,
+        keepProbability: 0,
+        redrawProbability: 0,
+        currentRedrawSequenceProbability: 0,
+      };
+    }
+    const fullDeck = expandDeck(selectedDeck.cards, cardMasterDetails);
+    const totalCards = fullDeck.length;
+    const basicPokemonCount = fullDeck.filter((card) => getCardPlacementType(card) === "pokemon" && getStageOrder(card) === 0).length;
+    const redrawProbability = getNoBasicOpeningProbability(totalCards, basicPokemonCount, 7);
+    const keepProbability = 1 - redrawProbability;
+    return {
+      totalCards,
+      basicPokemonCount,
+      keepProbability,
+      redrawProbability,
+      currentRedrawSequenceProbability: Math.pow(redrawProbability, soloOpeningRedrawCount) * keepProbability,
+    };
+  }, [selectedDeck, cardMasterDetails, soloOpeningRedrawCount]);
 
   useEffect(() => {
     const nextMode = getInitialMode();
@@ -388,45 +701,32 @@ export default function AIBattleRoomPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadCardDetails = async () => {
-      if (!selectedDeck) {
-        setSoloCardDetails({});
-        setSoloCardDetailsLoading(false);
-        return;
-      }
-
-      setSoloCardDetailsLoading(true);
+    const loadCardMaster = async () => {
+      setCardMasterLoading(true);
       try {
-        const uniqueCardIds = [...new Set(selectedDeck.cards.map((card) => card.cardId).filter(Boolean))];
-        const settled = await Promise.allSettled(
-          uniqueCardIds.map(async (cardId) => {
-            const detail = await getCardDetail(cardId);
-            return [cardId, detail] as const;
-          })
-        );
-        const entries = settled
-          .filter((result): result is PromiseFulfilledResult<readonly [string, CardDetail]> => result.status === "fulfilled")
-          .map((result) => result.value);
+        const res = await fetch("/card-master-lite.json", { cache: "force-cache" });
+        if (!res.ok) throw new Error("card-master-lite.json を取得できませんでした");
+        const data = (await res.json()) as StaticCardMaster;
         if (!cancelled) {
-          setSoloCardDetails(Object.fromEntries(entries));
+          setCardMasterDetails(data.cards || {});
         }
       } catch {
         if (!cancelled) {
-          setSoloCardDetails({});
-          setSoloNotice("カード詳細の取得に失敗しました。配置判定は簡易判定で続行します。");
+          setCardMasterDetails({});
+          setSoloNotice("静的カードマスターの取得に失敗しました。配置判定は簡易判定で続行します。");
         }
       } finally {
         if (!cancelled) {
-          setSoloCardDetailsLoading(false);
+          setCardMasterLoading(false);
         }
       }
     };
 
-    loadCardDetails();
+    loadCardMaster();
     return () => {
       cancelled = true;
     };
-  }, [selectedDeck]);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -435,9 +735,9 @@ export default function AIBattleRoomPage() {
   }, [mode]);
 
   useEffect(() => {
-  const resetFromDeck = () => {
+    const resetFromDeck = () => {
       if (!selectedDeck) return;
-      const pile = expandDeck(selectedDeck.cards);
+      const pile = expandDeck(selectedDeck.cards, cardMasterDetails);
       setSoloPile(pile);
       setSoloHand([]);
       setSoloDiscard([]);
@@ -445,21 +745,29 @@ export default function AIBattleRoomPage() {
       setSoloStadiumCard(null);
       setSoloActiveStack([]);
       setSoloBenchStacks(Array.from({ length: 5 }, () => []));
+      setSoloAttachedTools(createEmptySoloTools());
+      setSoloAttachedEnergies(createEmptySoloEnergies());
       setSoloSelectedHandIndex(null);
       setSoloNotice("");
       setSoloStartingPlayer("first");
       setSoloTurn(1);
       setSoloStarted(false);
+      setSoloSupporterUsedTurn(null);
+      setSoloEnergyAttachedTurn(null);
       setBattleLog([]);
       setBattleTurn(1);
       setBattleStarted(false);
       setAiGoingFirst(false);
+      setSoloOpeningRedrawCount(0);
+      setSoloCustomShuffleOpen(false);
+      setSoloCustomShuffleDrawCount(7);
+      setSoloEffectPrompt(null);
       setSoloRareCandyMode("idle");
       setSoloRareCandyTarget(null);
       setSoloRareCandyCandidates([]);
     };
     resetFromDeck();
-  }, [selectedDeckId]);
+  }, [selectedDeck, cardMasterDetails]);
 
   const deckSummary = summarizeDeck(selectedDeck);
   const deckTypeLabel = inferDeckLabel(selectedDeck);
@@ -499,7 +807,7 @@ export default function AIBattleRoomPage() {
 
   const startSolo = () => {
     if (!selectedDeck) return;
-    const pile = expandDeck(selectedDeck.cards, soloCardDetails);
+    const pile = expandDeck(selectedDeck.cards, cardMasterDetails);
     const handDraw = takeRandomCards(pile, 7);
     const prizeDraw = takeRandomCards(handDraw.rest, 6);
     setSoloHand(handDraw.drawn);
@@ -509,40 +817,81 @@ export default function AIBattleRoomPage() {
     setSoloStadiumCard(null);
     setSoloActiveStack([]);
     setSoloBenchStacks(Array.from({ length: 5 }, () => []));
+    setSoloAttachedTools(createEmptySoloTools());
+    setSoloAttachedEnergies(createEmptySoloEnergies());
     setSoloSelectedHandIndex(null);
     setSoloNotice("");
     setSoloTurn(1);
     setSoloStarted(true);
+    setSoloSupporterUsedTurn(null);
+    setSoloEnergyAttachedTurn(null);
     setSoloTrashOpen(false);
+    setSoloOpeningRedrawCount(0);
+    setSoloCustomShuffleOpen(false);
+    setSoloCustomShuffleDrawCount(7);
+    setSoloEffectPrompt(null);
     setSoloRareCandyMode("idle");
     setSoloRareCandyTarget(null);
     setSoloRareCandyCandidates([]);
   };
 
-  const shuffleSolo = () => {
-    if (!selectedDeck) return;
-    const pile = expandDeck(selectedDeck.cards, soloCardDetails);
-    setSoloPile([...pile].sort(() => Math.random() - 0.5));
-    setSoloHand([]);
-    setSoloDiscard([]);
-    setSoloPrizes([]);
-    setSoloStadiumCard(null);
-    setSoloActiveStack([]);
-    setSoloBenchStacks(Array.from({ length: 5 }, () => []));
+  const shuffleHandIntoDeckAndDraw = (redrawCount = soloHand.length) => {
+    if (soloHand.length === 0) {
+      setSoloNotice("戻す手札がありません。");
+      return;
+    }
+    const isOpeningSevenRedraw =
+      soloStarted &&
+      soloTurn === 1 &&
+      soloHand.length === 7 &&
+      soloPrizes.length === 6 &&
+      soloDiscard.length === 0 &&
+      soloActiveStack.length === 0 &&
+      soloBenchStacks.every((stack) => stack.length === 0);
+    const nextDeck = [...soloPile, ...soloHand].sort(() => Math.random() - 0.5);
+    const draw = takeRandomCards(nextDeck, redrawCount);
+    setSoloPile(draw.rest);
+    setSoloHand(draw.drawn);
     setSoloSelectedHandIndex(null);
-    setSoloNotice("");
-    setSoloStartingPlayer("first");
-    setSoloTurn(1);
-    setSoloStarted(false);
-    setSoloTrashOpen(false);
+    setSoloEffectPrompt(null);
     setSoloRareCandyMode("idle");
     setSoloRareCandyTarget(null);
     setSoloRareCandyCandidates([]);
+    if (isOpeningSevenRedraw) {
+      setSoloOpeningRedrawCount((count) => count + 1);
+    }
+    setSoloNotice(
+      isOpeningSevenRedraw
+        ? `最初の7枚を山札に戻してシャッフルし、${draw.drawn.length}枚引き直しました。`
+        : `手札${soloHand.length}枚を山札に戻してシャッフルし、${draw.drawn.length}枚引き直しました。`
+    );
+  };
+
+  const shuffleSolo = () => {
+    shuffleHandIntoDeckAndDraw();
+  };
+
+  const shuffleHandIntoDeckAndDrawCustom = () => {
+    if (soloHand.length === 0) {
+      setSoloNotice("戻す手札がありません。");
+      return;
+    }
+    const drawCount = Math.max(0, Math.floor(soloCustomShuffleDrawCount || 0));
+    const nextDeck = [...soloPile, ...soloHand].sort(() => Math.random() - 0.5);
+    const draw = takeRandomCards(nextDeck, drawCount);
+    setSoloPile(draw.rest);
+    setSoloHand(draw.drawn);
+    setSoloSelectedHandIndex(null);
+    setSoloEffectPrompt(null);
+    setSoloRareCandyMode("idle");
+    setSoloRareCandyTarget(null);
+    setSoloRareCandyCandidates([]);
+    setSoloNotice(`手札${soloHand.length}枚を山札に戻してシャッフルし、指定枚数として${draw.drawn.length}枚引きました。`);
   };
 
   const resetSolo = () => {
     if (!selectedDeck) return;
-    const pile = expandDeck(selectedDeck.cards, soloCardDetails);
+    const pile = expandDeck(selectedDeck.cards, cardMasterDetails);
     setSoloPile(pile);
     setSoloHand([]);
     setSoloDiscard([]);
@@ -550,12 +899,20 @@ export default function AIBattleRoomPage() {
     setSoloStadiumCard(null);
     setSoloActiveStack([]);
     setSoloBenchStacks(Array.from({ length: 5 }, () => []));
+    setSoloAttachedTools(createEmptySoloTools());
+    setSoloAttachedEnergies(createEmptySoloEnergies());
     setSoloSelectedHandIndex(null);
     setSoloNotice("一人回しをリセットしました。");
     setSoloStartingPlayer("first");
     setSoloTurn(1);
     setSoloStarted(false);
+    setSoloSupporterUsedTurn(null);
+    setSoloEnergyAttachedTurn(null);
     setSoloTrashOpen(false);
+    setSoloOpeningRedrawCount(0);
+    setSoloCustomShuffleOpen(false);
+    setSoloCustomShuffleDrawCount(7);
+    setSoloEffectPrompt(null);
     setSoloRareCandyMode("idle");
     setSoloRareCandyTarget(null);
     setSoloRareCandyCandidates([]);
@@ -603,11 +960,29 @@ export default function AIBattleRoomPage() {
       setSoloNotice("スタジアムカードです。スタジアム枠を選んでください。");
       return;
     }
+    if (placementType === "tool") {
+      setSoloNotice("ポケモンのどうぐです。つけたいバトル場かベンチのポケモンを選んでください。");
+      return;
+    }
+    if (placementType === "item" || placementType === "supporter" || placementType === "trainer") {
+      setSoloNotice(
+        placementType === "supporter"
+          ? isSoloFirstTurnSupporterLocked
+            ? "先攻の最初の番はサポートを使えません。"
+            : "サポートです。このターンまだ使っていなければ「使う」でトラッシュします。"
+          : "グッズなどのトレーナーズです。「使う」で効果処理後にトラッシュします。"
+      );
+      return;
+    }
     if (stageOrder === null) {
       if (cardTypeLabel === "trainer") {
         setSoloNotice("グッズ・サポートなどのトレーナーズはバトル場やベンチに置けません。");
       } else if (cardTypeLabel === "energy") {
-        setSoloNotice("エネルギーカードはバトル場やベンチに置けません。ポケモンにつけて使います。");
+        setSoloNotice(
+          soloEnergyAttachedTurn === soloTurn
+            ? "このターンはすでにエネルギーを1枚つけています。"
+            : "エネルギーカードです。つけたいバトル場かベンチのポケモンを選んでください。"
+        );
       } else {
         setSoloNotice("ポケモン以外のカードはバトル場やベンチに置けません。");
       }
@@ -695,9 +1070,13 @@ export default function AIBattleRoomPage() {
       setSoloNotice("ふしぎなアメはたねポケモンにしか使えません。");
       return;
     }
+    if (wasPokemonPutInPlayThisTurn(targetTop, soloTurn)) {
+      setSoloNotice("このターンに出したポケモンは進化できません。");
+      return;
+    }
 
     const nextHand = soloHand.filter((_, index) => index !== candyIndex && index !== candidate.handIndex);
-    const evolvedCard: SoloCard = { ...candidate.card };
+    const evolvedCard: SoloCard = { ...candidate.card, playedTurn: soloTurn };
 
     if (soloRareCandyTarget.location === "active") {
       setSoloActiveStack((stack) => [...stack, evolvedCard]);
@@ -745,6 +1124,10 @@ export default function AIBattleRoomPage() {
           setSoloNotice("ふしぎなアメはたねポケモンにしか使えません。");
           return;
         }
+        if (wasPokemonPutInPlayThisTurn(targetTop, soloTurn)) {
+          setSoloNotice("このターンに出したポケモンは進化できません。");
+          return;
+        }
         const candidates = buildRareCandyCandidates(targetTop);
         if (candidates.length === 0) {
           setSoloNotice("進化先候補ポケモンが手札にありません。");
@@ -762,41 +1145,92 @@ export default function AIBattleRoomPage() {
       return;
     }
 
-  const placementType = getCardPlacementType(picked);
-  const stageOrder = getStageOrder(picked);
-  const sourceLabel = target === "active" ? "バトル場" : target === "stadium" ? "スタジアム" : `ベンチ${target + 1}`;
+    const placementType = getCardPlacementType(picked);
+    const stageOrder = getStageOrder(picked);
+    const sourceLabel = target === "active" ? "バトル場" : target === "stadium" ? "スタジアム" : `ベンチ${target + 1}`;
     const targetStack = target === "active" ? soloActiveStack : target === "stadium" ? (soloStadiumCard ? [soloStadiumCard] : []) : soloBenchStacks[target];
-  const isOccupied = targetStack.length > 0;
-  const targetTop = targetStack[targetStack.length - 1];
-  const targetTopOrder = targetTop ? getStageOrder(targetTop) : null;
+    const isOccupied = targetStack.length > 0;
+    const targetTop = targetStack[targetStack.length - 1];
+    const targetTopOrder = targetTop ? getStageOrder(targetTop) : null;
 
-  if (target === "stadium") {
+    if (target === "stadium") {
       if (placementType !== "stadium") {
         setSoloNotice("スタジアムカードだけがこの枠に置けます。");
         return;
       }
-    } else if (placementType !== "pokemon") {
-      if (placementType === "energy") {
-        setSoloNotice("エネルギーカードはポケモンにつけて使います。");
-      } else {
-        setSoloNotice("トレーナーズカードはバトル場やベンチに置けません。");
+    } else if (placementType === "energy") {
+      if (!isOccupied) {
+        setSoloNotice("エネルギーは場のポケモンにだけつけられます。");
+        return;
       }
+      if (soloEnergyAttachedTurn === soloTurn) {
+        setSoloNotice("このターンはすでにエネルギーを1枚つけています。");
+        return;
+      }
+
+      const nextHand = soloHand.filter((_, index) => index !== soloSelectedHandIndex);
+      const nextEnergy: SoloCard = { ...picked };
+      if (target === "active") {
+        setSoloAttachedEnergies((energies) => ({ ...energies, active: [...energies.active, nextEnergy] }));
+      } else {
+        setSoloAttachedEnergies((energies) => ({
+          ...energies,
+          bench: energies.bench.map((attached, index) => (index === target ? [...attached, nextEnergy] : attached)),
+        }));
+      }
+      setSoloHand(nextHand);
+      setSoloSelectedHandIndex(null);
+      setSoloEnergyAttachedTurn(soloTurn);
+      setSoloNotice(`${picked.cardName || "エネルギー"}を${sourceLabel}のポケモンにつけました。`);
+      return;
+    } else if (placementType === "tool") {
+      if (!isOccupied) {
+        setSoloNotice("ポケモンのどうぐは場のポケモンにだけつけられます。");
+        return;
+      }
+      const currentTool = target === "active" ? soloAttachedTools.active : soloAttachedTools.bench[target];
+      if (currentTool) {
+        setSoloNotice("そのポケモンにはすでにポケモンのどうぐがついています。");
+        return;
+      }
+
+      const nextHand = soloHand.filter((_, index) => index !== soloSelectedHandIndex);
+      const nextTool: SoloCard = { ...picked };
+      if (target === "active") {
+        setSoloAttachedTools((tools) => ({ ...tools, active: nextTool }));
+      } else {
+        setSoloAttachedTools((tools) => ({
+          ...tools,
+          bench: tools.bench.map((tool, index) => (index === target ? nextTool : tool)),
+        }));
+      }
+      setSoloHand(nextHand);
+      setSoloSelectedHandIndex(null);
+      const toolEffect = getEffectProfile(nextTool);
+      setSoloNotice(`${picked.cardName || "ポケモンのどうぐ"}を${sourceLabel}のポケモンにつけました。${toolEffect ? ` 効果: ${toolEffect.label}` : ""}`);
+      return;
+    } else if (placementType !== "pokemon") {
+      setSoloNotice("グッズ・サポートは「使う」、ポケモンのどうぐはポケモンにつけて使います。");
       return;
     }
 
-  if (stageOrder === null && target !== "stadium") {
+    if (stageOrder === null && target !== "stadium") {
       setSoloNotice("カードの段階を判定できませんでした。");
       return;
-  }
+    }
 
-  if (target !== "stadium" && !isOccupied && stageOrder !== 0) {
+    if (target !== "stadium" && !isOccupied && stageOrder !== 0) {
       setSoloNotice("基本ポケモンだけが空の枠に置けます。");
       return;
-  }
+    }
 
-  if (target !== "stadium" && isOccupied) {
+    if (target !== "stadium" && isOccupied) {
       if (targetTopOrder === null) {
         setSoloNotice("その枠のカード詳細が取得できていないため、進化を置けません。");
+        return;
+      }
+      if (wasPokemonPutInPlayThisTurn(targetTop, soloTurn)) {
+        setSoloNotice("このターンに出したポケモンは進化できません。");
         return;
       }
       if (stageOrder !== targetTopOrder + 1) {
@@ -806,10 +1240,13 @@ export default function AIBattleRoomPage() {
     }
 
     const nextHand = soloHand.filter((_, index) => index !== soloSelectedHandIndex);
-    const nextCard: SoloCard = { ...picked };
+    const nextCard: SoloCard = { ...picked, playedTurn: target === "stadium" ? undefined : soloTurn };
     if (target === "active") {
       setSoloActiveStack((stack) => (isOccupied ? [...stack, nextCard] : [nextCard]));
     } else if (target === "stadium") {
+      if (soloStadiumCard) {
+        setSoloDiscard((discard) => [...discard, soloStadiumCard]);
+      }
       setSoloStadiumCard(nextCard);
     } else {
       setSoloBenchStacks((stacks) =>
@@ -819,7 +1256,496 @@ export default function AIBattleRoomPage() {
 
     setSoloHand(nextHand);
     setSoloSelectedHandIndex(null);
-    setSoloNotice(`${picked.cardName || "カード"}を${sourceLabel}に配置しました。`);
+    const placementEffect = getEffectProfile(nextCard);
+    setSoloNotice(`${picked.cardName || "カード"}を${sourceLabel}に配置しました。${placementEffect ? ` 効果: ${placementEffect.label}` : ""}`);
+  };
+
+  const discardSelectedHandCard = (message?: string) => {
+    if (soloSelectedHandIndex === null) {
+      setSoloNotice("まず手札のカードを選んでください。");
+      return;
+    }
+
+    const picked = soloHand[soloSelectedHandIndex];
+    if (!picked) {
+      setSoloSelectedHandIndex(null);
+      setSoloNotice("選択中のカードが見つかりませんでした。");
+      return;
+    }
+
+    setSoloHand((hand) => hand.filter((_, index) => index !== soloSelectedHandIndex));
+    setSoloDiscard((discard) => [...discard, picked]);
+    setSoloSelectedHandIndex(null);
+    setSoloNotice(message || `${picked.cardName || "カード"}をトラッシュしました。`);
+  };
+
+  const drawCardsToHand = (count: number) => {
+    setSoloPile((pile) => {
+      const randomized = takeRandomCards(pile, count);
+      setSoloHand((hand) => [...hand, ...randomized.drawn]);
+      return randomized.rest;
+    });
+  };
+
+  const openSearchDeckPrompt = (
+    sourceHandIndex: number | null,
+    sourceCard: SoloCard,
+    action: Extract<EffectAction, { type: "search_deck" }>
+  ) => {
+    const candidates = soloPile.filter((card) => matchesSearchTarget(card, action.target));
+    if (candidates.length === 0) {
+      setSoloNotice(`山札に対象の${getSearchTargetLabel(action.target)}が見つかりません。`);
+      return false;
+    }
+    setSoloEffectPrompt({
+      kind: "search_deck",
+      sourceHandIndex,
+      sourceCard,
+      action,
+      selectedPileIndexes: [],
+    });
+    setSoloNotice(`山札から${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`);
+    return true;
+  };
+
+  const openRecoverTrashPrompt = (
+    sourceHandIndex: number | null,
+    sourceCard: SoloCard,
+    action: Extract<EffectAction, { type: "recover_from_trash" }>
+  ) => {
+    const candidates = soloDiscard.filter((card) => matchesSearchTarget(card, action.target));
+    if (candidates.length === 0) {
+      setSoloNotice(`トラッシュに対象の${getSearchTargetLabel(action.target)}が見つかりません。`);
+      return false;
+    }
+    setSoloEffectPrompt({
+      kind: "recover_from_trash",
+      sourceHandIndex,
+      sourceCard,
+      action,
+      selectedDiscardIndexes: [],
+    });
+    setSoloNotice(`トラッシュから${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`);
+    return true;
+  };
+
+  const openSwitchActivePrompt = (sourceHandIndex: number | null, sourceCard: SoloCard) => {
+    if (soloActiveStack.length === 0) {
+      setSoloNotice("バトル場にポケモンがいません。");
+      return false;
+    }
+    if (!soloBenchStacks.some((stack) => stack.length > 0)) {
+      setSoloNotice("入れ替え先のベンチポケモンがいません。");
+      return false;
+    }
+    setSoloEffectPrompt({
+      kind: "switch_active",
+      sourceHandIndex,
+      sourceCard,
+      selectedBenchIndex: null,
+    });
+    setSoloNotice("入れ替え先のベンチポケモンを選んでください。");
+    return true;
+  };
+
+  const openBoardPokemonPrompt = (
+    sourceHandIndex: number | null,
+    sourceCard: SoloCard,
+    action: Extract<EffectAction, { type: "heal_pokemon" | "discard_tool" }>
+  ) => {
+    const hasPokemon = soloActiveStack.length > 0 || soloBenchStacks.some((stack) => stack.length > 0);
+    if (!hasPokemon) {
+      setSoloNotice("対象にできる自分のポケモンがいません。");
+      return false;
+    }
+    if (action.type === "discard_tool") {
+      const hasTool = Boolean(soloAttachedTools.active) || soloAttachedTools.bench.some(Boolean);
+      if (!hasTool) {
+        setSoloNotice("トラッシュできるポケモンのどうぐがありません。");
+        return false;
+      }
+    }
+    setSoloEffectPrompt({
+      kind: "select_board_pokemon",
+      sourceHandIndex,
+      sourceCard,
+      action,
+    });
+    setSoloNotice(action.type === "heal_pokemon" ? "回復するポケモンを選んでください。" : "どうぐをトラッシュするポケモンを選んでください。");
+    return true;
+  };
+
+  const executeDiscardStadiumAction = (sourceHandIndex: number | null, sourceCard: SoloCard, action: Extract<EffectAction, { type: "discard_stadium" }>) => {
+    if (!soloStadiumCard) {
+      setSoloNotice("トラッシュできるスタジアムがありません。");
+      return false;
+    }
+    if (sourceHandIndex !== null) {
+      const source = soloHand[sourceHandIndex];
+      setSoloHand((hand) => hand.filter((_, index) => index !== sourceHandIndex));
+      setSoloDiscard((discard) => [...discard, source, soloStadiumCard].filter(Boolean));
+    } else {
+      setSoloDiscard((discard) => [...discard, soloStadiumCard]);
+    }
+    setSoloStadiumCard(null);
+    setSoloSelectedHandIndex(null);
+    setSoloEffectPrompt(null);
+    setSoloNotice(`${sourceCard.cardName || "トレーナーズ"}の効果でスタジアムをトラッシュしました。${action.note}`);
+    return true;
+  };
+
+  const useSelectedTrainerCard = () => {
+    if (!selectedSoloCard) {
+      setSoloNotice("まず手札のカードを選んでください。");
+      return;
+    }
+
+    const placementType = getCardPlacementType(selectedSoloCard);
+    if (placementType === "stadium") {
+      setSoloNotice("スタジアムはスタジアム枠を押して場に出してください。");
+      return;
+    }
+    if (placementType === "tool") {
+      setSoloNotice("ポケモンのどうぐは、つけたいバトル場かベンチのポケモンを押してください。");
+      return;
+    }
+    if (placementType !== "item" && placementType !== "supporter" && placementType !== "trainer") {
+      setSoloNotice("このカードはトレーナーズとして使えません。");
+      return;
+    }
+    if (placementType === "supporter" && soloSupporterUsedTurn === soloTurn) {
+      setSoloNotice("このターンはすでにサポートを使っています。");
+      return;
+    }
+    if (placementType === "supporter" && isSoloFirstTurnSupporterLocked) {
+      setSoloNotice("先攻の最初の番はサポートを使えません。");
+      return;
+    }
+    if (soloSelectedHandIndex === null) {
+      setSoloNotice("まず手札のカードを選んでください。");
+      return;
+    }
+
+    const sourceHandIndex = soloSelectedHandIndex;
+    const sourceCard = selectedSoloCard;
+    const profile = getEffectProfile(sourceCard);
+    const firstAction = profile?.actions[0];
+    const firstCost = profile?.costs?.[0];
+    const markSupporterUsed = () => {
+      if (placementType === "supporter") {
+        setSoloSupporterUsedTurn(soloTurn);
+      }
+    };
+
+    if (!profile || !firstAction) {
+      markSupporterUsed();
+      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。効果を自動解決済みにしました。`);
+      return;
+    }
+
+    if (firstAction.type === "resolve_effect") {
+      markSupporterUsed();
+      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。${firstAction.note}`);
+      return;
+    }
+
+    if (firstCost?.type === "discard_from_hand") {
+      const availableCostCards = soloHand.filter((_, index) => index !== sourceHandIndex).length;
+      if (availableCostCards < firstCost.count) {
+        setSoloNotice(`手札コストが足りません。${sourceCard.cardName || "このカード"}以外に${firstCost.count}枚必要です。`);
+        return;
+      }
+      setSoloEffectPrompt({
+        kind: "discard_from_hand",
+        sourceHandIndex,
+        sourceCard,
+        nextAction: firstAction,
+        count: firstCost.count,
+        selectedHandIndexes: [],
+      });
+      markSupporterUsed();
+      setSoloNotice(`コストとして手札を${firstCost.count}枚選んでください。`);
+      return;
+    }
+
+    if (firstAction.type === "draw_cards") {
+      markSupporterUsed();
+      const source = soloHand[sourceHandIndex];
+      const remainingHand = soloHand.filter((_, index) => index !== sourceHandIndex);
+      setSoloHand(firstAction.discardRemainingHand ? [] : remainingHand);
+      setSoloDiscard((discard) => [
+        ...discard,
+        source,
+        ...(firstAction.discardRemainingHand ? remainingHand : []),
+      ]);
+      setSoloSelectedHandIndex(null);
+      drawCardsToHand(firstAction.count);
+      setSoloNotice(`${sourceCard.cardName || "トレーナーズ"}の効果で${firstAction.count}枚引きました。`);
+      return;
+    }
+
+    if (firstAction.type === "search_deck") {
+      if (openSearchDeckPrompt(sourceHandIndex, sourceCard, firstAction)) {
+        markSupporterUsed();
+      }
+      return;
+    }
+
+    if (firstAction.type === "recover_from_trash") {
+      if (openRecoverTrashPrompt(sourceHandIndex, sourceCard, firstAction)) {
+        markSupporterUsed();
+      }
+      return;
+    }
+
+    if (firstAction.type === "switch_active") {
+      if (openSwitchActivePrompt(sourceHandIndex, sourceCard)) {
+        markSupporterUsed();
+      }
+      return;
+    }
+
+    if (firstAction.type === "heal_pokemon" || firstAction.type === "discard_tool") {
+      if (openBoardPokemonPrompt(sourceHandIndex, sourceCard, firstAction)) {
+        markSupporterUsed();
+      }
+      return;
+    }
+
+    if (firstAction.type === "discard_stadium") {
+      if (executeDiscardStadiumAction(sourceHandIndex, sourceCard, firstAction)) {
+        markSupporterUsed();
+      }
+    }
+  };
+
+  const toggleEffectHandSelection = (handIndex: number) => {
+    setSoloEffectPrompt((prompt) => {
+      if (!prompt || prompt.kind !== "discard_from_hand" || handIndex === prompt.sourceHandIndex) return prompt;
+      const selected = prompt.selectedHandIndexes.includes(handIndex)
+        ? prompt.selectedHandIndexes.filter((index) => index !== handIndex)
+        : [...prompt.selectedHandIndexes, handIndex].slice(0, prompt.count);
+      return { ...prompt, selectedHandIndexes: selected };
+    });
+  };
+
+  const confirmEffectDiscardCost = () => {
+    if (!soloEffectPrompt || soloEffectPrompt.kind !== "discard_from_hand") return;
+    if (soloEffectPrompt.selectedHandIndexes.length !== soloEffectPrompt.count) {
+      setSoloNotice(`コストとして手札を${soloEffectPrompt.count}枚選んでください。`);
+      return;
+    }
+
+    const discardIndexes = new Set([soloEffectPrompt.sourceHandIndex, ...soloEffectPrompt.selectedHandIndexes]);
+    const discardedCards = soloHand.filter((_, index) => discardIndexes.has(index));
+    setSoloHand((hand) => hand.filter((_, index) => !discardIndexes.has(index)));
+    setSoloDiscard((discard) => [...discard, ...discardedCards]);
+    setSoloSelectedHandIndex(null);
+
+    if (soloEffectPrompt.nextAction.type === "search_deck") {
+      openSearchDeckPrompt(null, soloEffectPrompt.sourceCard, soloEffectPrompt.nextAction);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "recover_from_trash") {
+      openRecoverTrashPrompt(null, soloEffectPrompt.sourceCard, soloEffectPrompt.nextAction);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "switch_active") {
+      openSwitchActivePrompt(null, soloEffectPrompt.sourceCard);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "heal_pokemon" || soloEffectPrompt.nextAction.type === "discard_tool") {
+      openBoardPokemonPrompt(null, soloEffectPrompt.sourceCard, soloEffectPrompt.nextAction);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "discard_stadium") {
+      executeDiscardStadiumAction(null, soloEffectPrompt.sourceCard, soloEffectPrompt.nextAction);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "resolve_effect") {
+      setSoloEffectPrompt(null);
+      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果を自動解決済みにしました。${soloEffectPrompt.nextAction.note}`);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "draw_cards") {
+      drawCardsToHand(soloEffectPrompt.nextAction.count);
+      setSoloEffectPrompt(null);
+      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${soloEffectPrompt.nextAction.count}枚引きました。`);
+    }
+  };
+
+  const toggleEffectPileSelection = (pileIndex: number) => {
+    setSoloEffectPrompt((prompt) => {
+      if (!prompt || prompt.kind !== "search_deck") return prompt;
+      const selected = prompt.selectedPileIndexes.includes(pileIndex)
+        ? prompt.selectedPileIndexes.filter((index) => index !== pileIndex)
+        : [...prompt.selectedPileIndexes, pileIndex].slice(0, prompt.action.count);
+      return { ...prompt, selectedPileIndexes: selected };
+    });
+  };
+
+  const confirmEffectSearchDeck = () => {
+    if (!soloEffectPrompt || soloEffectPrompt.kind !== "search_deck") return;
+    if (soloEffectPrompt.selectedPileIndexes.length === 0) {
+      setSoloNotice("山札から加えるカードを選んでください。");
+      return;
+    }
+
+    const selectedIndexes = new Set(soloEffectPrompt.selectedPileIndexes);
+    const selectedCards = soloPile.filter((_, index) => selectedIndexes.has(index));
+    const restPile = soloPile.filter((_, index) => !selectedIndexes.has(index)).sort(() => Math.random() - 0.5);
+
+    if (soloEffectPrompt.action.destination === "bench") {
+      const emptyBenchIndexes = soloBenchStacks
+        .map((stack, index) => ({ stack, index }))
+        .filter(({ stack }) => stack.length === 0)
+        .map(({ index }) => index);
+      if (emptyBenchIndexes.length < selectedCards.length) {
+        setSoloNotice("ベンチの空きが足りません。");
+        return;
+      }
+      setSoloBenchStacks((stacks) => {
+        const nextStacks = stacks.map((stack) => [...stack]);
+        selectedCards.forEach((card, selectedIndex) => {
+          nextStacks[emptyBenchIndexes[selectedIndex]] = [{ ...card, playedTurn: soloTurn }];
+        });
+        return nextStacks;
+      });
+    } else if (soloEffectPrompt.action.destination === "stadium") {
+      const [stadiumCard] = selectedCards;
+      if (stadiumCard) {
+        if (soloStadiumCard) {
+          setSoloDiscard((discard) => [...discard, soloStadiumCard]);
+        }
+        setSoloStadiumCard(stadiumCard);
+      }
+    } else {
+      setSoloHand((hand) => [...hand, ...selectedCards]);
+    }
+
+    if (soloEffectPrompt.sourceHandIndex !== null) {
+      const source = soloHand[soloEffectPrompt.sourceHandIndex];
+      setSoloHand((hand) => hand.filter((_, index) => index !== soloEffectPrompt.sourceHandIndex));
+      setSoloDiscard((discard) => [...discard, source]);
+    }
+    setSoloPile(restPile);
+    setSoloSelectedHandIndex(null);
+    setSoloEffectPrompt(null);
+    setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚選び、山札をシャッフルしました。`);
+  };
+
+  const toggleEffectDiscardSelection = (discardIndex: number) => {
+    setSoloEffectPrompt((prompt) => {
+      if (!prompt || prompt.kind !== "recover_from_trash") return prompt;
+      const selected = prompt.selectedDiscardIndexes.includes(discardIndex)
+        ? prompt.selectedDiscardIndexes.filter((index) => index !== discardIndex)
+        : [...prompt.selectedDiscardIndexes, discardIndex].slice(0, prompt.action.count);
+      return { ...prompt, selectedDiscardIndexes: selected };
+    });
+  };
+
+  const confirmEffectRecoverTrash = () => {
+    if (!soloEffectPrompt || soloEffectPrompt.kind !== "recover_from_trash") return;
+    if (soloEffectPrompt.selectedDiscardIndexes.length === 0) {
+      setSoloNotice("トラッシュから回収するカードを選んでください。");
+      return;
+    }
+
+    const selectedIndexes = new Set(soloEffectPrompt.selectedDiscardIndexes);
+    const selectedCards = soloDiscard.filter((_, index) => selectedIndexes.has(index));
+    setSoloDiscard((discard) => discard.filter((_, index) => !selectedIndexes.has(index)));
+    setSoloHand((hand) => [...hand, ...selectedCards]);
+
+    if (soloEffectPrompt.sourceHandIndex !== null) {
+      const source = soloHand[soloEffectPrompt.sourceHandIndex];
+      setSoloHand((hand) => hand.filter((_, index) => index !== soloEffectPrompt.sourceHandIndex));
+      setSoloDiscard((discard) => [...discard, source]);
+    }
+    setSoloSelectedHandIndex(null);
+    setSoloEffectPrompt(null);
+    setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚をトラッシュから手札に加えました。`);
+  };
+
+  const confirmEffectSwitchActive = (benchIndex: number) => {
+    if (!soloEffectPrompt || soloEffectPrompt.kind !== "switch_active") return;
+    const benchStack = soloBenchStacks[benchIndex];
+    if (!benchStack || benchStack.length === 0 || soloActiveStack.length === 0) {
+      setSoloNotice("入れ替え先が見つかりません。");
+      return;
+    }
+
+    setSoloBenchStacks((stacks) => stacks.map((stack, index) => (index === benchIndex ? soloActiveStack : stack)));
+    setSoloActiveStack(benchStack);
+    setSoloAttachedTools((tools) => {
+      const nextBench = tools.bench.map((tool, index) => (index === benchIndex ? tools.active : tool));
+      return { active: tools.bench[benchIndex], bench: nextBench };
+    });
+    setSoloAttachedEnergies((energies) => {
+      const nextBench = energies.bench.map((attached, index) => (index === benchIndex ? energies.active : attached));
+      return { active: energies.bench[benchIndex] || [], bench: nextBench };
+    });
+
+    if (soloEffectPrompt.sourceHandIndex !== null) {
+      const source = soloHand[soloEffectPrompt.sourceHandIndex];
+      setSoloHand((hand) => hand.filter((_, index) => index !== soloEffectPrompt.sourceHandIndex));
+      setSoloDiscard((discard) => [...discard, source]);
+    }
+    setSoloSelectedHandIndex(null);
+    setSoloEffectPrompt(null);
+    setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果でバトル場とベンチ${benchIndex + 1}を入れ替えました。`);
+  };
+
+  const confirmBoardPokemonAction = (location: "active" | "bench", benchIndex?: number) => {
+    if (!soloEffectPrompt || soloEffectPrompt.kind !== "select_board_pokemon") return;
+    const targetStack = location === "active" ? soloActiveStack : soloBenchStacks[benchIndex || 0];
+    if (!targetStack || targetStack.length === 0) {
+      setSoloNotice("対象のポケモンが見つかりません。");
+      return;
+    }
+
+    const targetLabel = location === "active" ? "バトル場" : `ベンチ${(benchIndex || 0) + 1}`;
+    const topCard = targetStack[targetStack.length - 1];
+
+    if (soloEffectPrompt.action.type === "discard_tool") {
+      const tool = location === "active" ? soloAttachedTools.active : soloAttachedTools.bench[benchIndex || 0];
+      if (!tool) {
+        setSoloNotice("そのポケモンにはトラッシュできるどうぐがありません。");
+        return;
+      }
+      const sourceCards: SoloCard[] = [];
+      if (soloEffectPrompt.sourceHandIndex !== null) {
+        const source = soloHand[soloEffectPrompt.sourceHandIndex];
+        if (source) sourceCards.push(source);
+        setSoloHand((hand) => hand.filter((_, index) => index !== soloEffectPrompt.sourceHandIndex));
+      }
+      if (location === "active") {
+        setSoloAttachedTools((tools) => ({ ...tools, active: null }));
+      } else {
+        setSoloAttachedTools((tools) => ({
+          ...tools,
+          bench: tools.bench.map((attachedTool, index) => (index === benchIndex ? null : attachedTool)),
+        }));
+      }
+      setSoloDiscard((discard) => [...discard, ...sourceCards, tool]);
+      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${targetLabel}のどうぐをトラッシュしました。`);
+    } else {
+      const sourceCards: SoloCard[] = [];
+      if (soloEffectPrompt.sourceHandIndex !== null) {
+        const source = soloHand[soloEffectPrompt.sourceHandIndex];
+        if (source) sourceCards.push(source);
+        setSoloHand((hand) => hand.filter((_, index) => index !== soloEffectPrompt.sourceHandIndex));
+      }
+      setSoloDiscard((discard) => [...discard, ...sourceCards]);
+      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${targetLabel}の${topCard?.cardName || "ポケモン"}を回復した扱いにしました。`);
+    }
+
+    setSoloSelectedHandIndex(null);
+    setSoloEffectPrompt(null);
+  };
+
+  const cancelEffectPrompt = () => {
+    setSoloEffectPrompt(null);
+    setSoloNotice("効果処理をキャンセルしました。");
   };
 
   const takePrize = () => {
@@ -845,6 +1771,8 @@ export default function AIBattleRoomPage() {
 
   const nextSoloTurn = () => {
     setSoloTurn((turn) => turn + 1);
+    setSoloSupporterUsedTurn(null);
+    setSoloEnergyAttachedTurn(null);
   };
 
   const soloTurnLabel = soloStarted
@@ -867,16 +1795,40 @@ export default function AIBattleRoomPage() {
     );
   };
 
-  const renderSoloStack = (stack: SoloStack) => {
+  const renderSoloStack = (
+    stack: SoloStack,
+    attachedTool?: SoloCard | null,
+    attachedEnergies: SoloCard[] = [],
+    energyLayout: "active" | "bench" = "bench"
+  ) => {
     const topCard = stack[stack.length - 1];
     if (!topCard) {
       return null;
     }
+    const visibleEnergies = attachedEnergies.slice(-3);
 
     return (
-      <div className="solo-board-stack">
+      <div className={`solo-board-stack solo-board-stack--${energyLayout}`}>
+        {visibleEnergies.length > 0 ? (
+          <div className={`solo-board-energies solo-board-energies--${energyLayout}`} aria-label={`エネルギー${attachedEnergies.length}枚`}>
+            {visibleEnergies.map((energy, index) => (
+              <span
+                key={`${energy.cardId}-attached-energy-${index}`}
+                className="solo-board-energy-card"
+                style={{ "--energy-index": index } as CSSProperties}
+                title={energy.cardName || "エネルギー"}
+              >
+                {renderCardFace(energy, "solo-card-face--attached-energy")}
+              </span>
+            ))}
+            {attachedEnergies.length > visibleEnergies.length ? (
+              <span className={`solo-board-energy-count solo-board-energy-count--${energyLayout}`}>+{attachedEnergies.length - visibleEnergies.length}</span>
+            ) : null}
+          </div>
+        ) : null}
         {renderCardFace(topCard, "solo-card-face--board")}
         {stack.length > 1 && <span className="solo-board-stack__count">+{stack.length - 1}</span>}
+        {attachedTool ? <span className="solo-board-tool">{attachedTool.cardName || "どうぐ"}</span> : null}
       </div>
     );
   };
@@ -889,6 +1841,18 @@ export default function AIBattleRoomPage() {
       : soloRareCandyMode === "select_evolution"
         ? "進化先候補ポケモンを選んでください。"
         : "";
+  const effectSearchCandidates =
+    soloEffectPrompt?.kind === "search_deck"
+      ? soloPile
+          .map((card, pileIndex) => ({ card, pileIndex }))
+          .filter(({ card }) => matchesSearchTarget(card, soloEffectPrompt.action.target))
+      : [];
+  const effectTrashCandidates =
+    soloEffectPrompt?.kind === "recover_from_trash"
+      ? soloDiscard
+          .map((card, discardIndex) => ({ card, discardIndex }))
+          .filter(({ card }) => matchesSearchTarget(card, soloEffectPrompt.action.target))
+      : [];
 
   return (
     <AuthGate>
@@ -1216,7 +2180,7 @@ export default function AIBattleRoomPage() {
                                 <span className="solo-active-slot__text">基本ポケモンを置く</span>
                               </>
                             ) : (
-                              renderSoloStack(soloActiveStack)
+                              renderSoloStack(soloActiveStack, soloAttachedTools.active, soloAttachedEnergies.active, "active")
                             )}
                           </div>
                         </button>
@@ -1233,7 +2197,7 @@ export default function AIBattleRoomPage() {
                               >
                                 {soloBenchStacks[index]?.length ? (
                                   <>
-                                    {renderSoloStack(soloBenchStacks[index])}
+                                    {renderSoloStack(soloBenchStacks[index], soloAttachedTools.bench[index], soloAttachedEnergies.bench[index], "bench")}
                                     <span className="solo-bench-slot__index">{index + 1}</span>
                                   </>
                                 ) : (
@@ -1263,6 +2227,24 @@ export default function AIBattleRoomPage() {
                           <div className="solo-zone__value">{soloDiscard.length}</div>
                           <div className="solo-zone__hint">押すと一覧を確認</div>
                         </button>
+                        <div className="rounded-[18px] border border-white/15 bg-white/8 p-3 text-emerald-50">
+                          <div className="text-[10px] font-black tracking-[0.14em] text-emerald-200">初手7枚</div>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div>
+                              <div className="text-[10px] font-bold text-emerald-100/70">引き直し</div>
+                              <div className="text-lg font-black">{soloOpeningRedrawCount}回</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-bold text-emerald-100/70">発生目安</div>
+                              <div className="text-lg font-black">
+                                {formatProbability(openingHandStats.currentRedrawSequenceProbability)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-[11px] leading-5 text-emerald-100/75">
+                            初手成立 {formatProbability(openingHandStats.keepProbability)} / たね {openingHandStats.basicPokemonCount}枚
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -1286,7 +2268,7 @@ export default function AIBattleRoomPage() {
                             ))
                           )}
                         </div>
-                        <div className="solo-zone__hint">カードを選んでから、バトル場またはベンチを押してください。</div>
+                        <div className="solo-zone__hint">ポケモンは場へ、どうぐはポケモンへ、グッズ・サポートは選択中カードの「使う」を押してください。</div>
                       </div>
                     </div>
                   </div>
@@ -1295,7 +2277,7 @@ export default function AIBattleRoomPage() {
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-sm font-black tracking-[0.14em] text-emerald-200">選択中カード</h3>
                       <span className="text-xs font-semibold text-emerald-100/80">
-                        {soloCardDetailsLoading ? "詳細読込中" : soloStarted ? "開始済み" : "未開始"}
+                        {cardMasterLoading ? "マスター読込中" : soloStarted ? "開始済み" : "未開始"}
                       </span>
                     </div>
                     <div className="mt-3 rounded-[18px] border border-white/15 bg-white/8 p-3">
@@ -1307,16 +2289,58 @@ export default function AIBattleRoomPage() {
                             <p className="mt-1 text-sm leading-6 text-emerald-50/85">
                               {getCardPlacementType(selectedSoloCard) === "stadium"
                                 ? "スタジアムカードです。スタジアム枠にだけ置けます。"
-                                : getCardPlacementType(selectedSoloCard) === "trainer"
-                                  ? "グッズ・サポートなどのトレーナーズです。配置はできません。"
+                                : getCardPlacementType(selectedSoloCard) === "tool"
+                                  ? "ポケモンのどうぐです。バトル場かベンチのポケモンにつけられます。"
+                                  : getCardPlacementType(selectedSoloCard) === "supporter"
+                                    ? isSoloFirstTurnSupporterLocked
+                                      ? "サポートです。先攻の最初の番は使えません。"
+                                      : soloSupporterUsedTurn === soloTurn
+                                      ? "サポートです。このターンはすでにサポートを使っています。"
+                                      : "サポートです。「使う」で効果処理後にトラッシュします。"
+                                    : getCardPlacementType(selectedSoloCard) === "item" || getCardPlacementType(selectedSoloCard) === "trainer"
+                                      ? "グッズなどのトレーナーズです。「使う」で効果処理後にトラッシュします。"
                                   : getCardPlacementType(selectedSoloCard) === "energy"
-                                  ? "エネルギーカードです。配置はできません。ポケモンにつけて使います。"
+                                  ? soloEnergyAttachedTurn === soloTurn
+                                    ? "エネルギーカードです。このターンはすでに1枚つけています。"
+                                    : "エネルギーカードです。バトル場かベンチのポケモンにつけられます。"
                                   : getStageOrder(selectedSoloCard) === 0
                                 ? "基本ポケモン。空いているバトル場かベンチに置けます。"
                                 : getStageOrder(selectedSoloCard) !== null
                                   ? `${getStageOrder(selectedSoloCard)}進化ポケモン。1つ前の進化段階が置かれた枠にだけ置けます。`
                                   : "詳細未取得。配置判定は保守的に扱います。"}
                             </p>
+                            {(getCardPlacementType(selectedSoloCard) === "item" ||
+                              getCardPlacementType(selectedSoloCard) === "supporter" ||
+                              getCardPlacementType(selectedSoloCard) === "trainer" ||
+                              getCardPlacementType(selectedSoloCard) === "tool" ||
+                              getCardPlacementType(selectedSoloCard) === "stadium") ? (
+                              <p className="mt-2 rounded-2xl border border-white/12 bg-white/8 px-3 py-2 text-xs leading-5 text-emerald-50/85">
+                                {selectedEffectProfile
+                                  ? `対応済み効果: ${selectedEffectProfile.label}`
+                                  : "未対応効果: 使った後は手動操作で処理します。"}
+                              </p>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {(getCardPlacementType(selectedSoloCard) === "item" ||
+                                getCardPlacementType(selectedSoloCard) === "supporter" ||
+                                getCardPlacementType(selectedSoloCard) === "trainer") ? (
+                                <button
+                                  type="button"
+                                  onClick={useSelectedTrainerCard}
+                                  disabled={getCardPlacementType(selectedSoloCard) === "supporter" && isSoloFirstTurnSupporterLocked}
+                                  className="inline-flex h-9 items-center justify-center rounded-full bg-white px-4 text-xs font-bold text-emerald-950 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:bg-white/35 disabled:text-emerald-950/60"
+                                >
+                                  使う
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => discardSelectedHandCard()}
+                                className="inline-flex h-9 items-center justify-center rounded-full border border-white/15 bg-transparent px-4 text-xs font-bold text-emerald-50 transition hover:bg-white/10"
+                              >
+                                手札からトラッシュ
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : soloRareCandyMode !== "idle" ? (
@@ -1386,6 +2410,219 @@ export default function AIBattleRoomPage() {
                       </div>
                     ) : null}
 
+                    {soloEffectPrompt ? (
+                      <div className="mt-3 rounded-[18px] border border-white/15 bg-white/8 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">効果処理</div>
+                            <p className="mt-1 text-sm font-bold text-emerald-50">
+                              {soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={cancelEffectPrompt}
+                            className="inline-flex h-9 items-center justify-center rounded-full border border-white/15 bg-transparent px-4 text-xs font-bold text-emerald-50 transition hover:bg-white/10"
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+
+                        {soloEffectPrompt.kind === "discard_from_hand" ? (
+                          <div className="mt-3">
+                            <p className="text-sm leading-6 text-emerald-50/90">
+                              コストとして手札を{soloEffectPrompt.count}枚選んでください。
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {soloHand.map((card, index) => {
+                                const disabled = index === soloEffectPrompt.sourceHandIndex;
+                                const selected = soloEffectPrompt.selectedHandIndexes.includes(index);
+                                return (
+                                  <button
+                                    key={`${card.cardId}-cost-${index}`}
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => toggleEffectHandSelection(index)}
+                                    className={`solo-card-chip ${selected ? "solo-card-chip--selected" : ""} ${disabled ? "opacity-35" : ""}`}
+                                    title={disabled ? "使用するカード" : "コストにする"}
+                                  >
+                                    {renderCardFace(card)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={confirmEffectDiscardCost}
+                              className="mt-3 inline-flex h-9 items-center justify-center rounded-full bg-white px-4 text-xs font-bold text-emerald-950 transition hover:bg-emerald-50"
+                            >
+                              コストをトラッシュして続ける
+                            </button>
+                          </div>
+                        ) : soloEffectPrompt.kind === "search_deck" ? (
+                          <div className="mt-3">
+                            <p className="text-sm leading-6 text-emerald-50/90">
+                              山札から{getSearchTargetLabel(soloEffectPrompt.action.target)}を{soloEffectPrompt.action.count}枚まで選んでください。
+                            </p>
+                            <div className="mt-2 grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                              {effectSearchCandidates.length === 0 ? (
+                                <p className="text-sm leading-6 text-emerald-50/80">候補がありません。</p>
+                              ) : (
+                                effectSearchCandidates.map(({ card, pileIndex }) => {
+                                  const selected = soloEffectPrompt.selectedPileIndexes.includes(pileIndex);
+                                  return (
+                                    <button
+                                      key={`${card.cardId}-search-${pileIndex}`}
+                                      type="button"
+                                      onClick={() => toggleEffectPileSelection(pileIndex)}
+                                      className={`rounded-[16px] border p-2 text-left transition ${
+                                        selected ? "border-yellow-300 bg-yellow-300/16" : "border-white/15 bg-emerald-900/60 hover:bg-emerald-900"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {renderCardFace(card, "solo-card-face--candidate")}
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-bold text-emerald-50">{card.cardName || "カード"}</p>
+                                          <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">
+                                            {selected ? "選択中" : "押すと選択"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={confirmEffectSearchDeck}
+                              className="mt-3 inline-flex h-9 items-center justify-center rounded-full bg-white px-4 text-xs font-bold text-emerald-950 transition hover:bg-emerald-50"
+                            >
+                              選んだカードを反映する
+                            </button>
+                          </div>
+                        ) : soloEffectPrompt.kind === "recover_from_trash" ? (
+                          <div className="mt-3">
+                            <p className="text-sm leading-6 text-emerald-50/90">
+                              トラッシュから{getSearchTargetLabel(soloEffectPrompt.action.target)}を{soloEffectPrompt.action.count}枚まで選んでください。
+                            </p>
+                            <div className="mt-2 grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                              {effectTrashCandidates.length === 0 ? (
+                                <p className="text-sm leading-6 text-emerald-50/80">候補がありません。</p>
+                              ) : (
+                                effectTrashCandidates.map(({ card, discardIndex }) => {
+                                  const selected = soloEffectPrompt.selectedDiscardIndexes.includes(discardIndex);
+                                  return (
+                                    <button
+                                      key={`${card.cardId}-recover-${discardIndex}`}
+                                      type="button"
+                                      onClick={() => toggleEffectDiscardSelection(discardIndex)}
+                                      className={`rounded-[16px] border p-2 text-left transition ${
+                                        selected ? "border-yellow-300 bg-yellow-300/16" : "border-white/15 bg-emerald-900/60 hover:bg-emerald-900"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        {renderCardFace(card, "solo-card-face--candidate")}
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-bold text-emerald-50">{card.cardName || "カード"}</p>
+                                          <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">
+                                            {selected ? "選択中" : "押すと選択"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={confirmEffectRecoverTrash}
+                              className="mt-3 inline-flex h-9 items-center justify-center rounded-full bg-white px-4 text-xs font-bold text-emerald-950 transition hover:bg-emerald-50"
+                            >
+                              選んだカードを手札に加える
+                            </button>
+                          </div>
+                        ) : soloEffectPrompt.kind === "switch_active" ? (
+                          <div className="mt-3">
+                            <p className="text-sm leading-6 text-emerald-50/90">入れ替え先のベンチポケモンを選んでください。</p>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                              {soloBenchStacks.map((stack, index) => (
+                                <button
+                                  key={`switch-bench-${index}`}
+                                  type="button"
+                                  disabled={stack.length === 0}
+                                  onClick={() => confirmEffectSwitchActive(index)}
+                                  className="rounded-[16px] border border-white/15 bg-emerald-900/60 p-2 text-left transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-35"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {stack.length ? renderCardFace(stack[stack.length - 1], "solo-card-face--candidate") : null}
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-bold text-emerald-50">ベンチ{index + 1}</p>
+                                      <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">
+                                        {stack[stack.length - 1]?.cardName || "空き"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <p className="text-sm leading-6 text-emerald-50/90">
+                              {soloEffectPrompt.action.type === "heal_pokemon" ? "回復するポケモンを選んでください。" : "どうぐをトラッシュするポケモンを選んでください。"}
+                            </p>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                              <button
+                                type="button"
+                                disabled={
+                                  soloActiveStack.length === 0 ||
+                                  (soloEffectPrompt.action.type === "discard_tool" && !soloAttachedTools.active)
+                                }
+                                onClick={() => confirmBoardPokemonAction("active")}
+                                className="rounded-[16px] border border-white/15 bg-emerald-900/60 p-2 text-left transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-35"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {soloActiveStack.length ? renderCardFace(soloActiveStack[soloActiveStack.length - 1], "solo-card-face--candidate") : null}
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-bold text-emerald-50">バトル場</p>
+                                    <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">
+                                      {soloActiveStack[soloActiveStack.length - 1]?.cardName || "空き"}
+                                      {soloEffectPrompt.action.type === "discard_tool" && soloAttachedTools.active ? ` / ${soloAttachedTools.active.cardName || "どうぐ"}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                              {soloBenchStacks.map((stack, index) => (
+                                <button
+                                  key={`board-action-bench-${index}`}
+                                  type="button"
+                                  disabled={
+                                    stack.length === 0 ||
+                                    (soloEffectPrompt.action.type === "discard_tool" && !soloAttachedTools.bench[index])
+                                  }
+                                  onClick={() => confirmBoardPokemonAction("bench", index)}
+                                  className="rounded-[16px] border border-white/15 bg-emerald-900/60 p-2 text-left transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-35"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {stack.length ? renderCardFace(stack[stack.length - 1], "solo-card-face--candidate") : null}
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-bold text-emerald-50">ベンチ{index + 1}</p>
+                                      <p className="mt-1 text-[11px] leading-5 text-emerald-100/80">
+                                        {stack[stack.length - 1]?.cardName || "空き"}
+                                        {soloEffectPrompt.action.type === "discard_tool" && soloAttachedTools.bench[index] ? ` / ${soloAttachedTools.bench[index]?.cardName || "どうぐ"}` : ""}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
                     {soloNotice && <p className="mt-3 text-sm leading-6 text-emerald-100/90">{soloNotice}</p>}
                   </div>
 
@@ -1394,7 +2631,7 @@ export default function AIBattleRoomPage() {
                       <button
                         type="button"
                         onClick={startSolo}
-                        disabled={soloCardDetailsLoading}
+                        disabled={cardMasterLoading}
                         className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
                         7枚引いて開始
@@ -1412,7 +2649,14 @@ export default function AIBattleRoomPage() {
                       onClick={shuffleSolo}
                       className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-5 text-sm font-bold text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-100"
                     >
-                      シャッフル
+                      手札を戻して引き直す
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSoloCustomShuffleOpen((open) => !open)}
+                      className="inline-flex h-11 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-5 text-sm font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-100"
+                    >
+                      指定枚数でシャッフル
                     </button>
                     {soloStarted ? (
                       <button
@@ -1439,18 +2683,59 @@ export default function AIBattleRoomPage() {
                     </button>
                   </div>
 
-                  <div className="mt-5 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[18px] border border-white/15 bg-white/8 p-3">
-                        <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">トラッシュ</div>
-                        <p className="mt-2 text-sm leading-6 text-emerald-50/90">
-                          {soloDiscard.length === 0 ? "まだありません。" : `${soloDiscard.length}枚`}
-                        </p>
+                  {soloCustomShuffleOpen ? (
+                    <div className="mt-3 rounded-[18px] border border-emerald-900/20 bg-white p-3 text-slate-800 shadow-sm">
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div>
+                          <label htmlFor="solo-custom-shuffle-draw-count" className="block text-[11px] font-black tracking-[0.14em] text-emerald-700">
+                            手札シャッフル
+                          </label>
+                          <div className="mt-2 flex items-center gap-2">
+                            <input
+                              id="solo-custom-shuffle-draw-count"
+                              type="number"
+                              min={0}
+                              max={soloPile.length + soloHand.length}
+                              value={soloCustomShuffleDrawCount}
+                              onChange={(event) => setSoloCustomShuffleDrawCount(Number(event.target.value))}
+                              className="h-10 w-24 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500"
+                            />
+                            <span className="text-sm font-semibold text-slate-600">枚引く</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {[4, 5, 6, 7].map((count) => (
+                            <button
+                              key={`shuffle-count-${count}`}
+                              type="button"
+                              onClick={() => setSoloCustomShuffleDrawCount(count)}
+                              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+                            >
+                              {count}枚
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={shuffleHandIntoDeckAndDrawCustom}
+                          disabled={soloHand.length === 0}
+                          className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-700 px-4 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                        >
+                          手札を戻して実行
+                        </button>
                       </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-600">
+                        ゲーム中のカード効果用です。初手7枚の引き直し回数には加算しません。
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                    <div className="grid gap-3">
                       <div className="rounded-[18px] border border-white/15 bg-white/8 p-3">
                         <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">操作ヒント</div>
                         <p className="mt-2 text-sm leading-6 text-emerald-50/90">
-                          基本ポケモンは空枠へ、進化ポケモンは既に置いたポケモンの上へ配置します。
+                          基本ポケモンは空枠へ、進化は重ねます。グッズ・サポートは使う、どうぐはポケモンへ、スタジアムはスタジアム枠へ置きます。
                         </p>
                       </div>
                     </div>

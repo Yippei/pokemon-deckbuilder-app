@@ -150,10 +150,10 @@ export default function DeckPage() {
           <span key={`${variant}-${index}`} className={`ball-deco ball-deco-${variant}`} />
         ))}
       </div>
-      <div className="deck-create-content max-w-2xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/" className="text-gray-500 hover:text-gray-700">← 戻る</Link>
-        <h1 className="text-2xl font-bold text-slate-950 flex-1">
+      <div className="deck-create-content mx-auto max-w-2xl px-4 py-6 sm:p-6">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Link href="/" className="shrink-0 text-gray-500 hover:text-gray-700">← 戻る</Link>
+        <h1 className="min-w-[180px] flex-1 break-words text-2xl font-bold text-slate-950">
           {editing ? (
             <input
               type="text"
@@ -165,15 +165,17 @@ export default function DeckPage() {
             deck.name
           )}
         </h1>
-        <AuthStatus compact />
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-sm bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-3 py-1 rounded font-bold"
-          >
-            編集
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <AuthStatus compact />
+          {!editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 hover:bg-blue-100"
+            >
+              編集
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
@@ -185,12 +187,12 @@ export default function DeckPage() {
           <p className="text-xs text-blue-600 mb-3">
             現在のデッキをAIが分析して60枚の最適な構成を提案します。
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="text"
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
-              className="flex-1 border rounded px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+              className="min-w-0 flex-1 rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
               placeholder={`改善の方向性（任意）例：もっと速いデッキにしたい`}
             />
             <button
@@ -270,14 +272,14 @@ export default function DeckPage() {
         ) : (
           <ul className="space-y-2">
             {cards.map((c) => (
-              <li key={c.cardId} className="flex items-center justify-between border rounded px-3 py-2 bg-white text-slate-950">
-                <div className="flex items-center gap-3">
+              <li key={c.cardId} className="flex items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-slate-950">
+                <div className="flex min-w-0 items-center gap-3">
                   {c.illustration && (
-                    <img src={c.illustration} alt={c.cardName} className="w-8 h-11 object-contain transition-transform duration-200 hover:scale-[4] hover:z-10 relative" />
+                    <img src={c.illustration} alt={c.cardName} className="relative h-11 w-8 shrink-0 object-contain transition-transform duration-200 hover:z-10 hover:scale-[4]" />
                   )}
-                  <span className="text-sm text-slate-950">{c.cardName || c.cardId}</span>
+                  <span className="truncate text-sm text-slate-950">{c.cardName || c.cardId}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {editing ? (
                     <>
                       <button
@@ -307,7 +309,7 @@ export default function DeckPage() {
 
       {/* ボタン */}
       {editing ? (
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <button
             onClick={handleSave}
             disabled={saving}

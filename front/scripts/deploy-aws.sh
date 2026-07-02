@@ -39,7 +39,7 @@ if [ -z "${FRONTEND_CLOUDFRONT_DISTRIBUTION_ID}" ] || [ "${FRONTEND_CLOUDFRONT_D
 fi
 
 echo "2/4 S3 へ同期しています..."
-aws --region "${AWS_REGION}" s3 sync "${FRONT_DIR}/out" "s3://${FRONTEND_BUCKET_NAME}" --delete
+aws --region "${AWS_REGION}" s3 sync "${FRONT_DIR}/out" "s3://${FRONTEND_BUCKET_NAME}" --delete --exclude "ai-training/*"
 
 echo "3/4 CloudFront を無効化しています..."
 INVALIDATION_ID="$(aws --region "${AWS_REGION}" cloudfront create-invalidation --distribution-id "${FRONTEND_CLOUDFRONT_DISTRIBUTION_ID}" --paths '/*' --query 'Invalidation.Id' --output text)"
