@@ -629,6 +629,7 @@ export default function AIBattleRoomPage() {
   const [soloAttachedEnergies, setSoloAttachedEnergies] = useState<SoloEnergyState>(createEmptySoloEnergies);
   const [soloSelectedHandIndex, setSoloSelectedHandIndex] = useState<number | null>(null);
   const [soloNotice, setSoloNotice] = useState("");
+  const [soloHintsVisible, setSoloHintsVisible] = useState(false);
   const [soloStartingPlayer, setSoloStartingPlayer] = useState<SoloStartingPlayer>("first");
   const [soloTurn, setSoloTurn] = useState(1);
   const [soloStarted, setSoloStarted] = useState(false);
@@ -2135,10 +2136,30 @@ export default function AIBattleRoomPage() {
                         札の流れを手で回して、初動と終盤の再現性を詰めます。
                       </p>
                     </div>
-                    <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-emerald-50">
-                      {soloTurnLabel}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSoloHintsVisible((visible) => !visible)}
+                        className={`inline-flex h-8 items-center justify-center rounded-full border px-3 text-xs font-bold transition ${
+                          soloHintsVisible
+                            ? "border-white bg-white text-emerald-950"
+                            : "border-white/20 bg-white/12 text-emerald-50 hover:bg-white/18"
+                        }`}
+                        aria-pressed={soloHintsVisible}
+                      >
+                        ヒント {soloHintsVisible ? "ON" : "OFF"}
+                      </button>
+                      <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-emerald-50">
+                        {soloTurnLabel}
+                      </span>
+                    </div>
                   </div>
+
+                  {soloHintsVisible ? (
+                    <div className="mt-3 rounded-[18px] border border-white/15 bg-white/10 p-3 text-sm leading-6 text-emerald-50/90">
+                      基本ポケモンは空枠へ、進化は重ねます。グッズ・サポートは使う、どうぐはポケモンへ、スタジアムはスタジアム枠へ置きます。
+                    </div>
+                  ) : null}
 
                   <div className="solo-playmat mt-4">
                     <div className="solo-playmat__board">
@@ -2737,17 +2758,6 @@ export default function AIBattleRoomPage() {
                       </p>
                     </div>
                   ) : null}
-
-                  <div className="solo-help-panel mt-5 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
-                    <div className="grid gap-3">
-                      <div className="rounded-[18px] border border-white/15 bg-white/8 p-3">
-                        <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">操作ヒント</div>
-                        <p className="mt-2 text-sm leading-6 text-emerald-50/90">
-                          基本ポケモンは空枠へ、進化は重ねます。グッズ・サポートは使う、どうぐはポケモンへ、スタジアムはスタジアム枠へ置きます。
-                        </p>
-                      </div>
-                    </div>
-                  </div>
 
                   {soloTrashOpen ? (
                     <div

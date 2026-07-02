@@ -1784,6 +1784,7 @@ body {
 
   .solo-playmat-shell__header {
     align-items: center;
+    flex-wrap: wrap;
   }
 
   .solo-playmat-shell__description {
