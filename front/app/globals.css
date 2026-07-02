@@ -1297,6 +1297,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
   min-height: 0;
   border-radius: 18px;
   padding: 14px;
@@ -1469,6 +1470,9 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 48px;
 }
 
@@ -1806,6 +1810,9 @@ body {
 
   .solo-playmat__hand-panel {
     margin-top: 2px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .solo-zone {
@@ -1931,12 +1938,17 @@ body {
 
   .solo-zone__chips {
     display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     min-height: 78px;
     flex-wrap: nowrap;
     gap: 6px;
+    overflow-y: hidden;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     padding: 2px 2px 8px;
+    scrollbar-gutter: stable;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
   }
