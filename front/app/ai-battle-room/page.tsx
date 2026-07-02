@@ -1875,8 +1875,8 @@ export default function AIBattleRoomPage() {
           ))}
         </div>
 
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-          <header className="mb-6 flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white/78 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl lg:flex-row lg:items-end lg:justify-between">
+        <div className="play-lab-page mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+          <header className="play-lab-hero mb-6 flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white/78 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="home-kicker">PLAY LAB</div>
               <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">プレイラボ</h1>
@@ -1895,7 +1895,7 @@ export default function AIBattleRoomPage() {
             </div>
           </header>
 
-          <section className="mb-6 rounded-[24px] border border-slate-200/80 bg-white/78 p-4 shadow-sm backdrop-blur-xl">
+          <section className="play-lab-mode-switcher mb-6 rounded-[24px] border border-slate-200/80 bg-white/78 p-4 shadow-sm backdrop-blur-xl">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {modeOptions.map((option) => (
                 <button
@@ -1919,7 +1919,7 @@ export default function AIBattleRoomPage() {
           </section>
 
           <div className="space-y-6">
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+            <section className="play-lab-deck-section rounded-[28px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-black text-slate-950">デッキ選択</h2>
@@ -1996,7 +1996,7 @@ export default function AIBattleRoomPage() {
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+            <section className="play-lab-practice-section rounded-[28px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
               {mode === "ai" ? (
                 <div>
                   <div className="flex items-center justify-between gap-3">
@@ -2085,10 +2085,10 @@ export default function AIBattleRoomPage() {
                 </div>
               ) : (
                 <div className="solo-playmat-shell">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="solo-playmat-shell__header flex items-center justify-between gap-3">
                     <div>
                       <h2 className="text-lg font-black text-white">一人回し</h2>
-                      <p className="mt-1 text-sm leading-6 text-emerald-50/90">
+                      <p className="solo-playmat-shell__description mt-1 text-sm leading-6 text-emerald-50/90">
                         札の流れを手で回して、初動と終盤の再現性を詰めます。
                       </p>
                     </div>
@@ -2273,7 +2273,7 @@ export default function AIBattleRoomPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="solo-selection-panel mt-4 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-sm font-black tracking-[0.14em] text-emerald-200">選択中カード</h3>
                       <span className="text-xs font-semibold text-emerald-100/80">
@@ -2626,7 +2626,7 @@ export default function AIBattleRoomPage() {
                     {soloNotice && <p className="mt-3 text-sm leading-6 text-emerald-100/90">{soloNotice}</p>}
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-3">
+                  <div className="solo-action-bar mt-4 flex flex-wrap gap-3">
                     {!soloStarted ? (
                       <button
                         type="button"
@@ -2730,7 +2730,7 @@ export default function AIBattleRoomPage() {
                     </div>
                   ) : null}
 
-                  <div className="mt-5 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
+                  <div className="solo-help-panel mt-5 rounded-[22px] border border-emerald-900/20 bg-emerald-950/80 p-4 text-emerald-50 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
                     <div className="grid gap-3">
                       <div className="rounded-[18px] border border-white/15 bg-white/8 p-3">
                         <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">操作ヒント</div>

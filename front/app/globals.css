@@ -1740,27 +1740,304 @@ body {
 }
 
 @media (max-width: 768px) {
+  .play-lab-page {
+    padding: 12px;
+  }
+
+  .play-lab-hero,
+  .play-lab-mode-switcher,
+  .play-lab-deck-section,
+  .play-lab-practice-section {
+    border-radius: 18px;
+    padding: 12px;
+  }
+
+  .play-lab-hero {
+    margin-bottom: 12px;
+  }
+
+  .play-lab-hero h1 {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .play-lab-hero p,
+  .play-lab-mode-switcher p,
+  .play-lab-deck-section p {
+    line-height: 1.5;
+  }
+
+  .play-lab-mode-switcher,
+  .play-lab-deck-section {
+    margin-bottom: 12px;
+  }
+
   .solo-playmat-shell {
-    border-radius: 20px;
-    padding: 10px;
+    margin-inline: -6px;
+    border-radius: 18px;
+    padding: 8px;
+  }
+
+  .solo-playmat-shell__header {
+    align-items: center;
+  }
+
+  .solo-playmat-shell__description {
+    display: none;
   }
 
   .solo-playmat {
-    gap: 10px;
-    padding: 10px;
-    border-radius: 18px;
+    gap: 7px;
+    margin-top: 8px;
+    padding: 7px;
+    border-radius: 16px;
   }
 
   .solo-playmat__board {
-    grid-template-columns: 1fr;
+    gap: 7px;
+    grid-template-columns: 62px minmax(0, 1fr) 66px;
+    align-items: stretch;
+  }
+
+  .solo-playmat__column--center,
+  .solo-playmat__column--stack {
+    gap: 7px;
+  }
+
+  .solo-playmat__hand-panel {
+    margin-top: 2px;
+  }
+
+  .solo-zone {
+    gap: 5px;
+    border-radius: 12px;
+    padding: 7px;
+  }
+
+  .solo-zone__label {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .solo-zone__hint {
+    display: none;
+  }
+
+  .solo-zone__value {
+    font-size: 24px;
+  }
+
+  .solo-zone--prize,
+  .solo-zone--deck,
+  .solo-zone--trash,
+  .solo-zone--stadium {
+    min-height: 74px;
+  }
+
+  .solo-zone--active {
+    min-height: 96px;
+  }
+
+  .solo-zone--bench {
+    min-height: 100px;
+  }
+
+  .solo-stadium-slot {
+    min-height: 50px;
+    border-radius: 10px;
+    padding: 4px;
+  }
+
+  .solo-stadium-slot__title,
+  .solo-stadium-slot__text,
+  .solo-stadium-slot__name {
+    font-size: 9px;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+
+  .solo-prize-stack {
+    gap: 3px;
+  }
+
+  .solo-prize-card {
+    width: 14px;
+    height: 20px;
+    border-radius: 5px;
+  }
+
+  .solo-active-slot {
+    min-height: 74px;
+    border-radius: 12px;
+  }
+
+  .solo-active-slot__title {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+
+  .solo-active-slot__text {
+    font-size: 11px;
   }
 
   .solo-bench-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .solo-bench-slot {
-    min-height: 112px;
+    min-height: 72px;
+    border-radius: 10px;
+    padding: 4px;
+    justify-content: center;
+  }
+
+  .solo-bench-slot__placeholder,
+  .solo-bench-slot__index {
+    font-size: 10px;
+  }
+
+  .solo-board-stack,
+  .solo-card-chip,
+  .solo-card-face--board,
+  .solo-card-face--stadium,
+  .solo-card-face--trash {
+    width: 48px;
+    min-height: 68px;
+    border-radius: 9px;
+  }
+
+  .solo-card-face--preview {
+    width: 54px;
+    min-height: 76px;
+    border-radius: 9px;
+  }
+
+  .solo-card-face--candidate {
+    width: 46px;
+    min-height: 65px;
+    border-radius: 8px;
+  }
+
+  .solo-card-face__fallback {
+    padding: 2px;
+    font-size: 8px;
+    line-height: 1.25;
+  }
+
+  .solo-card-chip {
+    flex: 0 0 auto;
+  }
+
+  .solo-zone__chips {
+    display: flex;
+    min-height: 78px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 2px 2px 8px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .solo-zone__chips .solo-card-chip {
+    scroll-snap-align: start;
+  }
+
+  .solo-board-energies--active {
+    left: 36px;
+    top: 6px;
+    width: 34px;
+    height: 54px;
+  }
+
+  .solo-board-energies--bench {
+    left: 4px;
+    bottom: -10px;
+    width: 42px;
+    height: 28px;
+  }
+
+  .solo-board-energy-card,
+  .solo-card-face--attached-energy {
+    width: 28px;
+    min-height: 39px;
+    height: 39px;
+    border-radius: 6px;
+  }
+
+  .solo-board-energies--active .solo-board-energy-card,
+  .solo-board-energies--bench .solo-board-energy-card {
+    left: calc(var(--energy-index) * 5px);
+    top: calc(var(--energy-index) * 3px);
+  }
+
+  .solo-board-energy-count {
+    min-width: 18px;
+    padding: 1px 5px;
+    font-size: 9px;
+  }
+
+  .solo-board-energy-count--active {
+    right: -12px;
+  }
+
+  .solo-board-tool {
+    max-width: 60px;
+    bottom: -7px;
+    padding: 2px 6px;
+    font-size: 8px;
+  }
+
+  .solo-selection-panel {
+    margin-top: 8px;
+    border-radius: 16px;
+    padding: 9px;
+  }
+
+  .solo-selection-panel > .flex:first-child {
+    align-items: center;
+  }
+
+  .solo-selection-panel .solo-card-face--preview {
+    display: none;
+  }
+
+  .solo-selection-panel p {
+    line-height: 1.45;
+  }
+
+  .solo-selection-panel .rounded-\[18px\] {
+    border-radius: 13px;
+    padding: 9px;
+  }
+
+  .solo-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    margin-inline: -8px;
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    border-top: 1px solid rgba(16, 185, 129, 0.18);
+    background: rgba(6, 78, 59, 0.94);
+    padding: 8px;
+    backdrop-filter: blur(14px);
+  }
+
+  .solo-action-bar button {
+    width: 100%;
+    height: 40px;
+    padding-inline: 10px;
+    border-radius: 14px;
+    font-size: 12px;
+  }
+
+  .solo-help-panel {
+    display: none;
   }
 
   .solo-trash-modal {
@@ -1777,7 +2054,70 @@ body {
 
   .solo-playmat__column--center,
   .solo-playmat__column--stack {
-    gap: 10px;
+    gap: 7px;
+  }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .play-lab-page {
+    max-width: none;
+    padding: 8px;
+  }
+
+  .play-lab-hero,
+  .play-lab-mode-switcher,
+  .play-lab-deck-section {
+    display: none;
+  }
+
+  .play-lab-practice-section {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .solo-playmat-shell {
+    margin: 0;
+    border-radius: 14px;
+    padding: 7px;
+  }
+
+  .solo-playmat-shell__header {
+    min-height: 32px;
+  }
+
+  .solo-playmat {
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 0.52fr);
+    align-items: start;
+  }
+
+  .solo-playmat__board {
+    grid-template-columns: 74px minmax(0, 1fr) 78px;
+  }
+
+  .solo-playmat__hand-panel {
+    margin-top: 0;
+  }
+
+  .solo-zone--hand {
+    max-height: calc(100vh - 82px);
+  }
+
+  .solo-zone__chips {
+    max-height: calc(100vh - 134px);
+    flex-wrap: wrap;
+    overflow-y: auto;
+  }
+
+  .solo-selection-panel {
+    max-height: 34vh;
+    overflow: auto;
+  }
+
+  .solo-action-bar {
+    position: static;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
