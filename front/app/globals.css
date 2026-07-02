@@ -2746,6 +2746,7 @@ body {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--type-light, #e2e8f0) 24%, white), rgba(255, 255, 255, 0.86));
 }
@@ -2774,8 +2775,26 @@ body {
 }
 
 .type-action-button:hover,
+.type-action-button:active,
+.type-action-button:focus-visible,
 .type-action-button.type-filter-active {
   color: #111827;
+}
+
+.solo-turn-order-button,
+.deck-studio-hero__quick-theme {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.solo-turn-order-button:active,
+.solo-turn-order-button:focus-visible {
+  color: #334155;
+}
+
+.solo-turn-order-button--active,
+.solo-turn-order-button--active:active,
+.solo-turn-order-button--active:focus-visible {
+  color: #ffffff;
 }
 
 .type-action-all {
@@ -3044,12 +3063,24 @@ body {
   transform: translateY(-1px);
   border-color: rgba(71, 85, 105, 0.4);
   background: rgba(255, 255, 255, 0.98);
+  color: #334155;
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.deck-studio-hero__quick-theme:active,
+.deck-studio-hero__quick-theme:focus-visible {
+  color: #334155;
 }
 
 .deck-studio-hero__quick-theme--active {
   border-color: rgba(15, 23, 42, 0.5);
   background: rgba(15, 23, 42, 0.94);
+  color: #ffffff;
+}
+
+.deck-studio-hero__quick-theme--active:hover,
+.deck-studio-hero__quick-theme--active:active,
+.deck-studio-hero__quick-theme--active:focus-visible {
   color: #ffffff;
 }
 

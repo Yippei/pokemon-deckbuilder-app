@@ -1972,9 +1972,9 @@ export default function AIBattleRoomPage() {
                         type="button"
                         disabled={soloStarted}
                         onClick={() => setSoloStartingPlayer("first")}
-                        className={`rounded-full px-3 py-2 text-sm font-bold transition ${
+                        className={`solo-turn-order-button rounded-full px-3 py-2 text-sm font-bold transition ${
                           soloStartingPlayer === "first"
-                            ? "bg-slate-950 text-white"
+                            ? "solo-turn-order-button--active bg-slate-950 text-white"
                             : "border border-slate-200 bg-slate-50 text-slate-700"
                         } ${soloStarted ? "cursor-not-allowed opacity-50" : "hover:bg-slate-100"}`}
                       >
@@ -1984,9 +1984,9 @@ export default function AIBattleRoomPage() {
                         type="button"
                         disabled={soloStarted}
                         onClick={() => setSoloStartingPlayer("second")}
-                        className={`rounded-full px-3 py-2 text-sm font-bold transition ${
+                        className={`solo-turn-order-button rounded-full px-3 py-2 text-sm font-bold transition ${
                           soloStartingPlayer === "second"
-                            ? "bg-slate-950 text-white"
+                            ? "solo-turn-order-button--active bg-slate-950 text-white"
                             : "border border-slate-200 bg-slate-50 text-slate-700"
                         } ${soloStarted ? "cursor-not-allowed opacity-50" : "hover:bg-slate-100"}`}
                       >
