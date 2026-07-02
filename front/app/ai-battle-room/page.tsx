@@ -1953,6 +1953,49 @@ export default function AIBattleRoomPage() {
                   </select>
                 </label>
 
+                {mode === "solo" ? (
+                  <div className="rounded-[20px] border border-slate-200/80 bg-white p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-[11px] font-black tracking-[0.14em] text-slate-500">先攻 / 後攻</div>
+                        <p className="mt-1 text-xs font-semibold text-slate-600">
+                          {soloStarted ? `開始済み T${soloTurn}` : "開始前に選んでください"}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-white">
+                        {soloStartingPlayer === "first" ? "先攻" : "後攻"}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        disabled={soloStarted}
+                        onClick={() => setSoloStartingPlayer("first")}
+                        className={`rounded-full px-3 py-2 text-sm font-bold transition ${
+                          soloStartingPlayer === "first"
+                            ? "bg-slate-950 text-white"
+                            : "border border-slate-200 bg-slate-50 text-slate-700"
+                        } ${soloStarted ? "cursor-not-allowed opacity-50" : "hover:bg-slate-100"}`}
+                      >
+                        先攻
+                      </button>
+                      <button
+                        type="button"
+                        disabled={soloStarted}
+                        onClick={() => setSoloStartingPlayer("second")}
+                        className={`rounded-full px-3 py-2 text-sm font-bold transition ${
+                          soloStartingPlayer === "second"
+                            ? "bg-slate-950 text-white"
+                            : "border border-slate-200 bg-slate-50 text-slate-700"
+                        } ${soloStarted ? "cursor-not-allowed opacity-50" : "hover:bg-slate-100"}`}
+                      >
+                        後攻
+                      </button>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">開始後はリセットまで変更できません。</p>
+                  </div>
+                ) : null}
+
                 <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/90 p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold tracking-[0.16em] text-white">
@@ -2132,41 +2175,6 @@ export default function AIBattleRoomPage() {
                             ))}
                           </div>
                           <div className="solo-zone__hint">残り {soloPrizes.length} 枚</div>
-                          <div className="mt-1 rounded-xl border border-white/12 bg-white/8 p-2">
-                            <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">先攻 / 後攻</div>
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                disabled={soloStarted}
-                                onClick={() => setSoloStartingPlayer("first")}
-                                className={`rounded-full px-3 py-2 text-xs font-bold transition ${
-                                  soloStartingPlayer === "first"
-                                    ? "bg-white text-emerald-950"
-                                    : "border border-white/15 bg-transparent text-emerald-50"
-                                } ${soloStarted ? "cursor-not-allowed opacity-50" : ""}`}
-                              >
-                                先攻
-                              </button>
-                              <button
-                                type="button"
-                                disabled={soloStarted}
-                                onClick={() => setSoloStartingPlayer("second")}
-                                className={`rounded-full px-3 py-2 text-xs font-bold transition ${
-                                  soloStartingPlayer === "second"
-                                    ? "bg-white text-emerald-950"
-                                    : "border border-white/15 bg-transparent text-emerald-50"
-                                } ${soloStarted ? "cursor-not-allowed opacity-50" : ""}`}
-                              >
-                                後攻
-                              </button>
-                            </div>
-                            <div className="mt-2 text-[11px] font-semibold tracking-[0.08em] text-emerald-100/85">
-                              現在: {soloStarted ? `T${soloTurn}` : "開始前"}
-                            </div>
-                            <div className="mt-1 text-[10px] font-medium tracking-[0.08em] text-emerald-100/70">
-                              開始後はリセットまで変更不可
-                            </div>
-                          </div>
                         </div>
                       </div>
 
