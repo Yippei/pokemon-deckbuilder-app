@@ -2747,6 +2747,9 @@ body {
   isolation: isolate;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--type-light, #e2e8f0) 24%, white), rgba(255, 255, 255, 0.86));
 }
@@ -2766,6 +2769,7 @@ body {
 .type-action-button > * {
   position: relative;
   z-index: 1;
+  color: inherit;
 }
 
 .type-action-button:hover::before,
@@ -2778,23 +2782,43 @@ body {
 .type-action-button:active,
 .type-action-button:focus-visible,
 .type-action-button.type-filter-active {
-  color: #111827;
+  color: #111827 !important;
+}
+
+.type-action-button:active {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--type-light, #e2e8f0) 32%, white), rgba(255, 255, 255, 0.94)) !important;
+}
+
+.type-action-button::selection,
+.type-action-button *::selection,
+.deck-studio-hero__quick-theme::selection,
+.deck-studio-hero__quick-theme *::selection,
+.solo-turn-order-button::selection,
+.solo-turn-order-button *::selection {
+  background: transparent;
+  color: inherit;
 }
 
 .solo-turn-order-button,
 .deck-studio-hero__quick-theme {
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
 }
 
 .solo-turn-order-button:active,
 .solo-turn-order-button:focus-visible {
-  color: #334155;
+  background: #f8fafc !important;
+  color: #334155 !important;
 }
 
 .solo-turn-order-button--active,
 .solo-turn-order-button--active:active,
 .solo-turn-order-button--active:focus-visible {
-  color: #ffffff;
+  background: #020617 !important;
+  color: #ffffff !important;
 }
 
 .type-action-all {
@@ -3063,25 +3087,27 @@ body {
   transform: translateY(-1px);
   border-color: rgba(71, 85, 105, 0.4);
   background: rgba(255, 255, 255, 0.98);
-  color: #334155;
+  color: #334155 !important;
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
 }
 
 .deck-studio-hero__quick-theme:active,
 .deck-studio-hero__quick-theme:focus-visible {
-  color: #334155;
+  background: rgba(255, 255, 255, 0.98) !important;
+  color: #334155 !important;
 }
 
 .deck-studio-hero__quick-theme--active {
   border-color: rgba(15, 23, 42, 0.5);
   background: rgba(15, 23, 42, 0.94);
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
 .deck-studio-hero__quick-theme--active:hover,
 .deck-studio-hero__quick-theme--active:active,
 .deck-studio-hero__quick-theme--active:focus-visible {
-  color: #ffffff;
+  background: rgba(15, 23, 42, 0.94) !important;
+  color: #ffffff !important;
 }
 
 .deck-studio-hero__type-selected {
