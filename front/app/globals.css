@@ -3861,11 +3861,11 @@ body {
 .deck-search-modal {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 2147483000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 18px;
+  padding: 24px;
 }
 
 .deck-search-modal__backdrop {
@@ -3881,13 +3881,15 @@ body {
   z-index: 1;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 14px;
-  width: min(1480px, 100%);
-  max-height: min(88vh, 920px);
+  gap: 12px;
+  width: min(1540px, 100%);
+  height: min(900px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(226, 232, 240, 0.72);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
   padding: 18px;
   box-shadow: 0 30px 90px rgba(15, 23, 42, 0.34);
 }
@@ -3933,33 +3935,47 @@ body {
   background: #ffffff;
 }
 
+.deck-search-modal__search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #ffffff;
+}
+
 .deck-search-modal__body {
-  min-height: 180px;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: auto;
   overscroll-behavior: contain;
-  padding-right: 2px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  background: #f8fafc;
+  padding: 12px;
 }
 
 .deck-search-modal__grid {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.deck-search-modal__grid > li {
+  min-width: 0;
+}
+
 .deck-search-modal__card {
   display: grid;
   grid-template-rows: auto auto auto auto;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
   min-width: 0;
   height: 100%;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 12px;
   background: #ffffff;
-  padding: 8px;
+  padding: 9px;
   color: #0f172a;
   text-align: left;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -3977,6 +3993,7 @@ body {
   align-items: center;
   justify-content: center;
   aspect-ratio: 63 / 88;
+  min-height: 0;
   overflow: hidden;
   border-radius: 10px;
   background: linear-gradient(180deg, #f8fafc, #e2e8f0);
@@ -3996,10 +4013,10 @@ body {
 
 .deck-search-modal__card-name {
   display: -webkit-box;
-  min-height: 34px;
+  min-height: 36px;
   overflow: hidden;
   color: #0f172a;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 900;
   line-height: 1.4;
   -webkit-box-orient: vertical;
@@ -4031,7 +4048,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 180px;
+  min-height: 100%;
   border: 1px dashed rgba(148, 163, 184, 0.45);
   border-radius: 14px;
   background: #f8fafc;
@@ -4043,23 +4060,25 @@ body {
 
 @media (max-width: 1180px) {
   .deck-search-modal__grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
   .deck-search-modal__grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 640px) {
   .deck-search-modal {
+    align-items: stretch;
     padding: 10px;
   }
 
   .deck-search-modal__panel {
-    max-height: 92vh;
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
     padding: 12px;
   }
 
@@ -4075,6 +4094,14 @@ body {
   .deck-search-modal__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .deck-search-modal__card {
+    padding: 7px;
+  }
+
+  .deck-search-modal__card-name {
+    font-size: 11.5px;
   }
 }
 
