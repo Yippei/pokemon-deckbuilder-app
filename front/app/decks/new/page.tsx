@@ -21,15 +21,6 @@ export default function NewDeckPage() {
     { type: "dragon", label: "ドラゴン", color: "#d97706", light: "#fde68a" },
     { type: "electric", label: "雷", color: "#facc15", light: "#fef08a" },
   ];
-  const backgroundBalls = [
-    "great",
-    "ultra",
-    "master",
-    "great",
-    "master",
-    "ultra",
-    "great",
-  ];
   const quickThemeButtons = [
     { label: "安定型", value: "事故りにくい安定型デッキ" },
     { label: "手札干渉", value: "手札干渉を厚めに入れたデッキ" },
@@ -55,8 +46,6 @@ export default function NewDeckPage() {
   const totalCount = cards.reduce((sum, c) => sum + c.count, 0);
   const selectedTypeMeta = deckTypes.find((deckType) => deckType.type === selectedType);
   const selectedTypeLabel = selectedTypeMeta?.label ?? "未選択";
-  const selectedTypeColor = selectedTypeMeta?.color ?? "#94a3b8";
-  const selectedTypeLight = selectedTypeMeta?.light ?? "#d1d5db";
   const deckStatusLabel = totalCount >= 60 ? "完成" : totalCount >= 40 ? "仕上げ中" : totalCount >= 20 ? "構築中" : "準備中";
   const selectedPlanLabel = quickThemeButtons.find((item) => item.value === selectedPlan)?.label ?? "未選択";
 
@@ -143,293 +132,231 @@ export default function NewDeckPage() {
 
   return (
     <AuthGate>
-      <main className="deck-create-bg min-h-screen">
-        <div className="pokeball-field" aria-hidden="true">
-          {backgroundBalls.map((variant, index) => (
-            <span key={`${variant}-${index}`} className={`ball-deco ball-deco-${variant}`} />
-          ))}
-        </div>
-
-        <div className="deck-create-content mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <header className="mb-6 flex flex-wrap items-center gap-3">
-            <Link
-              href="/"
-              className="inline-flex h-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-4 text-sm font-bold text-slate-700 shadow-sm backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
-            >
-              ← 戻る
-            </Link>
-            <div className="min-w-[180px] flex-1">
-              <h1 className="text-3xl font-black tracking-tight text-slate-950">デッキ作成</h1>
-              <p className="text-sm text-slate-600">AI生成と手動編集を同じ画面で扱う作成スペース</p>
+      <main className="deck-builder-page min-h-screen">
+        <div className="deck-builder-shell mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <header className="deck-builder-topbar">
+            <div className="deck-builder-topbar__left">
+              <Link href="/" className="deck-builder-back-button" aria-label="トップへ戻る">
+                ←
+              </Link>
+              <div>
+                <p className="deck-builder-kicker">DECK BUILDER</p>
+                <h1 className="deck-builder-title">デッキ作成</h1>
+              </div>
             </div>
-            <div className="shrink-0 sm:ml-auto">
+            <div className="deck-builder-topbar__right">
               <AuthStatus compact />
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="deck-builder-save-button"
+              >
+                {submitting ? "保存中..." : "保存"}
+              </button>
             </div>
           </header>
 
-          <section className="deck-studio-hero mb-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/78 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-            <div className="deck-studio-hero__grid">
-              <div className="deck-studio-hero__copy">
-                <div className="home-kicker">DECK STUDIO</div>
-                <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-                  事故りにくいデッキを、その場で組む
-                </h2>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-700 sm:text-base">
-                  テーマを入れてAI生成、カードを見ながら微調整、最後にそのまま保存。編集と確認を一つの画面で完結させます。
-                </p>
-
-                <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="home-metric">
-                    <span className="home-metric__label">採用枚数</span>
-                    <span className="home-metric__value">{totalCount}</span>
-                  </div>
-                  <div className="home-metric">
-                    <span className="home-metric__label">残り</span>
-                    <span className="home-metric__value">{Math.max(0, 60 - totalCount)}</span>
-                  </div>
-                  <div className="home-metric">
-                    <span className="home-metric__label">カード数</span>
-                    <span className="home-metric__value">{cards.length}</span>
-                  </div>
-                  <div className="home-metric">
-                    <span className="home-metric__label">タイプ</span>
-                    <span className="home-metric__value home-metric__value--type">
-                      <span
-                        className="deck-studio-summary-type"
-                        style={{
-                          borderColor: selectedTypeColor,
-                          background: selectedTypeMeta
-                            ? `linear-gradient(135deg, color-mix(in srgb, ${selectedTypeLight} 30%, white), rgba(255,255,255,0.95))`
-                            : "rgba(255, 255, 255, 0.95)",
-                        }}
-                      >
-                        <span
-                          className="deck-studio-summary-type__dot"
-                          style={{
-                            background: selectedTypeMeta
-                              ? `linear-gradient(135deg, ${selectedTypeLight}, ${selectedTypeColor})`
-                              : "linear-gradient(135deg, #cbd5e1, #94a3b8)",
-                          }}
-                        />
-                        <span className="deck-studio-summary-type__label">{selectedTypeLabel}</span>
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
-                <div className="deck-studio-hero__quick-themes" aria-label="テーマの例">
-                  {quickThemeButtons.map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => {
-                        setSelectedPlan(item.value);
-                      }}
-                      className={`deck-studio-hero__quick-theme ${
-                        selectedPlan === item.value ? "deck-studio-hero__quick-theme--active" : ""
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="deck-studio-hero__visual">
-                <div className="deck-studio-hero__panel">
-                  <div className="deck-studio-hero__panel-top">
-                    <span>LIVE BUILD</span>
-                    <span>{deckStatusLabel}</span>
-                  </div>
-                  <div className="deck-studio-hero__deck-ring">
-                    <div className="deck-studio-hero__deck-ring-inner" />
-                  </div>
-                  <div className="deck-studio-hero__panel-bottom deck-studio-hero__type-picker">
-                    <span className="deck-studio-hero__type-label">TYPE</span>
-                    <p className="deck-studio-hero__type-help">押すだけでデッキの軸を切り替えられます。</p>
-                    <div className="deck-studio-hero__type-grid" role="group" aria-label="タイプ選択">
-                      {deckTypes.map((deckType) => (
-                        <button
-                          key={deckType.type}
-                          type="button"
-                          onClick={() => setSelectedType(deckType.type)}
-                          className={`deck-studio-hero__type-pill deck-studio-hero__type-pill--text type-action-button type-action-${deckType.type} w-fit ${
-                            selectedType === deckType.type ? "type-filter-active deck-studio-hero__type-pill--active" : ""
-                          }`}
-                          style={{
-                            borderColor: selectedType === deckType.type ? deckType.color : "rgba(148, 163, 184, 0.45)",
-                            boxShadow: selectedType === deckType.type ? `0 0 0 2px ${deckType.light}` : undefined,
-                          }}
-                          aria-pressed={selectedType === deckType.type}
-                          aria-label={`${deckType.label}タイプを選択`}
-                        >
-                          <span className={`type-filter-dot type-filter-${deckType.type}`} aria-hidden="true" />
-                          <span>{deckType.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="deck-studio-hero__type-selected">
-                      <span>選択中: {selectedTypeLabel}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
           {error && (
-            <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+            <div className="deck-builder-alert deck-builder-alert--error">
               {error}
             </div>
           )}
 
-          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-            <div className="space-y-6">
-              <section className="deck-panel rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-950">AIでデッキを自動生成</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
-                      タイプ、方針、ポケモン名を分けて入れると、意図に沿って提案します。
-                    </p>
-                  </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                    {selectedTypeLabel} / {selectedPlanLabel}
+          <section className="deck-builder-status">
+            <div>
+              <span className="deck-builder-status__label">STATUS</span>
+              <strong>{deckStatusLabel}</strong>
+            </div>
+            <div>
+              <span className="deck-builder-status__label">CARDS</span>
+              <strong>{totalCount} / 60</strong>
+            </div>
+            <div>
+              <span className="deck-builder-status__label">UNIQUE</span>
+              <strong>{cards.length}</strong>
+            </div>
+            <div>
+              <span className="deck-builder-status__label">TYPE</span>
+              <strong>{selectedTypeLabel}</strong>
+            </div>
+            <div className="deck-builder-status__progress" aria-hidden="true">
+              <span style={{ width: `${Math.min(100, (totalCount / 60) * 100)}%` }} />
+            </div>
+          </section>
+
+          <div className="deck-builder-layout">
+            <aside className="deck-builder-rail">
+              <section className="deck-builder-panel">
+                <div className="deck-builder-panel__head">
+                  <h2>設計</h2>
+                  <span>{selectedPlanLabel}</span>
+                </div>
+
+                <label className="deck-builder-field">
+                  <span>デッキ名</span>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="例: リザードンex 安定型"
+                  />
+                </label>
+
+                <div className="deck-builder-block">
+                  <span className="deck-builder-field-label">タイプ</span>
+                  <div className="deck-builder-type-grid" role="group" aria-label="タイプ選択">
+                    {deckTypes.map((deckType) => (
+                      <button
+                        key={deckType.type}
+                        type="button"
+                        onClick={() => setSelectedType(deckType.type)}
+                        className={`deck-builder-type-button ${selectedType === deckType.type ? "deck-builder-type-button--active" : ""}`}
+                        style={{
+                          borderColor: selectedType === deckType.type ? deckType.color : undefined,
+                          boxShadow: selectedType === deckType.type ? `0 0 0 3px ${deckType.light}` : undefined,
+                        }}
+                        aria-pressed={selectedType === deckType.type}
+                      >
+                        <span
+                          aria-hidden="true"
+                          style={{ background: `linear-gradient(135deg, ${deckType.light}, ${deckType.color})` }}
+                        />
+                        {deckType.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3">
+                <div className="deck-builder-block">
+                  <span className="deck-builder-field-label">方針</span>
+                  <div className="deck-builder-plan-grid" role="group" aria-label="方針選択">
+                    {quickThemeButtons.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setSelectedPlan(item.value)}
+                        className={selectedPlan === item.value ? "deck-builder-plan-button deck-builder-plan-button--active" : "deck-builder-plan-button"}
+                        aria-pressed={selectedPlan === item.value}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="deck-builder-field">
+                  <span>中心ポケモン</span>
                   <input
                     type="text"
                     value={pokemonName}
                     onChange={(e) => setPokemonName(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-200"
-                    placeholder="使いたいポケモン名を入力"
+                    placeholder="使いたいポケモン名"
                   />
-                  <input
-                    type="text"
+                </label>
+
+                <label className="deck-builder-field">
+                  <span>補足</span>
+                  <textarea
                     value={theme}
                     onChange={(e) => setTheme(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-200"
-                    placeholder="補足テーマや回したい方針を入力"
+                    placeholder="入れたいカード、避けたい構築、回し方など"
+                    rows={4}
                   />
-                  <button
-                    onClick={handleGenerate}
-                    disabled={generating}
-                    className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    {generating ? "生成中..." : "生成する"}
-                  </button>
-                </div>
+                </label>
 
-                {generateError && <p className="mt-3 text-xs font-medium text-rose-600">{generateError}</p>}
+                <button
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  className="deck-builder-generate-button"
+                >
+                  {generating ? "生成中..." : "AIで構築"}
+                </button>
+
+                {generateError && <p className="deck-builder-message deck-builder-message--error">{generateError}</p>}
                 {generateWarnings.length > 0 && (
-                  <ul className="mt-3 space-y-1 text-xs font-medium text-amber-700">
+                  <ul className="deck-builder-warnings">
                     {generateWarnings.map((warning) => (
                       <li key={warning}>{warning}</li>
                     ))}
                   </ul>
                 )}
                 {generating && (
-                  <p className="mt-3 text-xs font-semibold text-sky-600 animate-pulse">
-                    AIがタイプ・方針・ポケモン名をまとめています...しばらくお待ちください
+                  <p className="deck-builder-message deck-builder-message--loading">
+                    生成しています。既存のカードがある場合は内容を踏まえて再構築します。
                   </p>
                 )}
               </section>
+            </aside>
 
-              <section className="deck-panel rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-                <label className="block text-sm font-bold text-slate-900">デッキ名</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-sky-200"
-                />
-
+            <section className="deck-builder-workspace">
+              <div className="deck-builder-command-row">
+                <div>
+                  <h2>カード編集</h2>
+                  <p>検索で追加し、枚数を調整して60枚に近づけます。</p>
+                </div>
                 <button
                   onClick={handleSubmit}
                   disabled={submitting}
-                  className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-full bg-sky-500 px-5 text-sm font-bold text-white shadow-lg shadow-sky-500/20 transition hover:-translate-y-0.5 hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="deck-builder-command-save"
                 >
-                  {submitting ? "作成中..." : "デッキを作成する"}
+                  {submitting ? "作成中..." : "デッキを作成"}
                 </button>
-              </section>
-            </div>
+              </div>
 
-            <div className="space-y-6">
-              <section className="deck-panel rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-950">カード追加</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
-                      検索して、必要なカードを追加します。
-                    </p>
-                  </div>
-                  <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                    SEARCH
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <CardSearch onAdd={addCard} />
-                </div>
+              <section className="deck-builder-search-panel">
+                <CardSearch onAdd={addCard} />
               </section>
 
-              <section className="rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-                <div className="mb-4 flex items-center justify-between gap-3">
+              <section className="deck-builder-list-panel">
+                <div className="deck-builder-list-panel__head">
                   <div>
-                    <h3 className="text-lg font-black text-slate-950">カード一覧</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-700">
-                      枚数調整しながら、60枚に近づけます。
-                    </p>
+                    <h2>採用カード</h2>
+                    <p>{Math.max(0, 60 - totalCount)}枚で60枚です。</p>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${totalCount === 60 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                    {totalCount} / 60 枚
+                  <span className={totalCount === 60 ? "deck-builder-count deck-builder-count--complete" : "deck-builder-count"}>
+                    {totalCount} / 60
                   </span>
                 </div>
 
-                <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-sky-500 transition-all duration-300"
-                    style={{ width: `${Math.min(100, (totalCount / 60) * 100)}%` }}
-                  />
-                </div>
-
                 {cards.length === 0 ? (
-                  <p className="text-sm text-slate-500">カードが追加されていません</p>
+                  <div className="deck-builder-empty">
+                    <strong>カード未追加</strong>
+                    <span>左の設計からAI生成するか、上の検索からカードを追加してください。</span>
+                  </div>
                 ) : (
-                  <ul className="space-y-2">
+                  <ul className="deck-builder-card-list">
                     {cards.map((c) => (
-                      <li
-                        key={c.cardId}
-                        className="deck-card-row flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-3 py-2 text-black shadow-sm"
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
+                      <li key={c.cardId} className="deck-builder-card-row deck-card-row">
+                        <div className="deck-builder-card-main">
                           {c.illustration && (
                             <img
                               src={c.illustration}
                               alt={c.cardName}
-                              className="deck-card-thumb relative h-11 w-8 shrink-0 object-contain transition-transform duration-200 hover:z-10 hover:scale-[4]"
+                              className="deck-card-thumb deck-builder-card-thumb"
                             />
                           )}
-                          <span className="truncate text-sm font-medium text-slate-900">{c.cardName || c.cardId}</span>
+                          <span>{c.cardName || c.cardId}</span>
                         </div>
-                        <div className="deck-card-actions flex items-center gap-2">
+                        <div className="deck-builder-card-actions deck-card-actions">
                           <button
                             onClick={() => changeCount(c.cardId, -1)}
-                            className="deck-action-button inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-lg leading-none text-slate-600 transition hover:bg-slate-50"
+                            className="deck-builder-icon-button"
+                            aria-label={`${c.cardName || c.cardId}を1枚減らす`}
                           >
-                            －
+                            −
                           </button>
-                          <span className="deck-card-count w-6 text-center text-sm font-bold text-slate-900">{c.count}</span>
+                          <span className="deck-builder-card-count">{c.count}</span>
                           <button
                             onClick={() => changeCount(c.cardId, 1)}
                             disabled={c.count >= maxCountForCard(c)}
-                            className="deck-action-button inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-lg leading-none text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                            className="deck-builder-icon-button"
+                            aria-label={`${c.cardName || c.cardId}を1枚増やす`}
                           >
-                            ＋
+                            +
                           </button>
                           <button
                             onClick={() => removeCard(c.cardId)}
-                            className="deck-remove-button ml-1 text-sm font-semibold text-rose-500 transition hover:text-rose-700"
+                            className="deck-builder-remove-button"
                           >
                             削除
                           </button>
@@ -439,7 +366,7 @@ export default function NewDeckPage() {
                   </ul>
                 )}
               </section>
-            </div>
+            </section>
           </div>
         </div>
       </main>

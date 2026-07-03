@@ -25,6 +25,616 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.deck-builder-page {
+  min-width: 0;
+  overflow-x: hidden;
+  background:
+    linear-gradient(120deg, rgba(248, 250, 252, 0.96), rgba(241, 245, 249, 0.98) 42%, rgba(250, 250, 249, 0.96)),
+    #f8fafc;
+  color: #0f172a;
+}
+
+.deck-builder-shell {
+  min-width: 0;
+}
+
+.deck-builder-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 -4px 14px;
+  padding: 10px 4px 12px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(248, 250, 252, 0.72));
+  backdrop-filter: blur(18px);
+}
+
+.deck-builder-topbar__left,
+.deck-builder-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.deck-builder-topbar__left {
+  flex: 1 1 auto;
+}
+
+.deck-builder-topbar__right {
+  flex: 0 0 auto;
+}
+
+.deck-builder-back-button,
+.deck-builder-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(255, 255, 255, 0.86);
+  color: #0f172a;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.deck-builder-back-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 900;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.deck-builder-back-button:hover,
+.deck-builder-icon-button:hover:not(:disabled) {
+  border-color: rgba(20, 184, 166, 0.45);
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.deck-builder-kicker {
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.deck-builder-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(24px, 4vw, 42px);
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.deck-builder-save-button,
+.deck-builder-command-save,
+.deck-builder-generate-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 0;
+  border-radius: 14px;
+  font-weight: 900;
+  transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.deck-builder-save-button,
+.deck-builder-command-save {
+  padding: 0 18px;
+  background: #0f172a;
+  color: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+}
+
+.deck-builder-save-button:hover:not(:disabled),
+.deck-builder-command-save:hover:not(:disabled),
+.deck-builder-generate-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.deck-builder-save-button:disabled,
+.deck-builder-command-save:disabled,
+.deck-builder-generate-button:disabled,
+.deck-builder-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.deck-builder-alert {
+  margin-bottom: 14px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.deck-builder-alert--error {
+  border: 1px solid rgba(244, 63, 94, 0.24);
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.deck-builder-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 18px;
+  background: rgba(203, 213, 225, 0.72);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+}
+
+.deck-builder-status > div {
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 14px;
+}
+
+.deck-builder-status__label,
+.deck-builder-field-label,
+.deck-builder-field > span {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.deck-builder-status strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 5px;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 950;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-builder-status__progress {
+  grid-column: 1 / -1;
+  height: 7px;
+  padding: 0 !important;
+  background: #e2e8f0 !important;
+}
+
+.deck-builder-status__progress span {
+  display: block;
+  height: 100%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, #14b8a6, #38bdf8 55%, #f43f5e);
+  transition: width 220ms ease;
+}
+
+.deck-builder-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+.deck-builder-rail {
+  position: sticky;
+  top: 92px;
+  min-width: 0;
+}
+
+.deck-builder-panel,
+.deck-builder-search-panel,
+.deck-builder-list-panel {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.deck-builder-panel {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.deck-builder-panel__head,
+.deck-builder-command-row,
+.deck-builder-list-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.deck-builder-panel__head h2,
+.deck-builder-command-row h2,
+.deck-builder-list-panel__head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.deck-builder-panel__head span {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #f1f5f9;
+  padding: 7px 10px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.deck-builder-field,
+.deck-builder-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.deck-builder-field input,
+.deck-builder-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.86);
+  padding: 12px 13px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.deck-builder-field textarea {
+  resize: vertical;
+}
+
+.deck-builder-field input:focus,
+.deck-builder-field textarea:focus {
+  border-color: rgba(20, 184, 166, 0.55);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.18);
+}
+
+.deck-builder-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.deck-builder-type-button,
+.deck-builder-plan-button {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(248, 250, 252, 0.88);
+  color: #0f172a;
+  font-weight: 900;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.deck-builder-type-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  border-radius: 13px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.deck-builder-type-button span {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.18);
+}
+
+.deck-builder-type-button:hover,
+.deck-builder-plan-button:hover,
+.deck-builder-type-button--active,
+.deck-builder-plan-button--active {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.deck-builder-plan-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deck-builder-plan-button {
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.deck-builder-plan-button--active {
+  border-color: rgba(20, 184, 166, 0.52);
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.deck-builder-generate-button {
+  width: 100%;
+  background: linear-gradient(135deg, #0f172a, #164e63);
+  color: #ffffff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+}
+
+.deck-builder-message,
+.deck-builder-warnings {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.deck-builder-message--error {
+  color: #be123c;
+}
+
+.deck-builder-message--loading {
+  color: #0369a1;
+}
+
+.deck-builder-warnings {
+  display: grid;
+  gap: 4px;
+  padding-left: 18px;
+  color: #92400e;
+}
+
+.deck-builder-workspace {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.deck-builder-command-row {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.96);
+  padding: 16px;
+  color: #ffffff;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+}
+
+.deck-builder-command-row h2 {
+  color: #ffffff;
+}
+
+.deck-builder-command-row p,
+.deck-builder-list-panel__head p {
+  margin: 5px 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.deck-builder-command-save {
+  flex-shrink: 0;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.deck-builder-search-panel,
+.deck-builder-list-panel {
+  padding: 16px;
+  min-width: 0;
+}
+
+.deck-builder-count {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #f1f5f9;
+  padding: 8px 12px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.deck-builder-count--complete {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.deck-builder-empty {
+  display: grid;
+  gap: 6px;
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.72);
+  padding: 28px 16px;
+  text-align: center;
+}
+
+.deck-builder-empty strong {
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.deck-builder-empty span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.deck-builder-card-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-builder-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 10px;
+  color: #0f172a;
+}
+
+.deck-builder-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.deck-builder-card-main span {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-builder-card-thumb {
+  position: relative;
+  width: 34px;
+  height: 47px;
+  flex-shrink: 0;
+  object-fit: contain;
+  transition: transform 180ms ease;
+}
+
+.deck-builder-card-thumb:hover {
+  z-index: 20;
+  transform: scale(3.4);
+}
+
+.deck-builder-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.deck-builder-icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.deck-builder-card-count {
+  width: 24px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.deck-builder-remove-button {
+  border: 0;
+  background: transparent;
+  color: #e11d48;
+  font-size: 13px;
+  font-weight: 900;
+  white-space: nowrap;
+  transition: color 160ms ease;
+}
+
+.deck-builder-remove-button:hover {
+  color: #be123c;
+}
+
+@media (max-width: 900px) {
+  .deck-builder-topbar {
+    position: relative;
+    align-items: flex-start;
+  }
+
+  .deck-builder-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .deck-builder-rail {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .deck-builder-shell {
+    padding-top: 10px;
+  }
+
+  .deck-builder-topbar,
+  .deck-builder-command-row,
+  .deck-builder-list-panel__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .deck-builder-topbar__right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .deck-builder-save-button,
+  .deck-builder-command-save {
+    min-width: 96px;
+  }
+
+  .deck-builder-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deck-builder-status > div {
+    padding: 12px;
+  }
+
+  .deck-builder-status strong {
+    font-size: 17px;
+  }
+
+  .deck-builder-type-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deck-builder-card-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .deck-builder-card-actions {
+    justify-content: flex-end;
+  }
+}
+
 .home-type-bg {
   background-color: #f8fafc;
   overflow-x: hidden;
