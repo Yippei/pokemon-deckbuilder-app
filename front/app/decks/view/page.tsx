@@ -3,7 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Deck, DeckCard, getDeck, updateDeck, deleteDeck, removeDeckId, generateDeck, maxCountForCard } from "@/lib/api";
+import {
+  Deck,
+  DeckCard,
+  getDeck,
+  updateDeck,
+  deleteDeck,
+  removeDeckId,
+  generateDeck,
+  maxCountForCard,
+  countCardsWithSameName,
+  remainingCountForCardName,
+} from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 import AuthGate from "@/components/AuthGate";
 import AuthStatus from "@/components/AuthStatus";
@@ -72,10 +83,12 @@ export default function DeckPage() {
     setCards((prev) => {
       const existing = prev.find((c) => c.cardId === card.cardId);
       if (existing) {
+        if (remainingCountForCardName(prev, card) <= 0) return prev;
         return prev.map((c) =>
-          c.cardId === card.cardId ? { ...c, count: Math.min(maxCountForCard(c), c.count + 1) } : c
+          c.cardId === card.cardId ? { ...c, count: c.count + 1 } : c
         );
       }
+      if (remainingCountForCardName(prev, card) <= 0) return prev;
       return [...prev, card];
     });
   };
@@ -83,7 +96,15 @@ export default function DeckPage() {
   const changeCount = (id: string, delta: number) => {
     setCards((prev) =>
       prev
-        .map((c) => c.cardId === id ? { ...c, count: Math.min(maxCountForCard(c), Math.max(0, c.count + delta)) } : c)
+        .map((c) => {
+          if (c.cardId !== id) return c;
+          if (delta <= 0) return { ...c, count: Math.max(0, c.count + delta) };
+
+          const sameNameTotal = countCardsWithSameName(prev, c);
+          const maxForThisName = maxCountForCard(c);
+          if (sameNameTotal >= maxForThisName) return c;
+          return { ...c, count: c.count + delta };
+        })
         .filter((c) => c.count > 0)
     );
   };
@@ -289,7 +310,7 @@ export default function DeckPage() {
                       <span className="w-6 text-center text-sm font-medium">{c.count}</span>
                       <button
                         onClick={() => changeCount(c.cardId, 1)}
-                        disabled={c.count >= maxCountForCard(c)}
+                        disabled={countCardsWithSameName(cards, c) >= maxCountForCard(c)}
                         className="w-7 h-7 rounded border text-gray-600 hover:bg-gray-100 disabled:opacity-30 text-lg leading-none"
                       >＋</button>
                       <button

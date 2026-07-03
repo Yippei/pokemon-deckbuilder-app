@@ -63,6 +63,22 @@ export function maxCountForCard(card: Pick<DeckCard, "cardName">): number {
   return isBasicEnergyName(card.cardName) ? 60 : 4;
 }
 
+export function normalizeCardLimitName(name?: string): string {
+  return (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
+}
+
+export function countCardsWithSameName(cards: DeckCard[], card: Pick<DeckCard, "cardName">): number {
+  const targetName = normalizeCardLimitName(card.cardName);
+  if (!targetName) return 0;
+  return cards.reduce((sum, current) => {
+    return normalizeCardLimitName(current.cardName) === targetName ? sum + current.count : sum;
+  }, 0);
+}
+
+export function remainingCountForCardName(cards: DeckCard[], card: Pick<DeckCard, "cardName">): number {
+  return Math.max(0, maxCountForCard(card) - countCardsWithSameName(cards, card));
+}
+
 // カード検索
 export async function searchCards(params: { name?: string; pg?: number }): Promise<Card[]> {
   const query = new URLSearchParams();

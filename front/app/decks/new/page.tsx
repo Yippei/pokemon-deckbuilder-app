@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { DeckCard, createDeck, saveDeckId, generateDeck, maxCountForCard } from "@/lib/api";
+import {
+  DeckCard,
+  createDeck,
+  saveDeckId,
+  generateDeck,
+  maxCountForCard,
+  countCardsWithSameName,
+  remainingCountForCardName,
+} from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 import AuthGate from "@/components/AuthGate";
 import AuthStatus from "@/components/AuthStatus";
@@ -53,10 +61,12 @@ export default function NewDeckPage() {
     setCards((prev) => {
       const existing = prev.find((c) => c.cardId === card.cardId);
       if (existing) {
+        if (remainingCountForCardName(prev, card) <= 0) return prev;
         return prev.map((c) =>
-          c.cardId === card.cardId ? { ...c, count: Math.min(maxCountForCard(c), c.count + 1) } : c
+          c.cardId === card.cardId ? { ...c, count: c.count + 1 } : c
         );
       }
+      if (remainingCountForCardName(prev, card) <= 0) return prev;
       return [...prev, card];
     });
   };
@@ -64,7 +74,15 @@ export default function NewDeckPage() {
   const changeCount = (id: string, delta: number) => {
     setCards((prev) =>
       prev
-        .map((c) => c.cardId === id ? { ...c, count: Math.min(maxCountForCard(c), Math.max(0, c.count + delta)) } : c)
+        .map((c) => {
+          if (c.cardId !== id) return c;
+          if (delta <= 0) return { ...c, count: Math.max(0, c.count + delta) };
+
+          const sameNameTotal = countCardsWithSameName(prev, c);
+          const maxForThisName = maxCountForCard(c);
+          if (sameNameTotal >= maxForThisName) return c;
+          return { ...c, count: c.count + delta };
+        })
         .filter((c) => c.count > 0)
     );
   };
@@ -338,6 +356,11 @@ export default function NewDeckPage() {
                           <span>{c.cardName || c.cardId}</span>
                         </div>
                         <div className="deck-builder-card-actions deck-card-actions">
+                          {(() => {
+                            const sameNameTotal = countCardsWithSameName(cards, c);
+                            const canIncrease = sameNameTotal < maxCountForCard(c);
+                            return (
+                              <>
                           <button
                             onClick={() => changeCount(c.cardId, -1)}
                             className="deck-builder-icon-button"
@@ -348,12 +371,15 @@ export default function NewDeckPage() {
                           <span className="deck-builder-card-count">{c.count}</span>
                           <button
                             onClick={() => changeCount(c.cardId, 1)}
-                            disabled={c.count >= maxCountForCard(c)}
+                            disabled={!canIncrease}
                             className="deck-builder-icon-button"
                             aria-label={`${c.cardName || c.cardId}を1枚増やす`}
                           >
                             +
                           </button>
+                              </>
+                            );
+                          })()}
                           <button
                             onClick={() => removeCard(c.cardId)}
                             className="deck-builder-remove-button"
