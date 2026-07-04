@@ -3942,6 +3942,78 @@ body {
   background: #ffffff;
 }
 
+.deck-search-modal__filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.deck-search-modal__filter-field {
+  display: grid;
+  gap: 5px;
+  min-width: 150px;
+}
+
+.deck-search-modal__filter-field span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.deck-search-modal__filter-field select {
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0 10px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 850;
+  outline: none;
+}
+
+.deck-search-modal__filter-field select:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.deck-search-modal__stage-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.deck-search-modal__stage-button,
+.deck-search-modal__filter-clear {
+  min-height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0 12px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.deck-search-modal__stage-button--active {
+  border-color: rgba(20, 184, 166, 0.52);
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.deck-search-modal__filter-clear {
+  color: #e11d48;
+}
+
+.deck-search-modal__stage-button:hover,
+.deck-search-modal__filter-clear:hover {
+  border-color: rgba(20, 184, 166, 0.45);
+}
+
 .deck-search-modal__body {
   min-height: 0;
   overflow: auto;
@@ -4032,6 +4104,15 @@ body {
   white-space: nowrap;
 }
 
+.deck-search-modal__card-meta {
+  overflow: hidden;
+  color: #475569;
+  font-size: 10.5px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .deck-search-modal__add-label {
   display: inline-flex;
   align-items: center;
@@ -4094,6 +4175,15 @@ body {
   .deck-search-modal__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .deck-search-modal__filter-field {
+    min-width: min(100%, 170px);
+    flex: 1 1 140px;
+  }
+
+  .deck-search-modal__stage-filter {
+    width: 100%;
   }
 
   .deck-search-modal__card {
