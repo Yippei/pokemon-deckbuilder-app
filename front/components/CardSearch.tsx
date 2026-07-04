@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { DeckCard } from "@/lib/api";
+import { Card, DeckCard, searchCards } from "@/lib/api";
 
 type Props = {
   onAdd: (card: DeckCard) => void;
@@ -10,26 +10,9 @@ type Props = {
 
 type CardCategory = "" | "pokemon" | "item" | "supporter" | "tool" | "stadium" | "energy";
 
-type CardMasterEntry = {
-  cardId: string;
-  name: string;
-  cardKind?: string;
-  subKind?: string;
-  regulation?: string;
-  setName?: string;
-  stage?: string;
-  imageUrl?: string;
-  searchTokens?: string[];
-};
-
-type CardMasterPayload = {
-  cards?: Record<string, CardMasterEntry>;
-};
-
-type SearchableCard = CardMasterEntry & {
+type SearchableCard = Card & {
   category: CardCategory;
   categoryLabel: string;
-  searchText: string;
 };
 
 const categoryFilters: { label: string; value: CardCategory }[] = [
@@ -41,91 +24,62 @@ const categoryFilters: { label: string; value: CardCategory }[] = [
   { label: "エネルギー", value: "energy" },
 ];
 
-function normalizeSearchText(value?: string) {
-  return String(value || "").replace(/[ 　・\-－]/g, "").toLowerCase();
-}
+function getCardCategory(card: Card): { value: CardCategory; label: string } {
+  const type = String(card.cardType || "");
+  const name = String(card.name || "");
 
-function getCardCategory(card: CardMasterEntry): { value: CardCategory; label: string } {
-  const kind = String(card.cardKind || "").toLowerCase();
-  const subKind = String(card.subKind || "");
-  const stage = String(card.stage || "");
-
-  if (kind.includes("pokemon") || subKind.includes("ポケモン") || stage.includes("たね") || stage.includes("進化")) {
-    return { value: "pokemon", label: "ポケモン" };
-  }
-  if (kind.includes("energy") || subKind.includes("エネルギー") || stage.includes("エネルギー")) {
-    return { value: "energy", label: "エネルギー" };
-  }
-  if (subKind.includes("ポケモンのどうぐ") || subKind.includes("どうぐ") || stage.includes("ポケモンのどうぐ")) {
-    return { value: "tool", label: "どうぐ" };
-  }
-  if (subKind.includes("サポート") || stage.includes("サポート")) {
-    return { value: "supporter", label: "サポート" };
-  }
-  if (subKind.includes("スタジアム") || stage.includes("スタジアム")) {
-    return { value: "stadium", label: "スタジアム" };
-  }
-  if (subKind.includes("グッズ") || stage.includes("グッズ") || kind.includes("trainer")) {
-    return { value: "item", label: "グッズ" };
-  }
-  return { value: "", label: subKind || "その他" };
-}
-
-function toSearchableCard(card: CardMasterEntry): SearchableCard {
-  const category = getCardCategory(card);
-  return {
-    ...card,
-    category: category.value,
-    categoryLabel: category.label,
-    searchText: [
-      card.name,
-      card.subKind,
-      card.stage,
-      card.regulation,
-      card.setName,
-      ...(card.searchTokens || []),
-    ].map(normalizeSearchText).join(" "),
-  };
+  if (type.includes("ポケモン")) return { value: "pokemon", label: "ポケモン" };
+  if (type.includes("エネルギー")) return { value: "energy", label: "エネルギー" };
+  if (type.includes("ポケモンのどうぐ") || type.includes("どうぐ")) return { value: "tool", label: "どうぐ" };
+  if (type.includes("サポート")) return { value: "supporter", label: "サポート" };
+  if (type.includes("スタジアム")) return { value: "stadium", label: "スタジアム" };
+  if (type.includes("グッズ")) return { value: "item", label: "グッズ" };
+  if (type.includes("トレーナーズ")) return { value: "", label: "トレーナーズ" };
+  if (name.includes("エネルギー")) return { value: "energy", label: "エネルギー" };
+  return { value: "", label: type || "その他" };
 }
 
 export default function CardSearch({ onAdd }: Props) {
   const [query, setQuery] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
+  const [results, setResults] = useState<SearchableCard[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
-  const [allCards, setAllCards] = useState<SearchableCard[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<CardCategory>("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!modalOpen || allCards.length > 0 || loading) return;
+    if (!modalOpen || !query.trim()) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
-    fetch("/card-master-lite.json")
-      .then((res) => {
-        if (!res.ok) throw new Error("カードマスターの取得に失敗しました");
-        return res.json();
-      })
-      .then((payload: CardMasterPayload) => {
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const cards = await searchCards({ name: query.trim() });
         if (cancelled) return;
-        const cards = Object.values(payload.cards || {})
-          .map(toSearchableCard)
-          .sort((a, b) => Number(a.cardId) - Number(b.cardId));
-        setAllCards(cards);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : "カードマスターの取得に失敗しました");
-        }
-      })
-      .finally(() => {
+        setResults(cards.map((card) => {
+          const category = getCardCategory(card);
+          return {
+            ...card,
+            category: category.value,
+            categoryLabel: category.label,
+          };
+        }));
+      } catch {
+        if (!cancelled) setResults([]);
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    }, 300);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [allCards.length, loading, modalOpen]);
+  }, [modalOpen, query]);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -146,30 +100,20 @@ export default function CardSearch({ onAdd }: Props) {
     };
   }, [modalOpen]);
 
-  const filteredCards = useMemo(() => {
-    const normalizedQuery = normalizeSearchText(query);
-    return allCards.filter((card) => {
+  const filteredResults = useMemo(() => {
+    return results.filter((card) => {
       if (categoryFilter && card.category !== categoryFilter) return false;
-      if (normalizedQuery && !card.searchText.includes(normalizedQuery)) return false;
       return true;
     });
-  }, [allCards, categoryFilter, query]);
+  }, [categoryFilter, results]);
 
   const handleSelect = (card: SearchableCard) => {
     onAdd({
       cardId: card.cardId,
       cardName: card.name,
-      illustration: card.imageUrl,
+      illustration: card.illustration,
       count: 1,
     });
-  };
-
-  const openModal = () => {
-    setModalOpen(true);
-    if (allCards.length === 0) {
-      setLoading(true);
-      setLoadError("");
-    }
   };
 
   const hasActiveFilter = Boolean(categoryFilter || query.trim());
@@ -187,7 +131,7 @@ export default function CardSearch({ onAdd }: Props) {
         <div className="deck-search-modal__head">
           <div>
             <h2>カードを追加</h2>
-            <p>全カードから検索・絞り込みして、採用したいカードを選択します。</p>
+            <p>カード名で検索して、採用したいカードを選択します。</p>
           </div>
           <button
             type="button"
@@ -240,27 +184,29 @@ export default function CardSearch({ onAdd }: Props) {
             )}
 
             <span className="deck-search-modal__result-count">
-              {filteredCards.length} / {allCards.length} 枚
+              {query.trim() ? `${filteredResults.length} / ${results.length} 枚` : "未検索"}
             </span>
           </div>
         </div>
 
         <div className="deck-search-modal__body">
           {loading && (
-            <p className="deck-search__loading text-sm font-bold text-slate-500">カードを読み込み中...</p>
+            <p className="deck-search__loading text-sm font-bold text-slate-500">検索中...</p>
           )}
-          {loadError && !loading && (
-            <div className="deck-search-modal__empty">{loadError}</div>
+          {!query.trim() && !loading && (
+            <div className="deck-search-modal__empty">
+              カード名を入力すると検索結果が表示されます
+            </div>
           )}
-          {!loadError && !loading && allCards.length === 0 && (
-            <div className="deck-search-modal__empty">カードが見つかりません</div>
+          {query.trim() && results.length === 0 && !loading && (
+            <div className="deck-search-modal__empty">該当するカードが見つかりません</div>
           )}
-          {!loadError && !loading && allCards.length > 0 && filteredCards.length === 0 && (
+          {query.trim() && results.length > 0 && filteredResults.length === 0 && !loading && (
             <div className="deck-search-modal__empty">条件に合うカードがありません</div>
           )}
-          {filteredCards.length > 0 && (
+          {filteredResults.length > 0 && (
             <ul className="deck-search-modal__grid">
-              {filteredCards.map((card) => (
+              {filteredResults.map((card) => (
                 <li key={card.cardId}>
                   <button
                     type="button"
@@ -268,9 +214,9 @@ export default function CardSearch({ onAdd }: Props) {
                     className="deck-search-modal__card"
                   >
                     <span className="deck-search-modal__image-wrap">
-                      {card.imageUrl ? (
+                      {card.illustration ? (
                         <img
-                          src={card.imageUrl}
+                          src={card.illustration}
                           alt={card.name}
                           className="deck-search-modal__image"
                           loading="lazy"
@@ -281,10 +227,8 @@ export default function CardSearch({ onAdd }: Props) {
                     </span>
                     <span className="deck-search-modal__card-name">{card.name}</span>
                     <span className="deck-search-modal__card-type">{card.categoryLabel}</span>
-                    {(card.regulation || card.stage || card.subKind) && (
-                      <span className="deck-search-modal__card-meta">
-                        {[card.regulation, card.stage, card.subKind].filter(Boolean).join(" / ")}
-                      </span>
+                    {card.regulation && (
+                      <span className="deck-search-modal__card-meta">{card.regulation}</span>
                     )}
                     <span className="deck-search-modal__add-label">追加</span>
                   </button>
@@ -301,7 +245,7 @@ export default function CardSearch({ onAdd }: Props) {
     <div className="deck-search">
       <button
         type="button"
-        onClick={openModal}
+        onClick={() => setModalOpen(true)}
         className="deck-search__open-button"
       >
         カードを追加
