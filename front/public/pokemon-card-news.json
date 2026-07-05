@@ -1,0 +1,47 @@
+{
+  "updatedAt": "2026-07-06",
+  "sourceName": "ポケモンカードゲーム公式ニュース",
+  "sourceUrl": "https://www.pokemon-card.com/info/",
+  "items": [
+    {
+      "id": "official-2026-07-03-store",
+      "category": "イベント",
+      "date": "2026.7.3",
+      "title": "ポケモンカードストア、新店登場！",
+      "summary": "拡張パック発売に合わせて、期間限定のポケモンカードストアが登場。",
+      "url": "https://www.pokemon-card.com/info/004753.html"
+    },
+    {
+      "id": "official-2026-07-03-playerclub-birthday",
+      "category": "その他",
+      "date": "2026.7.3",
+      "title": "プレイヤーズクラブ 生年月日変更機能の期間限定解放",
+      "summary": "本人確認強化に向けた登録情報確認と修正に関する案内。",
+      "url": "https://www.pokemon-card.com/info/005556.html"
+    },
+    {
+      "id": "official-2026-06-26-storm-emerald",
+      "category": "商品",
+      "date": "2026.6.26",
+      "title": "拡張パック「ストームエメラルダ」が7月31日に発売",
+      "summary": "新拡張パックの発売情報と特設ページへの導線。",
+      "url": "https://www.pokemon-card.com/ex/m6/"
+    },
+    {
+      "id": "official-2026-06-26-starter-ex",
+      "category": "商品",
+      "date": "2026.6.26",
+      "title": "構築デッキ「スターターセットex」3種が7月31日に発売",
+      "summary": "新しいスターターセットexの情報を確認できます。",
+      "url": "https://www.pokemon-card.com/ex/me/"
+    },
+    {
+      "id": "official-2026-06-26-mega-gallade-battle",
+      "category": "イベント",
+      "date": "2026.6.26",
+      "title": "メガエルレイドexSARゲットバトル、開催！",
+      "summary": "ポケモンカードジムで参加できるシールド戦イベント。",
+      "url": "https://www.pokemon-card.com/info/005507.html"
+    }
+  ]
+}

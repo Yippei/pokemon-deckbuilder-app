@@ -64,6 +64,22 @@ type CardGymMaster = {
   gyms?: CardGym[];
 };
 
+type PokemonCardNewsItem = {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  summary?: string;
+  url: string;
+};
+
+type PokemonCardNewsMaster = {
+  updatedAt?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  items?: PokemonCardNewsItem[];
+};
+
 type UserLocation = {
   lat: number;
   lng: number;
@@ -119,6 +135,11 @@ export default function Home() {
   const [deletingDeckId, setDeletingDeckId] = useState<string | null>(null);
   const [cardGyms, setCardGyms] = useState<CardGym[]>([]);
   const [gymMasterLoading, setGymMasterLoading] = useState(false);
+  const [cardNews, setCardNews] = useState<PokemonCardNewsItem[]>([]);
+  const [cardNewsSource, setCardNewsSource] = useState("公式ニュース");
+  const [cardNewsSourceUrl, setCardNewsSourceUrl] = useState("https://www.pokemon-card.com/info/");
+  const [cardNewsUpdatedAt, setCardNewsUpdatedAt] = useState("");
+  const [cardNewsLoading, setCardNewsLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [locationStatus, setLocationStatus] = useState("");
 
@@ -164,6 +185,36 @@ export default function Home() {
       }
     };
     loadGyms();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadNews = async () => {
+      setCardNewsLoading(true);
+      try {
+        const res = await fetch("/pokemon-card-news.json", { cache: "force-cache" });
+        if (!res.ok) throw new Error("pokemon-card-news.json を取得できませんでした");
+        const data = (await res.json()) as PokemonCardNewsMaster;
+        if (!cancelled) {
+          setCardNews(Array.isArray(data.items) ? data.items.slice(0, 5) : []);
+          setCardNewsSource(data.sourceName || "公式ニュース");
+          setCardNewsSourceUrl(data.sourceUrl || "https://www.pokemon-card.com/info/");
+          setCardNewsUpdatedAt(data.updatedAt || "");
+        }
+      } catch {
+        if (!cancelled) {
+          setCardNews([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setCardNewsLoading(false);
+        }
+      }
+    };
+    loadNews();
     return () => {
       cancelled = true;
     };
@@ -303,35 +354,50 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="home-command-hero__visual" aria-hidden="true">
-            <div className="home-card-stream">
-              <span />
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-            <div className="home-live-board">
-              <div className="home-live-board__bar">
+          <div className="home-command-hero__visual">
+            <div className="home-news-panel">
+              <div className="home-news-panel__topline">
+                <span>POKECA NEWS</span>
+                <a href={cardNewsSourceUrl} target="_blank" rel="noreferrer">
+                  {cardNewsSource}
+                </a>
+              </div>
+              <div className="home-news-panel__header">
+                <div>
+                  <p>新情報</p>
+                  <h2>公式ニュース</h2>
+                </div>
+                <span>{cardNewsUpdatedAt ? `${cardNewsUpdatedAt} 更新` : "LIVE"}</span>
+              </div>
+              <div className="home-news-panel__ticker" aria-hidden="true">
                 <span />
                 <span />
                 <span />
               </div>
-              <div className="home-live-board__mat">
-                <div />
-                <div />
-                <div />
-                <div />
-                <div />
-                <div />
+              <div className="home-news-list">
+                {cardNewsLoading ? (
+                  <div className="home-news-empty">ニュースを読み込み中です。</div>
+                ) : cardNews.length > 0 ? (
+                  cardNews.map((item) => (
+                    <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="home-news-item">
+                      <span className="home-news-item__meta">
+                        <span>{item.category}</span>
+                        <time dateTime={item.date}>{item.date}</time>
+                      </span>
+                      <strong>{item.title}</strong>
+                      {item.summary ? <small>{item.summary}</small> : null}
+                    </a>
+                  ))
+                ) : (
+                  <div className="home-news-empty">
+                    <strong>ニュースデータ未投入</strong>
+                    <span>公式ニュースへのリンクから最新情報を確認できます。</span>
+                  </div>
+                )}
               </div>
-              <div className="home-live-board__hand">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
+              <a href={cardNewsSourceUrl} target="_blank" rel="noreferrer" className="home-news-panel__footer">
+                公式ニュース一覧を開く
+              </a>
             </div>
           </div>
         </section>
