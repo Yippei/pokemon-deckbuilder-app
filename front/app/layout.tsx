@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ポケカデッキメーカー",
-  description: "ポケモンカードのデッキを作成・編集するアプリ",
+  title: "ポケカ総合センター",
+  description: "ポケモンカードのデッキ作成・練習・カードジム探しをまとめて扱うアプリ",
 };
 
 export default function RootLayout({

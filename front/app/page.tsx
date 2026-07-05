@@ -267,7 +267,7 @@ export default function Home() {
         <header className="home-topbar">
           <div>
             <div className="home-kicker">POKEMON CARD WORKSHOP</div>
-            <h1 className="home-command-title">ポケカデッキメーカー</h1>
+            <h1 className="home-command-title">ポケカ総合センター</h1>
           </div>
           <AuthStatus compact />
         </header>
