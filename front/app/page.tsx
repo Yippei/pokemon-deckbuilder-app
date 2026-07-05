@@ -244,7 +244,7 @@ export default function Home() {
   };
 
   return (
-    <main className="home-type-bg min-h-screen">
+    <main className="home-type-bg home-command-center min-h-screen">
       <div className="type-mark-field" aria-hidden="true">
         {typeMarks.map((mark) => (
           <span
@@ -262,228 +262,189 @@ export default function Home() {
           />
         ))}
       </div>
-      <div className="home-content mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <section className="home-hero mb-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/78 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-          <div className="home-hero__grid">
-            <div className="home-hero__copy">
-              <div className="home-kicker">POKEMON CARD WORKSHOP</div>
-              <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-                ポケカデッキメーカー
-              </h1>
-              <p className="max-w-2xl text-sm leading-7 text-slate-700 sm:text-base">
-                事故りにくい構成を基準に、タイプやポケモン指定に合わせてデッキを作成します。
-                そのまま使える形に寄せつつ、編集もすぐに始められます。
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Link
-                  href="/decks/new"
-                  className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800"
-                >
-                  新規デッキを作成
-                </Link>
-                <a
-                  href="#deck-list"
-                  className="inline-flex h-11 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-400"
-                >
-                  デッキ一覧を見る
-                </a>
-                <AuthStatus compact />
+      <div className="home-motion-grid" aria-hidden="true" />
+      <div className="home-content mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+        <header className="home-topbar">
+          <div>
+            <div className="home-kicker">POKEMON CARD WORKSHOP</div>
+            <h1 className="home-command-title">ポケカデッキメーカー</h1>
+          </div>
+          <AuthStatus compact />
+        </header>
+
+        <section className="home-command-hero">
+          <div className="home-command-hero__copy">
+            <p className="home-command-hero__eyebrow">BUILD / TEST / FIND GYM</p>
+            <h2>デッキ作成から一人回しまで、ひとつの司令塔で。</h2>
+            <div className="home-command-actions">
+              <Link href="/decks/new" className="home-primary-action">
+                新規デッキを作成
+              </Link>
+              <Link href="/ai-battle-room?mode=solo" className="home-secondary-action">
+                一人回しを始める
+              </Link>
+              <a href="#deck-list" className="home-ghost-action">
+                デッキ一覧
+              </a>
+            </div>
+            <div className="home-command-stats" aria-label="デッキ統計">
+              <div className="home-metric">
+                <span className="home-metric__label">デッキ</span>
+                <span className="home-metric__value">{loading ? "-" : decks.length}</span>
               </div>
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div className="home-metric">
-                  <span className="home-metric__label">デッキ</span>
-                  <span className="home-metric__value">{decks.length}</span>
-                </div>
-                <div className="home-metric">
-                  <span className="home-metric__label">合計枚数</span>
-                  <span className="home-metric__value">{totalCards}</span>
-                </div>
-                <div className="home-metric">
-                  <span className="home-metric__label">表示中</span>
-                  <span className="home-metric__value">{visibleDecks.length}</span>
-                </div>
+              <div className="home-metric">
+                <span className="home-metric__label">合計枚数</span>
+                <span className="home-metric__value">{loading ? "-" : totalCards}</span>
+              </div>
+              <div className="home-metric">
+                <span className="home-metric__label">表示中</span>
+                <span className="home-metric__value">{loading ? "-" : visibleDecks.length}</span>
               </div>
             </div>
+          </div>
 
-            <div className="home-hero__visual">
-              <div className="home-hero__orb home-hero__orb--top" />
-              <div className="home-hero__orb home-hero__orb--middle" />
-              <div className="home-hero__orb home-hero__orb--bottom" />
-              <div className="home-hero__card">
-                <div className="home-hero__card-top">
-                  <span>CARD GYM</span>
-                  <span>{userLocation ? "NEARBY" : "LOCATION"}</span>
-                </div>
-                <div className="home-hero__card-center home-hero__card-center--gyms">
-                  <div className="home-gym-panel" id="card-gym-finder">
-                    <div className="home-gym-panel__header">
-                      <div className="home-gym-panel__ball" aria-hidden="true">
-                        <span className="home-hero__pokeball-core" />
-                      </div>
-                      <div className="min-w-0">
-                        <h2 className="text-base font-black text-slate-950">近くのポケモンカードジム</h2>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">
-                          {userLocation ? "現在地から近い順に表示" : "現在地を取得すると近い順に並びます"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={locateUser}
-                        className="inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-slate-800"
-                      >
-                        現在地を取得
-                      </button>
-                      <a
-                        href={buildMapsSearchUrl(userLocation)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 transition hover:bg-slate-50"
-                      >
-                        Mapsで探す
-                      </a>
-                    </div>
-
-                    {locationStatus ? (
-                      <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-                        {locationStatus}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-3 grid gap-2">
-                      {gymMasterLoading ? (
-                        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
-                          店舗データを読み込み中です。
-                        </p>
-                      ) : nearestGyms.length > 0 ? (
-                        nearestGyms.map(({ gym, distanceKm }, index) => (
-                          <div key={gym.id} className="home-gym-panel__row">
-                            <div className="home-gym-panel__rank">{index + 1}</div>
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-black text-slate-950">{gym.name}</p>
-                              <p className="mt-0.5 text-[11px] font-bold text-emerald-700">
-                                {distanceKm === null ? "距離未取得" : `約${formatDistance(distanceKm)}`}
-                              </p>
-                            </div>
-                            <a
-                              href={buildMapsDirectionsUrl(gym, userLocation)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="home-gym-panel__guide"
-                            >
-                              案内
-                            </a>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                          <p className="text-xs font-bold text-slate-800">店舗マスター未投入</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-600">
-                            `card-gyms.json` に店舗の緯度経度を入れると、この場所に近い順で表示されます。
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="home-hero__card-bottom">
-                  <span>GOOGLE MAPS</span>
-                  <span>FREE URL</span>
-                </div>
+          <div className="home-command-hero__visual" aria-hidden="true">
+            <div className="home-card-stream">
+              <span />
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="home-live-board">
+              <div className="home-live-board__bar">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="home-live-board__mat">
+                <div />
+                <div />
+                <div />
+                <div />
+                <div />
+                <div />
+              </div>
+              <div className="home-live-board__hand">
+                <span />
+                <span />
+                <span />
+                <span />
+                <span />
               </div>
             </div>
           </div>
         </section>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-2">
-          <section className="rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-            <h2 className="text-lg font-black text-slate-950">ポケモンカードの心得</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-700">
-              対戦前に押さえると、プレイ全体が安定します。
-            </p>
-            <ul className="mt-4 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-              {starterRules.map((rule) => (
-                <li
-                  key={rule}
-                  className="rounded-2xl border border-slate-200/80 bg-slate-50 px-3 py-2.5"
-                >
-                  {rule}
-                </li>
-              ))}
-            </ul>
-          </section>
+        <section className="home-command-panel">
+          <div className="home-command-panel__main">
+            <div className="home-section-heading">
+              <p>QUICK ACCESS</p>
+              <h2>プレイラボ</h2>
+            </div>
+            <div className="home-lab-grid">
+              <Link href="/ai-battle-room?mode=ai" className="home-lab-tile home-lab-tile--ai">
+                <span>AI対戦</span>
+                <strong>対戦を始める</strong>
+              </Link>
+              <Link href="/ai-battle-room?mode=solo" className="home-lab-tile home-lab-tile--solo">
+                <span>一人回し</span>
+                <strong>盤面を確認する</strong>
+              </Link>
+            </div>
+          </div>
 
-          <section className="rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black text-slate-950">プレイラボ</h2>
-                <p className="mt-1 text-sm leading-6 text-slate-700">
-                  AI対戦と一人回しをまとめた、練習用の入口です。
+          <aside className="home-gym-panel home-command-panel__side" id="card-gym-finder">
+            <div className="home-gym-panel__header">
+              <div className="home-gym-panel__ball" aria-hidden="true">
+                <span className="home-hero__pokeball-core" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-black text-slate-950">近くのポケモンカードジム</h2>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  {userLocation ? "現在地から近い順" : "現在地取得で近い順に表示"}
                 </p>
               </div>
             </div>
-            <div className="mt-5 rounded-3xl border border-slate-200/80 bg-slate-50/90 p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Link
-                  href="/ai-battle-room?mode=ai"
-                  className="inline-flex h-12 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800"
-                >
-                  AI対戦を始める
-                </Link>
-                <Link
-                  href="/ai-battle-room?mode=solo"
-                  className="inline-flex h-12 items-center justify-center rounded-full border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-400"
-                >
-                  一人回しを始める
-                </Link>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-slate-700">
-                AIとの練習と一人回しを切り替えて、動きの確認や調整を行えます。
-              </p>
-            </div>
-          </section>
-        </div>
 
-        <section className="mb-6 rounded-[24px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-slate-950">プレイワンポイント</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-700">
-                構築とプレイの基準を合わせると、デッキの再現性が上がります。
-              </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={locateUser} className="home-mini-action home-mini-action--dark">
+                現在地を取得
+              </button>
+              <a href={buildMapsSearchUrl(userLocation)} target="_blank" rel="noreferrer" className="home-mini-action">
+                Mapsで探す
+              </a>
             </div>
-            <button
-              type="button"
-              onClick={() => setPlayTipsOpen((open) => !open)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-lg font-bold text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50"
-              aria-expanded={playTipsOpen}
-              aria-controls="play-tips-panel"
-              aria-label={playTipsOpen ? "プレイワンポイントを閉じる" : "プレイワンポイントを開く"}
-            >
-              {playTipsOpen ? "−" : "+"}
-            </button>
+
+            {locationStatus ? (
+              <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                {locationStatus}
+              </p>
+            ) : null}
+
+            <div className="mt-3 grid gap-2">
+              {gymMasterLoading ? (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                  店舗データを読み込み中です。
+                </p>
+              ) : nearestGyms.length > 0 ? (
+                nearestGyms.map(({ gym, distanceKm }, index) => (
+                  <div key={gym.id} className="home-gym-panel__row">
+                    <div className="home-gym-panel__rank">{index + 1}</div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black text-slate-950">{gym.name}</p>
+                      <p className="mt-0.5 text-[11px] font-bold text-emerald-700">
+                        {distanceKm === null ? "距離未取得" : `約${formatDistance(distanceKm)}`}
+                      </p>
+                    </div>
+                    <a href={buildMapsDirectionsUrl(gym, userLocation)} target="_blank" rel="noreferrer" className="home-gym-panel__guide">
+                      案内
+                    </a>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                  <p className="text-xs font-bold text-slate-800">店舗マスター未投入</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    `card-gyms.json` に店舗の緯度経度を入れると、この場所に近い順で表示されます。
+                  </p>
+                </div>
+              )}
+            </div>
+          </aside>
+        </section>
+
+        <section className="home-tips-band">
+          <div className="home-section-heading">
+            <p>PLAY STANDARD</p>
+            <h2>プレイワンポイント</h2>
           </div>
+          <button
+            type="button"
+            onClick={() => setPlayTipsOpen((open) => !open)}
+            className="home-tip-toggle"
+            aria-expanded={playTipsOpen}
+            aria-controls="play-tips-panel"
+            aria-label={playTipsOpen ? "プレイワンポイントを閉じる" : "プレイワンポイントを開く"}
+          >
+            {playTipsOpen ? "閉じる" : "開く"}
+          </button>
           <div
             id="play-tips-panel"
-            className={`overflow-hidden transition-all duration-300 ${
-              playTipsOpen ? "mt-4 max-h-80 opacity-100" : "max-h-0 opacity-0"
-            }`}
+            className={`home-tips-band__body ${playTipsOpen ? "home-tips-band__body--open" : ""}`}
             aria-hidden={!playTipsOpen}
           >
-            <ul className="space-y-2 text-sm leading-6 text-slate-800">
-              <li>デッキテーマをしっかり決め、それに沿って構築やプレイを行う</li>
-              <li>たねポケモンはベンチいっぱいまで置かず、1体置ける余裕をもつ</li>
-              <li>エネルギーを過剰に入れない</li>
+            <ul>
+              {starterRules.map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
               <li>たねポケモンを呼ぶカードは最低8枚入れる</li>
-              <li>できる限り最大パフォーマンスをし、次のターンに余力を残すことは基本考えない</li>
               <li>最後まで思考を諦めず、突破口を見落とさない</li>
             </ul>
           </div>
         </section>
 
-        <div className="mb-4 flex flex-wrap gap-2" aria-label="タイプ別デッキ一覧">
+        <div className="home-type-rail" aria-label="タイプ別デッキ一覧">
           {deckTypes.map((deckType) => (
             <button
               key={deckType.type}
@@ -515,51 +476,47 @@ export default function Home() {
 
         {loadError && <p className="mb-4 text-sm text-amber-600">{loadError}</p>}
 
-        <section id="deck-list" className="rounded-[28px] border border-slate-200/80 bg-white/78 p-5 shadow-sm backdrop-blur-xl">
+        <section id="deck-list" className="home-deck-section">
           {!loading && decks.length > 0 && (
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-700">{listTitle}</h2>
-              <span className="text-xs text-slate-500">{visibleDecks.length}件</span>
+            <div className="home-deck-section__header">
+              <div className="home-section-heading">
+                <p>MY DECKS</p>
+                <h2>{listTitle}</h2>
+              </div>
+              <span>{visibleDecks.length}件</span>
             </div>
           )}
 
           {loading ? (
-            <p className="text-gray-500">読み込み中...</p>
+            <p className="home-empty-state">読み込み中...</p>
           ) : decks.length === 0 ? (
-            <p className="text-gray-500">デッキがまだありません。新規作成してみましょう！</p>
+            <p className="home-empty-state">デッキがまだありません。新規作成してみましょう！</p>
           ) : visibleDecks.length === 0 ? (
-            <p className="text-slate-700">{selectedTypeLabel}タイプのデッキはまだありません。</p>
+            <p className="home-empty-state">{selectedTypeLabel}タイプのデッキはまだありません。</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="home-deck-list">
               {visibleDecks.map((deck) => (
                 <li key={deck.deckId}>
-                  <div className="group rounded-[22px] border border-slate-200/80 bg-white/90 p-4 text-slate-950 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <Link
-                        href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
-                        className="min-w-0 flex-1"
-                      >
-                        <div className="text-lg font-semibold text-slate-950 group-hover:text-slate-900">{deck.name}</div>
-                        <div className="mt-1 text-sm font-medium text-slate-700">
-                          {deck.cards.reduce((sum, c) => sum + c.count, 0)} 枚
-                        </div>
+                  <div className="home-deck-row">
+                    <Link href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`} className="home-deck-row__main">
+                      <span className="home-deck-row__mark" />
+                      <span className="home-deck-row__text">
+                        <strong>{deck.name}</strong>
+                        <small>{deck.cards.reduce((sum, c) => sum + c.count, 0)} 枚</small>
+                      </span>
+                    </Link>
+                    <div className="home-deck-row__actions">
+                      <Link href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`} className="home-row-action">
+                        OPEN
                       </Link>
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/decks/view?id=${encodeURIComponent(deck.deckId)}`}
-                          className="inline-flex h-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-                        >
-                          OPEN
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteDeck(deck)}
-                          disabled={deletingDeckId === deck.deckId}
-                          className="inline-flex h-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingDeckId === deck.deckId ? "削除中" : "削除"}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDeck(deck)}
+                        disabled={deletingDeckId === deck.deckId}
+                        className="home-row-action home-row-action--danger"
+                      >
+                        {deletingDeckId === deck.deckId ? "削除中" : "削除"}
+                      </button>
                     </div>
                   </div>
                 </li>

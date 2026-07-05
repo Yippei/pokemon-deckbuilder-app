@@ -1,0 +1,88 @@
+{
+  "source": "front/public/card-master-lite.json",
+  "samples": {
+    "goods": {
+      "cardId": "50170",
+      "name": "勝利のしるし",
+      "cardKind": "trainer",
+      "subKind": "グッズ",
+      "regulation": "XY",
+      "setCode": "XY",
+      "setName": "ポケモンカードゲーム チャンピオンズリーグ2026 大阪",
+      "stage": "",
+      "stageCategory": "unknown",
+      "evolvesFrom": "",
+      "familyId": "勝利のしるし",
+      "stageOrder": 0,
+      "hp": 0,
+      "types": [],
+      "attacks": [],
+      "abilities": [],
+      "ruleText": "コインを1回投げオモテなら、自分の山札からポケモンを1枚選び、相手に見せて、手札に加える。そして山札を切る。 グッズは、自分の番に何枚でも使える。",
+      "searchTokens": [
+        "勝利のしるし",
+        "ポケモンカードゲーム",
+        "チャンピオンズリーグ2026",
+        "大阪",
+        "グッズ",
+        "コインを1回投げオモテなら、自分の山札からポケモンを1枚選び、相手に見せて、手札に加える",
+        "そして山札を切る",
+        "グッズは、自分の番に何枚でも使える"
+      ],
+      "officialUrl": "https://www.pokemon-card.com/card-search/details.php/card/50170/regu/XY",
+      "imageUrl": "https://www.pokemon-card.com/assets/images/card_images/large/M-P/050170_T_SHIXYOURINOSHIRUSHI.jpg",
+      "effectProfile": {
+        "label": "コインを1回投げオモテなら、自分の山札からポケモンを1枚選び、相手に見せて、手札に加える。そして山札を切る。",
+        "actions": [
+          {
+            "type": "search_deck",
+            "target": "pokemon",
+            "count": 1,
+            "destination": "hand"
+          }
+        ]
+      }
+    },
+    "pokemon": {
+      "cardId": "48782",
+      "name": "ニャローテ",
+      "cardKind": "pokemon",
+      "subKind": "ポケモン",
+      "regulation": "XY",
+      "setCode": "EX",
+      "setName": "スタートデッキ100 バトルコレクション",
+      "stage": "1 進化",
+      "stageCategory": "evolution",
+      "evolvesFrom": "",
+      "familyId": "ニャローテ",
+      "stageOrder": 1,
+      "hp": 90,
+      "types": [
+        "草"
+      ],
+      "attacks": [
+        {
+          "name": "マジカルリーフ",
+          "damage": 30,
+          "cost": [],
+          "text": "コインを1回投げオモテなら、30ダメージ追加し、このポケモンのHPを「30」回復する。"
+        }
+      ],
+      "abilities": [],
+      "ruleText": "",
+      "searchTokens": [
+        "ニャローテ",
+        "1",
+        "進化",
+        "スタートデッキ100",
+        "バトルコレクション",
+        "ポケモン",
+        "草",
+        "マジカルリーフ"
+      ],
+      "officialUrl": "https://www.pokemon-card.com/card-search/details.php/card/48782/regu/XY",
+      "imageUrl": "https://www.pokemon-card.com/assets/images/card_images/large/MC/048782_P_NIXYAROTE.jpg",
+      "effectProfile": null
+    }
+  }
+}
