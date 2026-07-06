@@ -1,4 +1,5 @@
 import { getIdToken, login } from "@/lib/auth";
+import { z } from "zod";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -53,6 +54,23 @@ export type GenerateDeckContext = {
   pokemonName?: string;
   supplementalTheme?: string;
 };
+
+const DeckCardSchema = z.object({
+  cardId: z.string().min(1),
+  cardName: z.string().optional(),
+  illustration: z.string().optional(),
+  count: z.number().int().min(1).max(60),
+});
+
+const GenerateDeckWarningSchema = z.object({
+  type: z.string().min(1).default("validation"),
+  message: z.string().min(1),
+});
+
+const GenerateDeckResultSchema = z.object({
+  cards: z.array(DeckCardSchema).min(1),
+  warnings: z.array(GenerateDeckWarningSchema).optional(),
+});
 
 export function isBasicEnergyName(name?: string): boolean {
   const normalized = (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
@@ -192,7 +210,13 @@ export async function generateDeck(body: {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成に失敗しました"));
-    return res.json();
+    const data = await res.json();
+    const parsed = GenerateDeckResultSchema.safeParse(data);
+    if (!parsed.success) {
+      console.warn("Invalid generated deck response", parsed.error.flatten());
+      throw new Error("AIの生成結果の形式が正しくありません。もう一度生成してください。");
+    }
+    return parsed.data;
   } catch (error) {
     throw new Error(toJapaneseFetchError(error, "デッキの生成に失敗しました"));
   }
