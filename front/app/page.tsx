@@ -326,7 +326,7 @@ export default function Home() {
         <section className="home-command-hero">
           <div className="home-command-hero__copy">
             <p className="home-command-hero__eyebrow">BUILD / TEST / FIND GYM</p>
-            <h2>デッキを作って、試して、次の対戦へ。ポケカの準備をここから始めよう。</h2>
+            <h2>ポケカの準備を、ここから。</h2>
             <div className="home-command-actions">
               <Link href="/decks/new" className="home-primary-action">
                 新規デッキを作成
