@@ -120,6 +120,11 @@ export default function DeckPage() {
       const generated = await generateDeck({
         theme: theme.trim() || [typeLabel, name].filter(Boolean).join(" ") || name,
         existingDeck: cards,
+        generationContext: {
+          selectedType,
+          selectedPlan: "改善",
+          supplementalTheme: theme,
+        },
       });
       setCards(generated.cards);
       setGenerateWarnings((generated.warnings || []).map((warning) => warning.message));

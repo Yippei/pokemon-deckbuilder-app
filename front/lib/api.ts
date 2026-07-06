@@ -55,6 +55,18 @@ export type GenerateDeckContext = {
   supplementalTheme?: string;
 };
 
+type StaticCardDetail = {
+  cardId: string;
+  name?: string;
+  cardKind?: string;
+  subKind?: string;
+  imageUrl?: string;
+};
+
+type StaticCardMaster = {
+  cards?: Record<string, StaticCardDetail>;
+};
+
 const DeckCardSchema = z.object({
   cardId: z.string().min(1),
   cardName: z.string().optional(),
@@ -71,6 +83,25 @@ const GenerateDeckResultSchema = z.object({
   cards: z.array(DeckCardSchema).min(1),
   warnings: z.array(GenerateDeckWarningSchema).optional(),
 });
+
+const targetDeckCardCount = 60;
+const stapleCards = [
+  { name: "ハイパーボール", targetCount: 4 },
+  { name: "ポケモンいれかえ", targetCount: 2 },
+  { name: "ボスの指令", targetCount: 2 },
+  { name: "夜のタンカ", targetCount: 1 },
+  { name: "なかよしポフィン", targetCount: 2 },
+];
+const basicEnergyByType: Record<string, string> = {
+  grass: "基本草エネルギー",
+  fire: "基本炎エネルギー",
+  water: "基本水エネルギー",
+  electric: "基本雷エネルギー",
+  psychic: "基本超エネルギー",
+  fighting: "基本闘エネルギー",
+  dark: "基本悪エネルギー",
+};
+let cardMasterPromise: Promise<Record<string, StaticCardDetail>> | null = null;
 
 export function isBasicEnergyName(name?: string): boolean {
   const normalized = (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
@@ -216,7 +247,7 @@ export async function generateDeck(body: {
       console.warn("Invalid generated deck response", parsed.error.flatten());
       throw new Error("AIの生成結果の形式が正しくありません。もう一度生成してください。");
     }
-    return parsed.data;
+    return await normalizeGeneratedDeck(parsed.data, body.generationContext);
   } catch (error) {
     throw new Error(toJapaneseFetchError(error, "デッキの生成に失敗しました"));
   }
@@ -251,4 +282,180 @@ function toJapaneseFetchError(error: unknown, fallback: string): string {
   }
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+async function normalizeGeneratedDeck(
+  generated: GenerateDeckResult,
+  context?: GenerateDeckContext
+): Promise<GenerateDeckResult> {
+  const warnings = [...(generated.warnings || [])];
+  const cardMaster = await loadCardMaster();
+  if (Object.keys(cardMaster).length === 0) {
+    return {
+      ...generated,
+      warnings: [
+        ...warnings,
+        {
+          type: "card_master",
+          message: "カードマスターを取得できなかったため、実在カード照合をスキップしました。",
+        },
+      ],
+    };
+  }
+  const cardsByName = buildCardsByName(cardMaster);
+  const cards: DeckCard[] = [];
+  const droppedNames: string[] = [];
+  let cappedCardCount = 0;
+
+  for (const card of generated.cards) {
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard) {
+      droppedNames.push(card.cardName || card.cardId);
+      continue;
+    }
+    const normalizedCard: DeckCard = {
+      cardId: masterCard.cardId,
+      cardName: masterCard.name || card.cardName || masterCard.cardId,
+      illustration: masterCard.imageUrl || card.illustration,
+      count: card.count,
+    };
+    cappedCardCount += addDeckCardWithLimits(cards, normalizedCard);
+  }
+
+  const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
+  if (droppedNames.length > 0) {
+    warnings.push({
+      type: "card_master",
+      message: `カードマスターに存在しないカードを除外しました: ${droppedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (cappedCardCount > 0) {
+    warnings.push({
+      type: "card_limit",
+      message: `同名カードの上限を超えた${cappedCardCount}枚を調整しました。`,
+    });
+  }
+  if (trimmedCardCount > 0) {
+    warnings.push({
+      type: "deck_count",
+      message: `60枚を超えた${trimmedCardCount}枚を調整しました。`,
+    });
+  }
+
+  const filledCardCount = fillDeckWithStaples(cards, cardsByName, context);
+  if (filledCardCount > 0) {
+    warnings.push({
+      type: "staple_fill",
+      message: `不足分${filledCardCount}枚を汎用カードまたは基本エネルギーで補いました。`,
+    });
+  }
+  const total = countDeckCards(cards);
+  if (total !== targetDeckCardCount) {
+    warnings.push({
+      type: "deck_count",
+      message: `生成後の枚数が${total}枚です。保存前に60枚へ調整してください。`,
+    });
+  }
+
+  return {
+    cards: cards.filter((card) => card.count > 0),
+    warnings: warnings.length > 0 ? warnings : undefined,
+  };
+}
+
+async function loadCardMaster(): Promise<Record<string, StaticCardDetail>> {
+  if (!cardMasterPromise) {
+    cardMasterPromise = fetch("/card-master-lite.json", { cache: "force-cache" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("card-master-lite.json を取得できませんでした");
+        const data = (await res.json()) as StaticCardMaster;
+        return data.cards || {};
+      })
+      .catch((error) => {
+        console.warn("Card master validation skipped", error);
+        return {};
+      });
+  }
+  return cardMasterPromise;
+}
+
+function buildCardsByName(cardMaster: Record<string, StaticCardDetail>) {
+  const cardsByName = new Map<string, StaticCardDetail>();
+  for (const card of Object.values(cardMaster)) {
+    if (!card.name) continue;
+    cardsByName.set(normalizeCardLimitName(card.name), card);
+  }
+  return cardsByName;
+}
+
+function addDeckCardWithLimits(cards: DeckCard[], card: DeckCard): number {
+  const addableCount = Math.min(card.count, remainingCountForCardName(cards, card));
+  if (addableCount <= 0) return card.count;
+  const existing = cards.find((current) => current.cardId === card.cardId);
+  if (existing) {
+    existing.count += addableCount;
+  } else {
+    cards.push({ ...card, count: addableCount });
+  }
+  return card.count - addableCount;
+}
+
+function trimDeckToCount(cards: DeckCard[], targetCount: number) {
+  let overflow = countDeckCards(cards) - targetCount;
+  const trimmed = Math.max(0, overflow);
+  for (let index = cards.length - 1; index >= 0 && overflow > 0; index -= 1) {
+    const card = cards[index];
+    const removeCount = Math.min(card.count, overflow);
+    card.count -= removeCount;
+    overflow -= removeCount;
+  }
+  return trimmed;
+}
+
+function fillDeckWithStaples(
+  cards: DeckCard[],
+  cardsByName: Map<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  let filled = 0;
+  for (const staple of stapleCards) {
+    if (countDeckCards(cards) >= targetDeckCardCount) break;
+    const card = cardsByName.get(normalizeCardLimitName(staple.name));
+    if (!card?.name) continue;
+    const currentCount = countCardsWithSameName(cards, { cardName: card.name });
+    const wantedCount = Math.max(0, staple.targetCount - currentCount);
+    if (wantedCount <= 0) continue;
+    const before = countDeckCards(cards);
+    addDeckCardWithLimits(cards, {
+      cardId: card.cardId,
+      cardName: card.name,
+      illustration: card.imageUrl,
+      count: Math.min(wantedCount, targetDeckCardCount - countDeckCards(cards)),
+    });
+    filled += countDeckCards(cards) - before;
+  }
+
+  const energyName = context?.selectedType ? basicEnergyByType[context.selectedType] : undefined;
+  if (energyName) {
+    const card = cardsByName.get(normalizeCardLimitName(energyName));
+    if (card?.name) {
+      while (countDeckCards(cards) < targetDeckCardCount) {
+        const before = countDeckCards(cards);
+        addDeckCardWithLimits(cards, {
+          cardId: card.cardId,
+          cardName: card.name,
+          illustration: card.imageUrl,
+          count: targetDeckCardCount - before,
+        });
+        filled += countDeckCards(cards) - before;
+        if (countDeckCards(cards) === before) break;
+      }
+    }
+  }
+
+  return filled;
+}
+
+function countDeckCards(cards: DeckCard[]) {
+  return cards.reduce((sum, card) => sum + card.count, 0);
 }
