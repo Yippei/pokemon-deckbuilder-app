@@ -92,6 +92,7 @@ const stapleCards = [
   { name: "夜のタンカ", targetCount: 1 },
   { name: "なかよしポフィン", targetCount: 2 },
 ];
+const handResetCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ"];
 const basicEnergyByType: Record<string, string> = {
   grass: "基本草エネルギー",
   fire: "基本炎エネルギー",
@@ -342,6 +343,14 @@ async function normalizeGeneratedDeck(
     });
   }
 
+  const appliedPolicyRules = applyDeckPolicyRules(cards, cardsByName);
+  if (appliedPolicyRules.handResetAdded) {
+    warnings.push({
+      type: "deck_policy",
+      message: `デッキ方針により、手札リセット枠として${appliedPolicyRules.handResetAdded.cardName}を追加しました。`,
+    });
+  }
+
   const filledCardCount = fillDeckWithStaples(cards, cardsByName, context);
   if (filledCardCount > 0) {
     warnings.push({
@@ -410,6 +419,62 @@ function trimDeckToCount(cards: DeckCard[], targetCount: number) {
     overflow -= removeCount;
   }
   return trimmed;
+}
+
+function applyDeckPolicyRules(
+  cards: DeckCard[],
+  cardsByName: Map<string, StaticCardDetail>
+): { handResetAdded?: DeckCard } {
+  if (hasAnyCardName(cards, handResetCardNames)) return {};
+
+  const handResetCard = findFirstAvailableCard(cardsByName, handResetCardNames);
+  if (!handResetCard?.name) return {};
+
+  makeRoomForRequiredCard(cards, 1, [handResetCard.name]);
+  const requiredCard: DeckCard = {
+    cardId: handResetCard.cardId,
+    cardName: handResetCard.name,
+    illustration: handResetCard.imageUrl,
+    count: 1,
+  };
+  const rejected = addDeckCardWithLimits(cards, requiredCard);
+  return rejected === 0 ? { handResetAdded: requiredCard } : {};
+}
+
+function hasAnyCardName(cards: DeckCard[], names: string[]) {
+  const normalizedNames = new Set(names.map(normalizeCardLimitName));
+  return cards.some((card) => normalizedNames.has(normalizeCardLimitName(card.cardName)));
+}
+
+function findFirstAvailableCard(cardsByName: Map<string, StaticCardDetail>, names: string[]) {
+  for (const name of names) {
+    const card = cardsByName.get(normalizeCardLimitName(name));
+    if (card?.name) return card;
+  }
+  return undefined;
+}
+
+function makeRoomForRequiredCard(cards: DeckCard[], requiredCount: number, protectedNames: string[]) {
+  while (countDeckCards(cards) + requiredCount > targetDeckCardCount) {
+    const removableIndex = findRemovableCardIndex(cards, protectedNames);
+    if (removableIndex < 0) break;
+    cards[removableIndex].count -= 1;
+  }
+}
+
+function findRemovableCardIndex(cards: DeckCard[], protectedNames: string[]) {
+  const protectedNameSet = new Set(protectedNames.map(normalizeCardLimitName));
+  const isProtected = (card: DeckCard) => protectedNameSet.has(normalizeCardLimitName(card.cardName));
+
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    if (card.count > 0 && isBasicEnergyName(card.cardName) && !isProtected(card)) return index;
+  }
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    if (card.count > 0 && !isProtected(card)) return index;
+  }
+  return -1;
 }
 
 function fillDeckWithStaples(
