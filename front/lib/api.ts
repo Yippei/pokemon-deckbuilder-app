@@ -109,6 +109,25 @@ const pokemonSearchSupportCardNames = [
   "トウコ",
 ];
 const evolutionSupportCardNames = ["ふしぎなアメ", "ハイパーアロマ", "ヒカリ", "トウコ", "タケシのスカウト"];
+const aceSpecCardNames = [
+  "プライムキャッチャー",
+  "アンフェアスタンプ",
+  "マキシマムベルト",
+  "ヒーローマント",
+  "ハイパーアロマ",
+  "サバイブギプス",
+  "レガシーエネルギー",
+  "ポケモン回収サイクロン",
+  "シークレットボックス",
+  "ニュートラルセンター",
+  "デラックスボム",
+  "プレシャスキャリー",
+  "偉大な大樹",
+  "きらめく結晶",
+  "パーフェクトミキサー",
+  "エネルギー転送PRO",
+  "メガシグナル",
+];
 const handRefreshTargetCount = 4;
 const selfPositiveHandRefreshCardNames = [
   "リーリエの決心",
@@ -138,11 +157,17 @@ export function isBasicEnergyName(name?: string): boolean {
 }
 
 export function maxCountForCard(card: Pick<DeckCard, "cardName">): number {
+  if (isAceSpecName(card.cardName)) return 1;
   return isBasicEnergyName(card.cardName) ? 60 : 4;
 }
 
 export function normalizeCardLimitName(name?: string): string {
   return (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
+}
+
+export function isAceSpecName(name?: string): boolean {
+  const normalizedName = normalizeCardLimitName(name);
+  return aceSpecCardNames.some((aceSpecName) => normalizeCardLimitName(aceSpecName) === normalizedName);
 }
 
 export function countCardsWithSameName(cards: DeckCard[], card: Pick<DeckCard, "cardName">): number {
@@ -353,6 +378,7 @@ async function normalizeGeneratedDeck(
 
   const themeLockedRemoval = removeIncompatibleThemeLockedCards(cards, cardMaster, context);
   const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
+  const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
   if (droppedNames.length > 0) {
@@ -377,6 +403,12 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "deck_policy",
       message: `対象ポケモンが不足しているサーチカードを除外しました: ${pokemonSearchRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (aceSpecRemoval.removedCount > 0) {
+    warnings.push({
+      type: "card_limit",
+      message: `ACE SPECはデッキに1枚までのため調整しました: ${aceSpecRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
   if (trimmedCardCount > 0) {
@@ -453,7 +485,7 @@ function buildCardsByName(cardMaster: Record<string, StaticCardDetail>) {
 }
 
 function addDeckCardWithLimits(cards: DeckCard[], card: DeckCard): number {
-  const addableCount = Math.min(card.count, remainingCountForCardName(cards, card));
+  const addableCount = Math.min(card.count, remainingCountForCardName(cards, card), remainingAceSpecCount(cards, card));
   if (addableCount <= 0) return card.count;
   const existing = cards.find((current) => current.cardId === card.cardId);
   if (existing) {
@@ -462,6 +494,17 @@ function addDeckCardWithLimits(cards: DeckCard[], card: DeckCard): number {
     cards.push({ ...card, count: addableCount });
   }
   return card.count - addableCount;
+}
+
+function remainingAceSpecCount(cards: DeckCard[], card: Pick<DeckCard, "cardName">) {
+  if (!isAceSpecName(card.cardName)) return Number.MAX_SAFE_INTEGER;
+  return countAceSpecCards(cards) > 0 ? 0 : 1;
+}
+
+function countAceSpecCards(cards: DeckCard[]) {
+  return cards.reduce((sum, card) => {
+    return isAceSpecName(card.cardName) ? sum + card.count : sum;
+  }, 0);
 }
 
 function trimDeckToCount(cards: DeckCard[], targetCount: number) {
@@ -513,6 +556,45 @@ function removeIncompatiblePokemonSearchCards(
     removedCount: removedNames.length,
     removedNames: removedNames.reverse(),
   };
+}
+
+function enforceAceSpecLimit(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+  const removedNames: string[] = [];
+  let hasKeptAceSpec = false;
+
+  for (let index = 0; index < cards.length; index += 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!isAceSpecCard(masterCard, card)) continue;
+
+    const cardName = card.cardName || masterCard?.name || card.cardId;
+    if (!hasKeptAceSpec) {
+      hasKeptAceSpec = true;
+      if (card.count > 1) {
+        removedNames.push(cardName);
+        card.count = 1;
+      }
+      continue;
+    }
+
+    removedNames.push(cardName);
+    card.count = 0;
+  }
+
+  return {
+    removedCount: removedNames.length,
+    removedNames,
+  };
+}
+
+function isAceSpecCard(masterCard: StaticCardDetail | undefined, card: Pick<DeckCard, "cardName">) {
+  const text = [
+    masterCard?.name,
+    masterCard?.ruleText,
+    ...(masterCard?.searchTokens || []),
+    card.cardName,
+  ].filter(Boolean).join(" ");
+  return /ACE\s*SPEC|エーススペック/i.test(text) || isAceSpecName(masterCard?.name || card.cardName);
 }
 
 function isThemeLockedCardCompatible(
