@@ -60,6 +60,8 @@ type StaticCardDetail = {
   name?: string;
   cardKind?: string;
   subKind?: string;
+  ruleText?: string;
+  searchTokens?: string[];
   imageUrl?: string;
 };
 
@@ -323,6 +325,8 @@ async function normalizeGeneratedDeck(
     cappedCardCount += addDeckCardWithLimits(cards, normalizedCard);
   }
 
+  const themeLockedRemoval = removeIncompatibleThemeLockedCards(cards, cardMaster, context);
+
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
   if (droppedNames.length > 0) {
     warnings.push({
@@ -334,6 +338,12 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "card_limit",
       message: `同名カードの上限を超えた${cappedCardCount}枚を調整しました。`,
+    });
+  }
+  if (themeLockedRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `デッキ方針に合わない専用カードを除外しました: ${themeLockedRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
   if (trimmedCardCount > 0) {
@@ -419,6 +429,76 @@ function trimDeckToCount(cards: DeckCard[], targetCount: number) {
     overflow -= removeCount;
   }
   return trimmed;
+}
+
+function removeIncompatibleThemeLockedCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const removedNames: string[] = [];
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || isThemeLockedCardCompatible(masterCard, cards, cardMaster, context)) continue;
+
+    removedNames.push(card.cardName || masterCard.name || card.cardId);
+    cards.splice(index, 1);
+  }
+  return {
+    removedCount: removedNames.length,
+    removedNames: removedNames.reverse(),
+  };
+}
+
+function isThemeLockedCardCompatible(
+  card: StaticCardDetail,
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const requiredPokemonGroups = getRequiredPokemonGroups(card);
+  if (requiredPokemonGroups.length === 0) return true;
+
+  return requiredPokemonGroups.some((groupName) => {
+    const ownerPrefix = groupName.replace(/ポケモン$/, "");
+    return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
+  });
+}
+
+function getRequiredPokemonGroups(card: StaticCardDetail) {
+  if (card.cardKind !== "trainer") return [];
+  const text = [card.ruleText, ...(card.searchTokens || [])].filter(Boolean).join(" ");
+  const matches = [...text.matchAll(/「([^」]+のポケモン)」/g)];
+  return Array.from(new Set(matches.map((match) => match[1]).filter(isSpecificPokemonGroup)));
+}
+
+function isSpecificPokemonGroup(groupName: string) {
+  return !["自分のポケモン", "相手のポケモン", "おたがいのポケモン"].includes(groupName);
+}
+
+function hasThemePokemon(
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  ownerPrefix: string
+) {
+  const normalizedPrefix = normalizeCardLimitName(ownerPrefix);
+  return deckCards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    if (masterCard?.cardKind !== "pokemon") return false;
+    return normalizeCardLimitName(masterCard.name).startsWith(normalizedPrefix);
+  });
+}
+
+function contextMatchesTheme(context: GenerateDeckContext | undefined, ownerPrefix: string) {
+  const normalizedPrefix = normalizeCardLimitName(ownerPrefix.replace(/の$/, ""));
+  if (!normalizedPrefix) return false;
+  const contextText = [
+    context?.pokemonName,
+    context?.supplementalTheme,
+    context?.selectedPlan,
+  ].filter(Boolean).join(" ");
+  return normalizeCardLimitName(contextText).includes(normalizedPrefix);
 }
 
 function applyDeckPolicyRules(
