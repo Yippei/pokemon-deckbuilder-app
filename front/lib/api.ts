@@ -97,7 +97,18 @@ const stapleCards = [
   { name: "夜のタンカ", targetCount: 1 },
   { name: "なかよしポフィン", targetCount: 2 },
 ];
-const handResetCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ"];
+const handRefreshTargetCount = 4;
+const selfPositiveHandRefreshCardNames = [
+  "リーリエの決心",
+  "ゼイユ",
+  "タロ",
+  "ドラセナ",
+  "ハイダイ",
+  "アイリスの闘志",
+  "サーファー",
+  "ピュール",
+];
+const disruptionHandRefreshCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ", "ゴヨウ", "クラウン"];
 const basicEnergyByType: Record<string, string> = {
   grass: "基本草エネルギー",
   fire: "基本炎エネルギー",
@@ -363,11 +374,11 @@ async function normalizeGeneratedDeck(
     });
   }
 
-  const appliedPolicyRules = applyDeckPolicyRules(cards, cardsByName);
-  if (appliedPolicyRules.handResetAdded) {
+  const appliedPolicyRules = applyDeckPolicyRules(cards, cardsByName, context);
+  if (appliedPolicyRules.handRefreshAddedCount > 0) {
     warnings.push({
       type: "deck_policy",
-      message: `デッキ方針により、手札リセット枠として${appliedPolicyRules.handResetAdded.cardName}を追加しました。`,
+      message: `デッキ方針により、手札リフレッシュ枠を${handRefreshTargetCount}枚まで補いました: ${appliedPolicyRules.handRefreshAddedNames.join("、")}`,
     });
   }
 
@@ -646,33 +657,97 @@ function isRuleBoxPokemon(pokemon: StaticCardDetail) {
 
 function applyDeckPolicyRules(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>
-): { handResetAdded?: DeckCard } {
-  if (hasAnyCardName(cards, handResetCardNames)) return {};
+  cardsByName: Map<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+): { handRefreshAddedCount: number; handRefreshAddedNames: string[] } {
+  const handRefreshNames = getHandRefreshPolicyNames(context);
+  const currentCount = countCardsByNames(cards, handRefreshNames.all);
+  let remainingCount = Math.max(0, handRefreshTargetCount - currentCount);
+  if (remainingCount === 0) return { handRefreshAddedCount: 0, handRefreshAddedNames: [] };
 
-  const handResetCard = findFirstAvailableCard(cardsByName, handResetCardNames);
-  if (!handResetCard?.name) return {};
+  const addedNames: string[] = [];
+  if (isHandDisruptionTheme(context)) {
+    const disruptionCurrentCount = countCardsByNames(cards, handRefreshNames.disruption);
+    const disruptionWantedCount = Math.max(0, Math.min(2, handRefreshTargetCount) - disruptionCurrentCount);
+    const addedCount = addCardsFromPolicyCandidates(
+      cards,
+      cardsByName,
+      handRefreshNames.disruption,
+      disruptionWantedCount,
+      addedNames
+    );
+    remainingCount -= addedCount;
+  }
 
-  makeRoomForRequiredCard(cards, 1, [handResetCard.name]);
-  const requiredCard: DeckCard = {
-    cardId: handResetCard.cardId,
-    cardName: handResetCard.name,
-    illustration: handResetCard.imageUrl,
-    count: 1,
+  addCardsFromPolicyCandidates(cards, cardsByName, handRefreshNames.selfPositive, remainingCount, addedNames);
+  return {
+    handRefreshAddedCount: addedNames.length,
+    handRefreshAddedNames: addedNames,
   };
-  const rejected = addDeckCardWithLimits(cards, requiredCard);
-  return rejected === 0 ? { handResetAdded: requiredCard } : {};
 }
 
-function hasAnyCardName(cards: DeckCard[], names: string[]) {
+function countCardsByNames(cards: DeckCard[], names: string[]) {
   const normalizedNames = new Set(names.map(normalizeCardLimitName));
-  return cards.some((card) => normalizedNames.has(normalizeCardLimitName(card.cardName)));
+  return cards.reduce((sum, card) => {
+    return normalizedNames.has(normalizeCardLimitName(card.cardName)) ? sum + card.count : sum;
+  }, 0);
 }
 
-function findFirstAvailableCard(cardsByName: Map<string, StaticCardDetail>, names: string[]) {
-  for (const name of names) {
+function getHandRefreshPolicyNames(context?: GenerateDeckContext) {
+  const disruption = isHandDisruptionTheme(context) ? disruptionHandRefreshCardNames : [];
+  return {
+    selfPositive: selfPositiveHandRefreshCardNames,
+    disruption,
+    all: [...selfPositiveHandRefreshCardNames, ...disruption],
+  };
+}
+
+function isHandDisruptionTheme(context?: GenerateDeckContext) {
+  const contextText = [
+    context?.selectedPlan,
+    context?.pokemonName,
+    context?.supplementalTheme,
+  ].filter(Boolean).join(" ");
+  return /手札干渉|ハンデス|妨害|相手の手札|手札破壊|ジャッジマン|ナンジャモ|ツツジ|マリィ/.test(contextText);
+}
+
+function addCardsFromPolicyCandidates(
+  cards: DeckCard[],
+  cardsByName: Map<string, StaticCardDetail>,
+  candidateNames: string[],
+  wantedCount: number,
+  addedNames: string[]
+) {
+  let addedCount = 0;
+  while (addedCount < wantedCount) {
+    const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames);
+    if (!candidate?.name) break;
+
+    makeRoomForRequiredCard(cards, 1, [candidate.name]);
+    const before = countCardsWithSameName(cards, { cardName: candidate.name });
+    const rejected = addDeckCardWithLimits(cards, {
+      cardId: candidate.cardId,
+      cardName: candidate.name,
+      illustration: candidate.imageUrl,
+      count: 1,
+    });
+    const didAdd = rejected === 0 && countCardsWithSameName(cards, { cardName: candidate.name }) > before;
+    if (!didAdd) break;
+
+    addedCount += 1;
+    addedNames.push(candidate.name);
+  }
+  return addedCount;
+}
+
+function findAddablePolicyCard(
+  cards: DeckCard[],
+  cardsByName: Map<string, StaticCardDetail>,
+  candidateNames: string[]
+) {
+  for (const name of candidateNames) {
     const card = cardsByName.get(normalizeCardLimitName(name));
-    if (card?.name) return card;
+    if (card?.name && remainingCountForCardName(cards, { cardName: card.name }) > 0) return card;
   }
   return undefined;
 }
