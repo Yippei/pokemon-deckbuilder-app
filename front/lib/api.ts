@@ -60,6 +60,9 @@ type StaticCardDetail = {
   name?: string;
   cardKind?: string;
   subKind?: string;
+  stage?: string;
+  stageCategory?: "basic" | "evolution" | "unknown";
+  hp?: number;
   ruleText?: string;
   searchTokens?: string[];
   imageUrl?: string;
@@ -326,6 +329,7 @@ async function normalizeGeneratedDeck(
   }
 
   const themeLockedRemoval = removeIncompatibleThemeLockedCards(cards, cardMaster, context);
+  const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
   if (droppedNames.length > 0) {
@@ -346,6 +350,12 @@ async function normalizeGeneratedDeck(
       message: `デッキ方針に合わない専用カードを除外しました: ${themeLockedRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
+  if (pokemonSearchRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `対象ポケモンが不足しているサーチカードを除外しました: ${pokemonSearchRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+  }
   if (trimmedCardCount > 0) {
     warnings.push({
       type: "deck_count",
@@ -361,7 +371,7 @@ async function normalizeGeneratedDeck(
     });
   }
 
-  const filledCardCount = fillDeckWithStaples(cards, cardsByName, context);
+  const filledCardCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
   if (filledCardCount > 0) {
     warnings.push({
       type: "staple_fill",
@@ -451,6 +461,25 @@ function removeIncompatibleThemeLockedCards(
   };
 }
 
+function removeIncompatiblePokemonSearchCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  const removedNames: string[] = [];
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || canPokemonSearchCardFitDeck(masterCard, cards, cardMaster)) continue;
+
+    removedNames.push(card.cardName || masterCard.name || card.cardId);
+    cards.splice(index, 1);
+  }
+  return {
+    removedCount: removedNames.length,
+    removedNames: removedNames.reverse(),
+  };
+}
+
 function isThemeLockedCardCompatible(
   card: StaticCardDetail,
   deckCards: DeckCard[],
@@ -499,6 +528,120 @@ function contextMatchesTheme(context: GenerateDeckContext | undefined, ownerPref
     context?.selectedPlan,
   ].filter(Boolean).join(" ");
   return normalizeCardLimitName(contextText).includes(normalizedPrefix);
+}
+
+function canPokemonSearchCardFitDeck(
+  card: StaticCardDetail,
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  const requirements = getPokemonSearchRequirements(card);
+  if (requirements.length === 0) return true;
+
+  return requirements.every((requirement) => {
+    return requirement.some((condition) => hasPokemonMatchingCondition(deckCards, cardMaster, condition));
+  });
+}
+
+type PokemonSearchCondition = {
+  stage?: "basic" | "stage1" | "stage2" | "evolution";
+  hpMax?: number;
+  excludesRuleBox?: boolean;
+  ownerPrefix?: string;
+};
+
+function getPokemonSearchRequirements(card: StaticCardDetail): PokemonSearchCondition[][] {
+  if (card.cardKind !== "trainer") return [];
+  const text = normalizeRuleText(card.ruleText);
+  if (!text.includes("自分の山札") || !text.includes("ポケモン")) return [];
+  if (text.includes("相手の山札")) return [];
+
+  const baseCondition: PokemonSearchCondition = {
+    hpMax: extractHpMax(text),
+    excludesRuleBox: text.includes("ルールを持つポケモンをのぞく") || text.includes("ルールを持つポケモン」をのぞく"),
+    ownerPrefix: extractOwnerPrefix(text),
+  };
+  const quotedStageRequirements = extractQuotedStageRequirements(text, baseCondition);
+  if (quotedStageRequirements.length > 0) return quotedStageRequirements;
+
+  const stageConditions = extractStageConditions(text, baseCondition);
+  if (stageConditions.length > 0) return [stageConditions];
+  return [[{ ...baseCondition }]];
+}
+
+function normalizeRuleText(text?: string) {
+  return (text || "").replace(/[ 　]/g, "");
+}
+
+function extractHpMax(text: string) {
+  const match = text.match(/HP(?:が)?「?([0-9０-９]+)」?以下/);
+  if (!match) return undefined;
+  return Number(match[1].replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0)));
+}
+
+function extractOwnerPrefix(text: string) {
+  const match = text.match(/「([^」]+のポケモン)」/);
+  if (!match || !isSpecificPokemonGroup(match[1])) return undefined;
+  return match[1].replace(/ポケモン$/, "");
+}
+
+function extractQuotedStageRequirements(text: string, baseCondition: PokemonSearchCondition) {
+  const stageNames = [...text.matchAll(/「(たねポケモン|1進化ポケモン|2進化ポケモン)」/g)].map((match) => match[1]);
+  const uniqueStageNames = Array.from(new Set(stageNames));
+  return uniqueStageNames.map((stageName) => [{ ...baseCondition, stage: stageNameToCondition(stageName) }]);
+}
+
+function extractStageConditions(text: string, baseCondition: PokemonSearchCondition) {
+  const conditions: PokemonSearchCondition[] = [];
+  if (text.includes("たねポケモン")) conditions.push({ ...baseCondition, stage: "basic" });
+  if (text.includes("1進化ポケモン")) conditions.push({ ...baseCondition, stage: "stage1" });
+  if (text.includes("2進化ポケモン")) conditions.push({ ...baseCondition, stage: "stage2" });
+  if (conditions.length === 0 && text.includes("進化ポケモン")) {
+    conditions.push({ ...baseCondition, stage: "evolution" });
+  }
+  return conditions;
+}
+
+function stageNameToCondition(stageName: string): PokemonSearchCondition["stage"] {
+  if (stageName === "たねポケモン") return "basic";
+  if (stageName === "1進化ポケモン") return "stage1";
+  if (stageName === "2進化ポケモン") return "stage2";
+  return undefined;
+}
+
+function hasPokemonMatchingCondition(
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  condition: PokemonSearchCondition
+) {
+  return deckCards.some((deckCard) => {
+    const pokemon = cardMaster[deckCard.cardId];
+    if (!pokemon || pokemon.cardKind !== "pokemon") return false;
+    return pokemonMatchesCondition(pokemon, condition);
+  });
+}
+
+function pokemonMatchesCondition(pokemon: StaticCardDetail, condition: PokemonSearchCondition) {
+  if (condition.stage && !pokemonMatchesStage(pokemon, condition.stage)) return false;
+  if (condition.hpMax !== undefined && (pokemon.hp === undefined || pokemon.hp > condition.hpMax)) return false;
+  if (condition.excludesRuleBox && isRuleBoxPokemon(pokemon)) return false;
+  if (condition.ownerPrefix && !normalizeCardLimitName(pokemon.name).startsWith(normalizeCardLimitName(condition.ownerPrefix))) {
+    return false;
+  }
+  return true;
+}
+
+function pokemonMatchesStage(pokemon: StaticCardDetail, stage: NonNullable<PokemonSearchCondition["stage"]>) {
+  const normalizedStage = normalizeCardLimitName(pokemon.stage);
+  if (stage === "basic") return pokemon.stageCategory === "basic" || normalizedStage.includes("たね");
+  if (stage === "stage1") return normalizedStage.includes("1進化");
+  if (stage === "stage2") return normalizedStage.includes("2進化");
+  return pokemon.stageCategory === "evolution" || normalizedStage.includes("進化");
+}
+
+function isRuleBoxPokemon(pokemon: StaticCardDetail) {
+  const text = `${pokemon.name || ""} ${pokemon.ruleText || ""}`;
+  return /ポケモンex|メガシンカex|VSTAR|VMAX|V-UNION|ポケモンV/.test(text);
 }
 
 function applyDeckPolicyRules(
@@ -560,6 +703,7 @@ function findRemovableCardIndex(cards: DeckCard[], protectedNames: string[]) {
 function fillDeckWithStaples(
   cards: DeckCard[],
   cardsByName: Map<string, StaticCardDetail>,
+  cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ) {
   let filled = 0;
@@ -567,6 +711,7 @@ function fillDeckWithStaples(
     if (countDeckCards(cards) >= targetDeckCardCount) break;
     const card = cardsByName.get(normalizeCardLimitName(staple.name));
     if (!card?.name) continue;
+    if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) continue;
     const currentCount = countCardsWithSameName(cards, { cardName: card.name });
     const wantedCount = Math.max(0, staple.targetCount - currentCount);
     if (wantedCount <= 0) continue;
