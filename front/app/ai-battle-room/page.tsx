@@ -552,27 +552,53 @@ function getInitialMode(): PracticeMode {
   return mode === "solo" ? "solo" : "ai";
 }
 
+function buildCardDetailNameIndex(cardDetails: Record<string, StaticCardDetail>) {
+  const index = new Map<string, StaticCardDetail>();
+  Object.values(cardDetails).forEach((detail) => {
+    const key = normalizePokemonNameCore(detail.name);
+    if (key) {
+      index.set(key, detail);
+    }
+  });
+  return index;
+}
+
+function getCardDetailForDeckCard(
+  card: DeckCard,
+  cardDetails: Record<string, StaticCardDetail>,
+  nameIndex: Map<string, StaticCardDetail>
+) {
+  const exactDetail = cardDetails[card.cardId];
+  if (exactDetail) return exactDetail;
+  const nameKey = normalizePokemonNameCore(card.cardName);
+  return nameKey ? nameIndex.get(nameKey) : undefined;
+}
+
 function expandDeck(cards: DeckCard[], cardDetails: Record<string, StaticCardDetail> = {}): SoloCard[] {
+  const detailNameIndex = buildCardDetailNameIndex(cardDetails);
   return cards.flatMap((card) =>
-      Array.from({ length: card.count }, () => ({
+    Array.from({ length: card.count }, () => {
+      const detail = getCardDetailForDeckCard(card, cardDetails, detailNameIndex);
+      return {
       cardId: card.cardId,
       cardName: card.cardName,
       illustration: card.illustration,
       count: 1,
-      name: cardDetails[card.cardId]?.name || card.cardName,
-      cardKind: cardDetails[card.cardId]?.cardKind || "unknown",
-      subKind: cardDetails[card.cardId]?.subKind || "",
-      regulation: cardDetails[card.cardId]?.regulation,
-      setCode: cardDetails[card.cardId]?.setCode,
-      setName: cardDetails[card.cardId]?.setName,
-      stage: cardDetails[card.cardId]?.stage || "",
-      stageCategory: cardDetails[card.cardId]?.stageCategory || "unknown",
-      stageOrder: cardDetails[card.cardId]?.stageOrder,
-      hp: cardDetails[card.cardId]?.hp,
-      ruleText: cardDetails[card.cardId]?.ruleText,
-      searchTokens: cardDetails[card.cardId]?.searchTokens || [],
-      effectProfile: cardDetails[card.cardId]?.effectProfile || null,
-    }))
+      name: detail?.name || card.cardName,
+      cardKind: detail?.cardKind || "unknown",
+      subKind: detail?.subKind || "",
+      regulation: detail?.regulation,
+      setCode: detail?.setCode,
+      setName: detail?.setName,
+      stage: detail?.stage || "",
+      stageCategory: detail?.stageCategory || "unknown",
+      stageOrder: detail?.stageOrder,
+      hp: detail?.hp,
+      ruleText: detail?.ruleText,
+      searchTokens: detail?.searchTokens || [],
+      effectProfile: detail?.effectProfile || null,
+    };
+    })
   );
 }
 
