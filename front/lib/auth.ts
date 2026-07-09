@@ -22,6 +22,14 @@ export function isAuthConfigured(): boolean {
 }
 
 export async function login(returnTo?: string) {
+  return startAuth(returnTo);
+}
+
+export async function signup(returnTo?: string) {
+  return startAuth(returnTo, "signup");
+}
+
+async function startAuth(returnTo?: string, screenHint?: "signup") {
   if (!isAuthConfigured()) {
     throw new Error("Cognito設定がありません");
   }
@@ -43,6 +51,9 @@ export async function login(returnTo?: string) {
     code_challenge_method: "S256",
     code_challenge: codeChallenge,
   });
+  if (screenHint) {
+    params.set("screen_hint", screenHint);
+  }
 
   window.location.href = `${COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`;
 }
