@@ -50,6 +50,7 @@ async function startAuth(returnTo?: string, screenHint?: "signup") {
     state,
     code_challenge_method: "S256",
     code_challenge: codeChallenge,
+    lang: "ja",
   });
   if (screenHint) {
     params.set("screen_hint", screenHint);
