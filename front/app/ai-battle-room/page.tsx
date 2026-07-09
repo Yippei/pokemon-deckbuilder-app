@@ -872,6 +872,9 @@ export default function AIBattleRoomPage() {
   const deckSummary = summarizeDeck(selectedDeck);
   const deckTypeLabel = inferDeckLabel(selectedDeck);
   const deckTotal = selectedDeck ? selectedDeck.cards.reduce((sum, card) => sum + card.count, 0) : 0;
+  const selectedDeckEditHref = selectedDeck
+    ? `/decks/view?id=${encodeURIComponent(selectedDeck.deckId)}`
+    : "/decks/new";
 
   const startBattle = () => {
     if (!selectedDeck) return;
@@ -2158,7 +2161,7 @@ export default function AIBattleRoomPage() {
               <div className="mt-5">
                 <div className="mb-3 grid gap-3 sm:grid-cols-2">
                   <Link
-                    href="/decks/new"
+                    href={selectedDeckEditHref}
                     className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800"
                   >
                     デッキを整える
