@@ -56,7 +56,14 @@ type SearchTarget =
   | "stadium";
 type EffectAction =
   | { type: "draw_cards"; count: number; discardRemainingHand?: boolean }
-  | { type: "search_deck"; target: SearchTarget; count: number; destination: "hand" | "bench" | "stadium" | "attach_energy" }
+  | {
+      type: "search_deck";
+      target: SearchTarget;
+      count: number;
+      destination: "hand" | "bench" | "stadium" | "attach_energy";
+      look?: { from: "top" | "bottom"; count: number; opponent?: boolean };
+      remainingDestination?: "deck" | "discard";
+    }
   | { type: "recover_from_trash"; target: SearchTarget; count: number; destination: "hand" }
   | { type: "draw_until_board_count" }
   | { type: "topdeck_setup"; count: number }
@@ -108,6 +115,7 @@ type SoloEffectPrompt =
       sourceCard: SoloCard;
       action: Extract<EffectAction, { type: "search_deck" }>;
       selectedPileIndexes: number[];
+      visiblePileIndexes?: number[];
     }
   | {
       kind: "recover_from_trash";
@@ -1457,14 +1465,33 @@ export default function AIBattleRoomPage() {
     return 0;
   };
 
+  const getSearchVisiblePileIndexes = (pile: SoloCard[], action: Extract<EffectAction, { type: "search_deck" }>) => {
+    if (!action.look || action.look.opponent) {
+      return pile.map((_, index) => index);
+    }
+    const lookCount = Math.max(0, Math.min(action.look.count, pile.length));
+    if (action.look.from === "bottom") {
+      return Array.from({ length: lookCount }, (_, index) => pile.length - lookCount + index);
+    }
+    return Array.from({ length: lookCount }, (_, index) => index);
+  };
+
   const openSearchDeckPrompt = (
     sourceHandIndex: number | null,
     sourceCard: SoloCard,
     action: Extract<EffectAction, { type: "search_deck" }>
   ) => {
-    const candidates = soloPile.filter((card) => matchesSearchTarget(card, action.target));
+    const visiblePileIndexes = getSearchVisiblePileIndexes(soloPile, action);
+    const candidates = visiblePileIndexes
+      .map((pileIndex) => soloPile[pileIndex])
+      .filter((card): card is SoloCard => Boolean(card))
+      .filter((card) => matchesSearchTarget(card, action.target));
     if (candidates.length === 0) {
-      setSoloNotice(`山札に対象の${getSearchTargetLabel(action.target)}が見つかりません。`);
+      setSoloNotice(
+        action.look
+          ? `確認した${action.look.count}枚に対象の${getSearchTargetLabel(action.target)}が見つかりません。`
+          : `山札に対象の${getSearchTargetLabel(action.target)}が見つかりません。`
+      );
       return false;
     }
     setSoloEffectPrompt({
@@ -1473,8 +1500,13 @@ export default function AIBattleRoomPage() {
       sourceCard,
       action,
       selectedPileIndexes: [],
+      visiblePileIndexes,
     });
-    setSoloNotice(`山札から${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`);
+    setSoloNotice(
+      action.look
+        ? `${action.look.from === "bottom" ? "山札の下" : "山札の上"}から${action.look.count}枚を確認し、${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`
+        : `山札から${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`
+    );
     return true;
   };
 
@@ -1798,7 +1830,14 @@ export default function AIBattleRoomPage() {
 
     const selectedIndexes = new Set(soloEffectPrompt.selectedPileIndexes);
     const selectedCards = soloPile.filter((_, index) => selectedIndexes.has(index));
-    const restPile = soloPile.filter((_, index) => !selectedIndexes.has(index)).sort(() => Math.random() - 0.5);
+    const visibleIndexes = new Set(soloEffectPrompt.visiblePileIndexes || soloPile.map((_, index) => index));
+    const unselectedVisibleCards = soloPile.filter((_, index) => visibleIndexes.has(index) && !selectedIndexes.has(index));
+    const restPile = soloPile
+      .map((card, pileIndex) => ({ card, pileIndex }))
+      .filter(({ pileIndex }) => !selectedIndexes.has(pileIndex))
+      .filter(({ pileIndex }) => soloEffectPrompt.action.remainingDestination !== "discard" || !visibleIndexes.has(pileIndex))
+      .map(({ card }) => card)
+      .sort(() => Math.random() - 0.5);
 
     if (soloEffectPrompt.action.destination === "bench") {
       const emptyBenchIndexes = soloBenchStacks
@@ -1850,7 +1889,13 @@ export default function AIBattleRoomPage() {
     if (soloEffectPrompt.sourceHandIndex !== null) {
       const source = soloHand[soloEffectPrompt.sourceHandIndex];
       setSoloHand((hand) => hand.filter((_, index) => index !== soloEffectPrompt.sourceHandIndex));
-      setSoloDiscard((discard) => [...discard, source]);
+      setSoloDiscard((discard) => [
+        ...discard,
+        source,
+        ...(soloEffectPrompt.action.remainingDestination === "discard" ? unselectedVisibleCards : []),
+      ]);
+    } else if (soloEffectPrompt.action.remainingDestination === "discard") {
+      setSoloDiscard((discard) => [...discard, ...unselectedVisibleCards]);
     }
     setSoloPile(restPile);
     setSoloSelectedHandIndex(null);
@@ -2073,8 +2118,9 @@ export default function AIBattleRoomPage() {
         : "";
   const effectSearchCandidates =
     soloEffectPrompt?.kind === "search_deck"
-      ? soloPile
-          .map((card, pileIndex) => ({ card, pileIndex }))
+      ? (soloEffectPrompt.visiblePileIndexes || soloPile.map((_, index) => index))
+          .map((pileIndex) => ({ card: soloPile[pileIndex], pileIndex }))
+          .filter(({ card }) => Boolean(card))
           .filter(({ card }) => matchesSearchTarget(card, soloEffectPrompt.action.target))
       : [];
   const effectTrashCandidates =
@@ -2669,7 +2715,13 @@ export default function AIBattleRoomPage() {
                     ) : null}
 
                     {soloEffectPrompt ? (
-                      <div className="mt-3 rounded-[18px] border border-white/15 bg-white/8 p-3">
+                      <div
+                        className={
+                          soloEffectPrompt.kind === "search_deck" && soloEffectPrompt.action.look
+                            ? "fixed left-1/2 top-1/2 z-50 max-h-[86vh] w-[min(960px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-[22px] border border-white/15 bg-emerald-950 p-4 shadow-[0_28px_90px_rgba(2,6,23,0.55)]"
+                            : "mt-3 rounded-[18px] border border-white/15 bg-white/8 p-3"
+                        }
+                      >
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-[11px] font-bold tracking-[0.14em] text-emerald-200">効果処理</div>
@@ -2720,7 +2772,10 @@ export default function AIBattleRoomPage() {
                         ) : soloEffectPrompt.kind === "search_deck" ? (
                           <div className="mt-3">
                             <p className="text-sm leading-6 text-emerald-50/90">
-                              山札から{getSearchTargetLabel(soloEffectPrompt.action.target)}を{soloEffectPrompt.action.count}枚まで選んでください。
+                              {soloEffectPrompt.action.look
+                                ? `${soloEffectPrompt.action.look.from === "bottom" ? "山札の下" : "山札の上"}から${soloEffectPrompt.action.look.count}枚を確認しています。`
+                                : "山札全体を確認しています。"}
+                              {getSearchTargetLabel(soloEffectPrompt.action.target)}を{soloEffectPrompt.action.count}枚まで選んでください。
                             </p>
                             <div className="mt-2 grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
                               {effectSearchCandidates.length === 0 ? (

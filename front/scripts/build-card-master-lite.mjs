@@ -228,6 +228,8 @@ function buildDeckSearchAction(ruleText) {
       ? "bench"
       : "hand";
   const count = extractCardCount(ruleText) || 1;
+  const look = extractDeckLook(ruleText);
+  const remainingDestination = /残りのカードはトラッシュ/.test(ruleText) ? "discard" : "deck";
   const destinationLabel = destination === "attach_energy"
     ? "場のポケモンにつける"
     : destination === "bench"
@@ -235,7 +237,14 @@ function buildDeckSearchAction(ruleText) {
       : "手札に加える";
   return {
     label: `山札から${describeSearchTarget(target)}を${count}枚${destinationLabel}`,
-    action: { type: "search_deck", target, count, destination },
+    action: {
+      type: "search_deck",
+      target,
+      count,
+      destination,
+      ...(look ? { look } : {}),
+      ...(look ? { remainingDestination } : {}),
+    },
   };
 }
 
@@ -261,6 +270,7 @@ function inferSearchTarget(text) {
   if (text.includes("グッズ")) return "item";
   if (text.includes("サポート") || text.includes("サポーター")) return "supporter";
   if (text.includes("スタジアム")) return "stadium";
+  if (/ポケモン.*基本\s*エネルギー|基本\s*エネルギー.*ポケモン/.test(text)) return "pokemon_or_basic_energy";
   if (text.includes("ポケモンまたは基本エネルギー")) return "pokemon_or_basic_energy";
   if (text.includes("基本エネルギー")) return "basic_energy";
   if (text.includes("エネルギー")) return "energy";
@@ -298,4 +308,20 @@ function extractCardCount(text) {
   const quoted = text.match(/「?(\d+)」?枚(?:まで)?/);
   if (quoted) return Number(quoted[1]);
   return extractCountBefore(text, "枚まで") || extractCountBefore(text, "枚選び");
+}
+
+function extractDeckLook(text) {
+  const top = text.match(/山札を上から(\d+)枚|山札の上から(\d+)枚/);
+  if (top) {
+    return { from: "top", count: Number(top[1] || top[2]) };
+  }
+  const bottom = text.match(/山札を下から(\d+)枚|山札の下から(?:カードを)?(\d+)枚/);
+  if (bottom) {
+    return { from: "bottom", count: Number(bottom[1] || bottom[2]) };
+  }
+  const opponentTop = text.match(/相手の山札を上から(\d+)枚/);
+  if (opponentTop) {
+    return { from: "top", count: Number(opponentTop[1]), opponent: true };
+  }
+  return null;
 }
