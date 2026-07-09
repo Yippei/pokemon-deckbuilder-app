@@ -129,6 +129,32 @@ type RareCandyCandidate = {
   handIndex: number;
   card: SoloCard;
 };
+type SoloSnapshot = {
+  pile: SoloCard[];
+  hand: SoloCard[];
+  discard: SoloCard[];
+  prizes: SoloCard[];
+  stadiumCard: SoloCard | null;
+  activeStack: SoloStack;
+  benchStacks: SoloStack[];
+  attachedTools: SoloToolState;
+  attachedEnergies: SoloEnergyState;
+  selectedHandIndex: number | null;
+  notice: string;
+  startingPlayer: SoloStartingPlayer;
+  turn: number;
+  started: boolean;
+  supporterUsedTurn: number | null;
+  energyAttachedTurn: number | null;
+  openingRedrawCount: number;
+  trashOpen: boolean;
+  customShuffleOpen: boolean;
+  customShuffleDrawCount: number;
+  effectPrompt: SoloEffectPrompt | null;
+  rareCandyMode: "idle" | "select_basic" | "select_evolution";
+  rareCandyTarget: RareCandyTarget | null;
+  rareCandyCandidates: RareCandyCandidate[];
+};
 
 const modeOptions: Array<{ value: PracticeMode; label: string; description: string }> = [
   { value: "ai", label: "AI対戦", description: "相手の動きを読みながら、次の一手を確認する" },
@@ -643,6 +669,7 @@ export default function AIBattleRoomPage() {
   const [soloRareCandyMode, setSoloRareCandyMode] = useState<"idle" | "select_basic" | "select_evolution">("idle");
   const [soloRareCandyTarget, setSoloRareCandyTarget] = useState<RareCandyTarget | null>(null);
   const [soloRareCandyCandidates, setSoloRareCandyCandidates] = useState<RareCandyCandidate[]>([]);
+  const [soloHistory, setSoloHistory] = useState<SoloSnapshot[]>([]);
 
   const selectedDeck = useMemo(
     () => decks.find((deck) => deck.deckId === selectedDeckId) || null,
@@ -651,6 +678,77 @@ export default function AIBattleRoomPage() {
   const selectedSoloCard = soloSelectedHandIndex !== null ? soloHand[soloSelectedHandIndex] || null : null;
   const selectedEffectProfile = getEffectProfile(selectedSoloCard);
   const isSoloFirstTurnSupporterLocked = soloStarted && soloStartingPlayer === "first" && soloTurn === 1;
+  const createSoloSnapshot = (): SoloSnapshot => ({
+    pile: [...soloPile],
+    hand: [...soloHand],
+    discard: [...soloDiscard],
+    prizes: [...soloPrizes],
+    stadiumCard: soloStadiumCard,
+    activeStack: [...soloActiveStack],
+    benchStacks: soloBenchStacks.map((stack) => [...stack]),
+    attachedTools: {
+      active: soloAttachedTools.active,
+      bench: [...soloAttachedTools.bench],
+    },
+    attachedEnergies: {
+      active: [...soloAttachedEnergies.active],
+      bench: soloAttachedEnergies.bench.map((energies) => [...energies]),
+    },
+    selectedHandIndex: soloSelectedHandIndex,
+    notice: soloNotice,
+    startingPlayer: soloStartingPlayer,
+    turn: soloTurn,
+    started: soloStarted,
+    supporterUsedTurn: soloSupporterUsedTurn,
+    energyAttachedTurn: soloEnergyAttachedTurn,
+    openingRedrawCount: soloOpeningRedrawCount,
+    trashOpen: soloTrashOpen,
+    customShuffleOpen: soloCustomShuffleOpen,
+    customShuffleDrawCount: soloCustomShuffleDrawCount,
+    effectPrompt: soloEffectPrompt,
+    rareCandyMode: soloRareCandyMode,
+    rareCandyTarget: soloRareCandyTarget,
+    rareCandyCandidates: [...soloRareCandyCandidates],
+  });
+  const pushSoloHistory = () => {
+    const snapshot = createSoloSnapshot();
+    setSoloHistory((history) => [...history.slice(-29), snapshot]);
+  };
+  const restoreSoloSnapshot = (snapshot: SoloSnapshot) => {
+    setSoloPile(snapshot.pile);
+    setSoloHand(snapshot.hand);
+    setSoloDiscard(snapshot.discard);
+    setSoloPrizes(snapshot.prizes);
+    setSoloStadiumCard(snapshot.stadiumCard);
+    setSoloActiveStack(snapshot.activeStack);
+    setSoloBenchStacks(snapshot.benchStacks);
+    setSoloAttachedTools(snapshot.attachedTools);
+    setSoloAttachedEnergies(snapshot.attachedEnergies);
+    setSoloSelectedHandIndex(snapshot.selectedHandIndex);
+    setSoloNotice("1手戻しました。");
+    setSoloStartingPlayer(snapshot.startingPlayer);
+    setSoloTurn(snapshot.turn);
+    setSoloStarted(snapshot.started);
+    setSoloSupporterUsedTurn(snapshot.supporterUsedTurn);
+    setSoloEnergyAttachedTurn(snapshot.energyAttachedTurn);
+    setSoloOpeningRedrawCount(snapshot.openingRedrawCount);
+    setSoloTrashOpen(snapshot.trashOpen);
+    setSoloCustomShuffleOpen(snapshot.customShuffleOpen);
+    setSoloCustomShuffleDrawCount(snapshot.customShuffleDrawCount);
+    setSoloEffectPrompt(snapshot.effectPrompt);
+    setSoloRareCandyMode(snapshot.rareCandyMode);
+    setSoloRareCandyTarget(snapshot.rareCandyTarget);
+    setSoloRareCandyCandidates(snapshot.rareCandyCandidates);
+  };
+  const undoSoloAction = () => {
+    const snapshot = soloHistory[soloHistory.length - 1];
+    if (!snapshot) {
+      setSoloNotice("戻せる操作がありません。");
+      return;
+    }
+    restoreSoloSnapshot(snapshot);
+    setSoloHistory((history) => history.slice(0, -1));
+  };
   const openingHandStats = useMemo(() => {
     if (!selectedDeck) {
       return {
@@ -766,6 +864,7 @@ export default function AIBattleRoomPage() {
       setSoloRareCandyMode("idle");
       setSoloRareCandyTarget(null);
       setSoloRareCandyCandidates([]);
+      setSoloHistory([]);
     };
     resetFromDeck();
   }, [selectedDeck, cardMasterDetails]);
@@ -808,6 +907,7 @@ export default function AIBattleRoomPage() {
 
   const startSolo = () => {
     if (!selectedDeck) return;
+    pushSoloHistory();
     const pile = expandDeck(selectedDeck.cards, cardMasterDetails);
     const handDraw = takeRandomCards(pile, 7);
     const prizeDraw = takeRandomCards(handDraw.rest, 6);
@@ -841,6 +941,7 @@ export default function AIBattleRoomPage() {
       setSoloNotice("戻す手札がありません。");
       return;
     }
+    pushSoloHistory();
     const isOpeningSevenRedraw =
       soloStarted &&
       soloTurn === 1 &&
@@ -877,6 +978,7 @@ export default function AIBattleRoomPage() {
       setSoloNotice("戻す手札がありません。");
       return;
     }
+    pushSoloHistory();
     const drawCount = Math.max(0, Math.floor(soloCustomShuffleDrawCount || 0));
     const nextDeck = [...soloPile, ...soloHand].sort(() => Math.random() - 0.5);
     const draw = takeRandomCards(nextDeck, drawCount);
@@ -892,6 +994,7 @@ export default function AIBattleRoomPage() {
 
   const resetSolo = () => {
     if (!selectedDeck) return;
+    pushSoloHistory();
     const pile = expandDeck(selectedDeck.cards, cardMasterDetails);
     setSoloPile(pile);
     setSoloHand([]);
@@ -920,6 +1023,11 @@ export default function AIBattleRoomPage() {
   };
 
   const drawSolo = (count = 1) => {
+    if (soloPile.length === 0 || count <= 0) {
+      setSoloNotice("山札から引けるカードがありません。");
+      return;
+    }
+    pushSoloHistory();
     setSoloPile((pile) => {
       const randomized = takeRandomCards(pile, count);
       setSoloHand((hand) => [...hand, ...randomized.drawn]);
@@ -1076,6 +1184,7 @@ export default function AIBattleRoomPage() {
       return;
     }
 
+    pushSoloHistory();
     const nextHand = soloHand.filter((_, index) => index !== candyIndex && index !== candidate.handIndex);
     const evolvedCard: SoloCard = { ...candidate.card, playedTurn: soloTurn };
 
@@ -1169,6 +1278,7 @@ export default function AIBattleRoomPage() {
         return;
       }
 
+      pushSoloHistory();
       const nextHand = soloHand.filter((_, index) => index !== soloSelectedHandIndex);
       const nextEnergy: SoloCard = { ...picked };
       if (target === "active") {
@@ -1195,6 +1305,7 @@ export default function AIBattleRoomPage() {
         return;
       }
 
+      pushSoloHistory();
       const nextHand = soloHand.filter((_, index) => index !== soloSelectedHandIndex);
       const nextTool: SoloCard = { ...picked };
       if (target === "active") {
@@ -1240,6 +1351,7 @@ export default function AIBattleRoomPage() {
       }
     }
 
+    pushSoloHistory();
     const nextHand = soloHand.filter((_, index) => index !== soloSelectedHandIndex);
     const nextCard: SoloCard = { ...picked, playedTurn: target === "stadium" ? undefined : soloTurn };
     if (target === "active") {
@@ -1261,7 +1373,7 @@ export default function AIBattleRoomPage() {
     setSoloNotice(`${picked.cardName || "カード"}を${sourceLabel}に配置しました。${placementEffect ? ` 効果: ${placementEffect.label}` : ""}`);
   };
 
-  const discardSelectedHandCard = (message?: string) => {
+  const discardSelectedHandCard = (message?: string, trackHistory = true) => {
     if (soloSelectedHandIndex === null) {
       setSoloNotice("まず手札のカードを選んでください。");
       return;
@@ -1274,6 +1386,9 @@ export default function AIBattleRoomPage() {
       return;
     }
 
+    if (trackHistory) {
+      pushSoloHistory();
+    }
     setSoloHand((hand) => hand.filter((_, index) => index !== soloSelectedHandIndex));
     setSoloDiscard((discard) => [...discard, picked]);
     setSoloSelectedHandIndex(null);
@@ -1376,10 +1491,18 @@ export default function AIBattleRoomPage() {
     return true;
   };
 
-  const executeDiscardStadiumAction = (sourceHandIndex: number | null, sourceCard: SoloCard, action: Extract<EffectAction, { type: "discard_stadium" }>) => {
+  const executeDiscardStadiumAction = (
+    sourceHandIndex: number | null,
+    sourceCard: SoloCard,
+    action: Extract<EffectAction, { type: "discard_stadium" }>,
+    trackHistory = true
+  ) => {
     if (!soloStadiumCard) {
       setSoloNotice("トラッシュできるスタジアムがありません。");
       return false;
+    }
+    if (trackHistory) {
+      pushSoloHistory();
     }
     if (sourceHandIndex !== null) {
       const source = soloHand[sourceHandIndex];
@@ -1439,14 +1562,16 @@ export default function AIBattleRoomPage() {
     };
 
     if (!profile || !firstAction) {
+      pushSoloHistory();
       markSupporterUsed();
-      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。効果を自動解決済みにしました。`);
+      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。効果を自動解決済みにしました。`, false);
       return;
     }
 
     if (firstAction.type === "resolve_effect") {
+      pushSoloHistory();
       markSupporterUsed();
-      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。${firstAction.note}`);
+      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。${firstAction.note}`, false);
       return;
     }
 
@@ -1464,12 +1589,14 @@ export default function AIBattleRoomPage() {
         count: firstCost.count,
         selectedHandIndexes: [],
       });
+      pushSoloHistory();
       markSupporterUsed();
       setSoloNotice(`コストとして手札を${firstCost.count}枚選んでください。`);
       return;
     }
 
     if (firstAction.type === "draw_cards") {
+      pushSoloHistory();
       markSupporterUsed();
       const source = soloHand[sourceHandIndex];
       const remainingHand = soloHand.filter((_, index) => index !== sourceHandIndex);
@@ -1487,6 +1614,7 @@ export default function AIBattleRoomPage() {
 
     if (firstAction.type === "search_deck") {
       if (openSearchDeckPrompt(sourceHandIndex, sourceCard, firstAction)) {
+        pushSoloHistory();
         markSupporterUsed();
       }
       return;
@@ -1494,6 +1622,7 @@ export default function AIBattleRoomPage() {
 
     if (firstAction.type === "recover_from_trash") {
       if (openRecoverTrashPrompt(sourceHandIndex, sourceCard, firstAction)) {
+        pushSoloHistory();
         markSupporterUsed();
       }
       return;
@@ -1501,6 +1630,7 @@ export default function AIBattleRoomPage() {
 
     if (firstAction.type === "switch_active") {
       if (openSwitchActivePrompt(sourceHandIndex, sourceCard)) {
+        pushSoloHistory();
         markSupporterUsed();
       }
       return;
@@ -1508,6 +1638,7 @@ export default function AIBattleRoomPage() {
 
     if (firstAction.type === "heal_pokemon" || firstAction.type === "discard_tool") {
       if (openBoardPokemonPrompt(sourceHandIndex, sourceCard, firstAction)) {
+        pushSoloHistory();
         markSupporterUsed();
       }
       return;
@@ -1560,7 +1691,7 @@ export default function AIBattleRoomPage() {
       return;
     }
     if (soloEffectPrompt.nextAction.type === "discard_stadium") {
-      executeDiscardStadiumAction(null, soloEffectPrompt.sourceCard, soloEffectPrompt.nextAction);
+      executeDiscardStadiumAction(null, soloEffectPrompt.sourceCard, soloEffectPrompt.nextAction, false);
       return;
     }
     if (soloEffectPrompt.nextAction.type === "resolve_effect") {
@@ -1750,11 +1881,12 @@ export default function AIBattleRoomPage() {
   };
 
   const takePrize = () => {
+    if (soloPrizes.length === 0) {
+      setSoloNotice("サイドがありません。");
+      return;
+    }
+    pushSoloHistory();
     setSoloPrizes((prizes) => {
-      if (prizes.length === 0) {
-        setSoloNotice("サイドがありません。");
-        return prizes;
-      }
       const [drawn, ...rest] = prizes;
       setSoloHand((hand) => [...hand, drawn]);
       setSoloNotice(`${drawn.cardName || "カード"}をサイドから手札に加えました。`);
@@ -1771,6 +1903,7 @@ export default function AIBattleRoomPage() {
   };
 
   const nextSoloTurn = () => {
+    pushSoloHistory();
     setSoloTurn((turn) => turn + 1);
     setSoloSupporterUsedTurn(null);
     setSoloEnergyAttachedTurn(null);
@@ -2666,6 +2799,14 @@ export default function AIBattleRoomPage() {
                         7枚引いて開始
                       </button>
                     ) : null}
+                    <button
+                      type="button"
+                      onClick={undoSoloAction}
+                      disabled={soloHistory.length === 0}
+                      className="inline-flex h-11 items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-5 text-sm font-bold text-amber-800 transition hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      1手戻し
+                    </button>
                     <button
                       type="button"
                       onClick={() => drawSolo(1)}
