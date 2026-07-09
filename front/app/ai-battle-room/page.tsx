@@ -42,7 +42,10 @@ type SearchTarget =
   | "basic_pokemon"
   | "pokemon_hp_70_or_less"
   | "pokemon_or_basic_energy"
+  | "rule_box_pokemon"
+  | "marnie_pokemon"
   | "pokemon_ex"
+  | "evolution_pokemon"
   | "item"
   | "supporter"
   | "tool"
@@ -55,6 +58,9 @@ type EffectAction =
   | { type: "draw_cards"; count: number; discardRemainingHand?: boolean }
   | { type: "search_deck"; target: SearchTarget; count: number; destination: "hand" | "bench" | "stadium" | "attach_energy" }
   | { type: "recover_from_trash"; target: SearchTarget; count: number; destination: "hand" }
+  | { type: "draw_until_board_count" }
+  | { type: "topdeck_setup"; count: number }
+  | { type: "continuous_effect"; note: string }
   | { type: "switch_active" }
   | { type: "heal_pokemon"; note: string }
   | { type: "discard_tool"; note: string }
@@ -341,8 +347,14 @@ function matchesSearchTarget(card: SoloCard, target: SearchTarget): boolean {
       return placementType === "pokemon" && stageOrder === 0 && Number(card.hp || 0) <= 70;
     case "pokemon_or_basic_energy":
       return placementType === "pokemon" || (placementType === "energy" && name.includes("基本"));
+    case "rule_box_pokemon":
+      return placementType === "pokemon" && /ポケモンex|メガシンカex|VSTAR|VMAX|V-UNION|ポケモンV|ex\b/i.test(searchText);
+    case "marnie_pokemon":
+      return placementType === "pokemon" && searchText.includes("マリィ");
     case "pokemon_ex":
       return placementType === "pokemon" && /ポケモンex|ex\b/i.test(searchText);
+    case "evolution_pokemon":
+      return placementType === "pokemon" && stageOrder !== null && stageOrder > 0;
     case "item":
       return placementType === "item";
     case "supporter":
@@ -371,7 +383,10 @@ function getSearchTargetLabel(target: SearchTarget): string {
     basic_pokemon: "たねポケモン",
     pokemon_hp_70_or_less: "HP70以下のたねポケモン",
     pokemon_or_basic_energy: "ポケモンまたは基本エネルギー",
+    rule_box_pokemon: "ルールを持つポケモン",
+    marnie_pokemon: "マリィのポケモン",
     pokemon_ex: "ポケモンex",
+    evolution_pokemon: "進化ポケモン",
     item: "グッズ",
     supporter: "サポート",
     tool: "ポケモンのどうぐ",
@@ -1426,6 +1441,22 @@ export default function AIBattleRoomPage() {
     });
   };
 
+  const countSoloBoardPokemon = () => {
+    return (soloActiveStack.length > 0 ? 1 : 0) + soloBenchStacks.filter((stack) => stack.length > 0).length;
+  };
+
+  const drawUntilBoardPokemonCount = (nextHand: SoloCard[]) => {
+    const drawCount = Math.max(0, countSoloBoardPokemon() - nextHand.length);
+    if (drawCount > 0) {
+      const randomized = takeRandomCards(soloPile, drawCount);
+      setSoloPile(randomized.rest);
+      setSoloHand([...nextHand, ...randomized.drawn]);
+      return randomized.drawn.length;
+    }
+    setSoloHand(nextHand);
+    return 0;
+  };
+
   const openSearchDeckPrompt = (
     sourceHandIndex: number | null,
     sourceCard: SoloCard,
@@ -1635,6 +1666,18 @@ export default function AIBattleRoomPage() {
       return;
     }
 
+    if (firstAction.type === "draw_until_board_count") {
+      pushSoloHistory();
+      markSupporterUsed();
+      const source = soloHand[sourceHandIndex];
+      const nextHand = soloHand.filter((_, index) => index !== sourceHandIndex);
+      const drawnCount = drawUntilBoardPokemonCount(nextHand);
+      setSoloDiscard((discard) => [...discard, source]);
+      setSoloSelectedHandIndex(null);
+      setSoloNotice(`${sourceCard.cardName || "トレーナーズ"}の効果で、場のポケモンの数に合わせて${drawnCount}枚引きました。`);
+      return;
+    }
+
     if (firstAction.type === "search_deck") {
       if (openSearchDeckPrompt(sourceHandIndex, sourceCard, firstAction)) {
         pushSoloHistory();
@@ -1726,6 +1769,13 @@ export default function AIBattleRoomPage() {
       drawCardsToHand(soloEffectPrompt.nextAction.count);
       setSoloEffectPrompt(null);
       setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${soloEffectPrompt.nextAction.count}枚引きました。`);
+      return;
+    }
+    if (soloEffectPrompt.nextAction.type === "draw_until_board_count") {
+      const nextHand = soloHand.filter((_, index) => !discardIndexes.has(index));
+      const drawnCount = drawUntilBoardPokemonCount(nextHand);
+      setSoloEffectPrompt(null);
+      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で、場のポケモンの数に合わせて${drawnCount}枚引きました。`);
     }
   };
 

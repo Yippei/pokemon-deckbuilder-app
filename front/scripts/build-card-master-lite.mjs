@@ -97,6 +97,14 @@ function buildEffectProfile(card) {
     };
   }
 
+  if (/自分の場の.*ポケモンの数と同じ枚数になるように、?山札を引/.test(effectText)) {
+    return {
+      label: buildActionLabel(ruleText, "場のポケモンの数と同じ枚数になるまで山札を引く"),
+      costs: buildDiscardHandCosts(effectText),
+      actions: [{ type: "draw_until_board_count" }],
+    };
+  }
+
   if (effectText.includes("自分のバトルポケモン") && effectText.includes("ベンチポケモンと入れ替える")) {
     return {
       label: buildActionLabel(ruleText, "自分のバトルポケモンをベンチポケモンと入れ替える"),
@@ -106,7 +114,10 @@ function buildEffectProfile(card) {
   if (effectText.includes("相手のベンチポケモン") && effectText.includes("バトルポケモンと入れ替える")) {
     return autoResolvedProfile(buildActionLabel(ruleText, "相手のベンチポケモンをバトル場と入れ替える"));
   }
-  if (effectText.includes("ダメージカウンター") && (effectText.includes("とる") || effectText.includes("回復"))) {
+  if (
+    (effectText.includes("ダメージカウンター") && (effectText.includes("とる") || effectText.includes("回復"))) ||
+    /HPを「?\d+」?回復/.test(effectText)
+  ) {
     return {
       label: buildActionLabel(ruleText, "自分のポケモンのダメージを回復する"),
       actions: [{ type: "heal_pokemon", note: "ダメージ管理は手動で調整してください。" }],
@@ -129,6 +140,18 @@ function buildEffectProfile(card) {
   }
   if (effectText.includes("相手のポケモンについているエネルギー") && effectText.includes("トラッシュ")) {
     return autoResolvedProfile(buildActionLabel(ruleText, "相手のポケモンについているエネルギーをトラッシュする"));
+  }
+  if (/手札を1枚選び、?山札の上にもど/.test(effectText)) {
+    return {
+      label: buildActionLabel(ruleText, "手札を1枚山札の上にもどす"),
+      actions: [{ type: "topdeck_setup", count: 1 }],
+    };
+  }
+  if (/効果は、?すべてなくなる|ワザのダメージを受けない|ダメージは「?[+-]?\d+」?/.test(effectText)) {
+    return {
+      label: buildActionLabel(ruleText, "継続効果"),
+      actions: [{ type: "continuous_effect", note: buildActionLabel(ruleText, "継続効果") }],
+    };
   }
 
   return autoResolvedProfile(buildAutoResolvedNote(card));
@@ -193,12 +216,14 @@ function buildDiscardHandCosts(ruleText) {
 }
 
 function buildDeckSearchAction(ruleText) {
-  if (!/自分の山札(?:から|の)/.test(ruleText)) return null;
-  if (!/(手札に加える|ベンチに出|場に出|つける)/.test(ruleText)) return null;
+  if (!/(自分の山札(?:から|の|にある|を上から|を下から|の下から)|相手の山札を上から)/.test(ruleText)) return null;
+  if (!/(手札に加え|ベンチに出|場に出|つける|進化させ)/.test(ruleText)) return null;
 
   const target = inferSearchTarget(ruleText);
   const destination = /つける/.test(ruleText)
     ? "attach_energy"
+    : /進化させ/.test(ruleText)
+      ? "hand"
     : /ベンチに出|場に出/.test(ruleText)
       ? "bench"
       : "hand";
@@ -225,6 +250,9 @@ function buildTrashRecoveryAction(ruleText) {
 }
 
 function inferSearchTarget(text) {
+  if (/進化する1進化ポケモン|1進化ポケモン/.test(text)) return "evolution_pokemon";
+  if (/ルールを持つポケモン/.test(text)) return "rule_box_pokemon";
+  if (/「マリィのポケモン」|マリィのポケモン/.test(text)) return "marnie_pokemon";
   if (/HP(?:が)?「?70」?以下|HP70以下/.test(text) && text.includes("たねポケモン")) return "pokemon_hp_70_or_less";
   if (/ポケモンex|「ポケモンex」/.test(text)) return "pokemon_ex";
   if (text.includes("メガシンカ") || text.includes("メガ進化")) return "mega_evolution_pokemon";
@@ -248,6 +276,9 @@ function describeSearchTarget(target) {
     basic_pokemon: "たねポケモン",
     pokemon_hp_70_or_less: "HP70以下のたねポケモン",
     pokemon_or_basic_energy: "ポケモンまたは基本エネルギー",
+    rule_box_pokemon: "ルールを持つポケモン",
+    marnie_pokemon: "マリィのポケモン",
+    evolution_pokemon: "進化ポケモン",
     pokemon_ex: "ポケモンex",
     item: "グッズ",
     supporter: "サポート",
