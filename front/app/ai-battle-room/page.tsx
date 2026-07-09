@@ -42,7 +42,10 @@ type SearchTarget =
   | "basic_pokemon"
   | "pokemon_hp_70_or_less"
   | "pokemon_or_basic_energy"
+  | "pokemon_ex"
+  | "item"
   | "supporter"
+  | "tool"
   | "mega_evolution_pokemon"
   | "terastal_pokemon"
   | "energy"
@@ -50,7 +53,7 @@ type SearchTarget =
   | "stadium";
 type EffectAction =
   | { type: "draw_cards"; count: number; discardRemainingHand?: boolean }
-  | { type: "search_deck"; target: SearchTarget; count: number; destination: "hand" | "bench" | "stadium" }
+  | { type: "search_deck"; target: SearchTarget; count: number; destination: "hand" | "bench" | "stadium" | "attach_energy" }
   | { type: "recover_from_trash"; target: SearchTarget; count: number; destination: "hand" }
   | { type: "switch_active" }
   | { type: "heal_pokemon"; note: string }
@@ -261,8 +264,16 @@ function getTrainerSubtype(card?: Pick<SoloCard, "cardKind" | "subKind" | "stage
 }
 
 function getEffectProfile(card?: SoloCard | null): EffectProfile | null {
-  if (card?.effectProfile) return card.effectProfile;
+  const fallbackProfile = getFallbackEffectProfile(card);
+  const masterProfile = card?.effectProfile || null;
+  const masterAction = masterProfile?.actions[0];
 
+  if (!masterProfile) return fallbackProfile;
+  if (fallbackProfile && masterAction?.type === "resolve_effect") return fallbackProfile;
+  return masterProfile;
+}
+
+function getFallbackEffectProfile(card?: SoloCard | null): EffectProfile | null {
   const name = normalizePokemonNameCore(card?.cardName);
   if (!name) return null;
 
@@ -330,8 +341,14 @@ function matchesSearchTarget(card: SoloCard, target: SearchTarget): boolean {
       return placementType === "pokemon" && stageOrder === 0 && Number(card.hp || 0) <= 70;
     case "pokemon_or_basic_energy":
       return placementType === "pokemon" || (placementType === "energy" && name.includes("基本"));
+    case "pokemon_ex":
+      return placementType === "pokemon" && /ポケモンex|ex\b/i.test(searchText);
+    case "item":
+      return placementType === "item";
     case "supporter":
       return placementType === "supporter";
+    case "tool":
+      return placementType === "tool";
     case "mega_evolution_pokemon":
       return placementType === "pokemon" && (name.includes("メガ") || searchText.includes("メガシンカ"));
     case "terastal_pokemon":
@@ -354,7 +371,10 @@ function getSearchTargetLabel(target: SearchTarget): string {
     basic_pokemon: "たねポケモン",
     pokemon_hp_70_or_less: "HP70以下のたねポケモン",
     pokemon_or_basic_energy: "ポケモンまたは基本エネルギー",
+    pokemon_ex: "ポケモンex",
+    item: "グッズ",
     supporter: "サポート",
+    tool: "ポケモンのどうぐ",
     mega_evolution_pokemon: "メガシンカex",
     terastal_pokemon: "テラスタルのポケモン",
     energy: "エネルギー",
@@ -1754,6 +1774,25 @@ export default function AIBattleRoomPage() {
         }
         setSoloStadiumCard(stadiumCard);
       }
+    } else if (soloEffectPrompt.action.destination === "attach_energy") {
+      if (soloActiveStack.length > 0) {
+        setSoloAttachedEnergies((energies) => ({
+          ...energies,
+          active: [...energies.active, ...selectedCards],
+        }));
+      } else {
+        const firstBenchIndex = soloBenchStacks.findIndex((stack) => stack.length > 0);
+        if (firstBenchIndex === -1) {
+          setSoloNotice("エネルギーをつけるポケモンが場にいません。");
+          return;
+        }
+        setSoloAttachedEnergies((energies) => ({
+          ...energies,
+          bench: energies.bench.map((attached, index) =>
+            index === firstBenchIndex ? [...attached, ...selectedCards] : attached
+          ),
+        }));
+      }
     } else {
       setSoloHand((hand) => [...hand, ...selectedCards]);
     }
@@ -1766,7 +1805,11 @@ export default function AIBattleRoomPage() {
     setSoloPile(restPile);
     setSoloSelectedHandIndex(null);
     setSoloEffectPrompt(null);
-    setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚選び、山札をシャッフルしました。`);
+    setSoloNotice(
+      soloEffectPrompt.action.destination === "attach_energy"
+        ? `${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚を場のポケモンにつけ、山札をシャッフルしました。`
+        : `${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚選び、山札をシャッフルしました。`
+    );
   };
 
   const toggleEffectDiscardSelection = (discardIndex: number) => {
