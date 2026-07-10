@@ -60,8 +60,13 @@ type StaticCardDetail = {
   name?: string;
   cardKind?: string;
   subKind?: string;
+  setCode?: string;
+  setName?: string;
   stage?: string;
   stageCategory?: "basic" | "evolution" | "unknown";
+  evolvesFrom?: string;
+  familyId?: string;
+  stageOrder?: number;
   hp?: number;
   types?: string[];
   abilities?: Array<{ name?: string; text?: string }>;
@@ -410,6 +415,7 @@ async function normalizeGeneratedDeck(
   const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
+  const evolutionLineFix = addMissingEvolutionLineCards(cards, cardMaster);
   if (droppedNames.length > 0) {
     warnings.push({
       type: "card_master",
@@ -450,6 +456,12 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "deck_count",
       message: `60枚を超えた${trimmedCardCount}枚を調整しました。`,
+    });
+  }
+  if (evolutionLineFix.addedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `進化ポケモンに必要な進化前を補いました: ${evolutionLineFix.addedNames.join("、")}`,
     });
   }
 
@@ -952,6 +964,99 @@ function pokemonMatchesStage(pokemon: StaticCardDetail, stage: NonNullable<Pokem
 function isRuleBoxPokemon(pokemon: StaticCardDetail) {
   const text = `${pokemon.name || ""} ${pokemon.ruleText || ""}`;
   return /ポケモンex|メガシンカex|VSTAR|VMAX|V-UNION|ポケモンV/.test(text);
+}
+
+function addMissingEvolutionLineCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  const addedNames: string[] = [];
+  const evolutionCards = cards
+    .map((card) => ({ deckCard: card, masterCard: cardMaster[card.cardId] }))
+    .filter(({ masterCard }) => masterCard?.cardKind === "pokemon" && Number(masterCard.stageOrder || 0) > 0);
+
+  for (const { deckCard, masterCard } of evolutionCards) {
+    if (!masterCard) continue;
+    const chain = inferEvolutionLine(masterCard, cardMaster);
+    const protectedLineNames = [masterCard.name || "", ...chain.map((card) => card.name || "")];
+    for (const preEvolution of chain) {
+      const wantedCount = getWantedPreEvolutionCount(masterCard, preEvolution, deckCard.count);
+      const currentCount = countCardsWithSameName(cards, { cardName: preEvolution.name });
+      const addCount = Math.max(0, wantedCount - currentCount);
+      if (addCount <= 0) continue;
+
+      makeRoomForRequiredCard(cards, addCount, protectedLineNames);
+      const before = countCardsWithSameName(cards, { cardName: preEvolution.name });
+      addDeckCardWithLimits(cards, {
+        cardId: preEvolution.cardId,
+        cardName: preEvolution.name,
+        illustration: preEvolution.imageUrl,
+        count: addCount,
+      });
+      if (countCardsWithSameName(cards, { cardName: preEvolution.name }) > before && preEvolution.name) {
+        addedNames.push(preEvolution.name);
+      }
+    }
+  }
+
+  return {
+    addedCount: addedNames.length,
+    addedNames: uniqueNames(addedNames),
+  };
+}
+
+function inferEvolutionLine(target: StaticCardDetail, cardMaster: Record<string, StaticCardDetail>) {
+  const stageOrder = Number(target.stageOrder || 0);
+  const chain: StaticCardDetail[] = [];
+  if (stageOrder <= 0) return chain;
+
+  let current = target;
+  for (let desiredStage = stageOrder - 1; desiredStage >= 0; desiredStage -= 1) {
+    const previous = findPreviousEvolutionStage(current, desiredStage, cardMaster);
+    if (!previous) break;
+    chain.unshift(previous);
+    current = previous;
+  }
+  return chain;
+}
+
+function findPreviousEvolutionStage(
+  target: StaticCardDetail,
+  desiredStageOrder: number,
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  const targetId = Number(target.cardId);
+  if (!Number.isFinite(targetId)) return undefined;
+
+  const candidates = Object.values(cardMaster)
+    .filter((card) => {
+      const cardId = Number(card.cardId);
+      if (!Number.isFinite(cardId) || cardId >= targetId) return false;
+      if (target.setName && card.setName !== target.setName) return false;
+      if (target.setCode && card.setCode !== target.setCode) return false;
+      if (card.cardKind !== "pokemon") return false;
+      if (Number(card.stageOrder || 0) !== desiredStageOrder) return false;
+      return targetId - cardId <= 12;
+    })
+    .sort((a, b) => Number(b.cardId) - Number(a.cardId));
+
+  return candidates[0];
+}
+
+function getWantedPreEvolutionCount(
+  finalEvolution: StaticCardDetail,
+  preEvolution: StaticCardDetail,
+  finalCount: number
+) {
+  const finalStageOrder = Number(finalEvolution.stageOrder || 0);
+  const preStageOrder = Number(preEvolution.stageOrder || 0);
+  if (preStageOrder === 0) {
+    return Math.min(4, Math.max(3, finalCount + 1));
+  }
+  if (finalStageOrder >= 2 && preStageOrder === 1) {
+    return Math.min(3, Math.max(1, finalCount));
+  }
+  return Math.min(4, Math.max(2, finalCount));
 }
 
 function applyDeckPolicyRules(
