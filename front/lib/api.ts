@@ -415,6 +415,7 @@ async function normalizeGeneratedDeck(
   const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
+  const requestedCardFix = addRequestedContextCards(cards, cardMaster, context);
   const evolutionLineFix = addMissingEvolutionLineCards(cards, cardMaster);
   if (droppedNames.length > 0) {
     warnings.push({
@@ -458,6 +459,12 @@ async function normalizeGeneratedDeck(
       message: `60枚を超えた${trimmedCardCount}枚を調整しました。`,
     });
   }
+  if (requestedCardFix.addedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `入力された補足・中心ポケモンから指定カードを採用しました: ${requestedCardFix.addedNames.join("、")}`,
+    });
+  }
   if (evolutionLineFix.addedCount > 0) {
     warnings.push({
       type: "deck_policy",
@@ -496,6 +503,13 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "staple_fill",
       message: `不足分${filledCardCount}枚を汎用カードまたは基本エネルギーで補いました。`,
+    });
+  }
+  const finalRequestedCardFix = addRequestedContextCards(cards, cardMaster, context);
+  if (finalRequestedCardFix.addedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `補正後に外れた指定カードを戻しました: ${finalRequestedCardFix.addedNames.join("、")}`,
     });
   }
   const total = countDeckCards(cards);
@@ -964,6 +978,168 @@ function pokemonMatchesStage(pokemon: StaticCardDetail, stage: NonNullable<Pokem
 function isRuleBoxPokemon(pokemon: StaticCardDetail) {
   const text = `${pokemon.name || ""} ${pokemon.ruleText || ""}`;
   return /ポケモンex|メガシンカex|VSTAR|VMAX|V-UNION|ポケモンV/.test(text);
+}
+
+function addRequestedContextCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const requestedCards = getRequestedContextCards(cardMaster, context);
+  const addedNames: string[] = [];
+  const protectedNames = requestedCards.map((card) => card.name || "").filter(Boolean);
+
+  for (const requested of requestedCards) {
+    if (!requested.name) continue;
+    if (countCardsWithSameName(cards, { cardName: requested.name }) > 0) continue;
+
+    if (isAceSpecCard(requested, { cardName: requested.name })) {
+      removeOtherAceSpecCards(cards, cardMaster, requested.name);
+    }
+
+    makeRoomForRequiredCard(cards, 1, protectedNames);
+    const before = countCardsWithSameName(cards, { cardName: requested.name });
+    addDeckCardWithLimits(cards, {
+      cardId: requested.cardId,
+      cardName: requested.name,
+      illustration: requested.imageUrl,
+      count: 1,
+    });
+    if (countCardsWithSameName(cards, { cardName: requested.name }) > before) {
+      addedNames.push(requested.name);
+    }
+  }
+
+  return {
+    addedCount: addedNames.length,
+    addedNames: uniqueNames(addedNames),
+  };
+}
+
+function getRequestedContextCards(
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const contextText = [
+    context?.pokemonName,
+    context?.supplementalTheme,
+  ].filter(Boolean).join(" ");
+  const normalizedText = normalizeCardLimitName(contextText);
+  if (!normalizedText) return [];
+
+  const requestedCards: StaticCardDetail[] = [];
+  const addRequestedCard = (card: StaticCardDetail | undefined) => {
+    if (!card?.name) return;
+    if (requestedCards.some((current) => normalizeCardLimitName(current.name) === normalizeCardLimitName(card.name))) return;
+    requestedCards.push(card);
+  };
+
+  const cards = Object.values(cardMaster);
+  const exactMatchesByName = new Map<string, StaticCardDetail>();
+  for (const card of cards) {
+    const normalizedName = normalizeCardLimitName(card.name);
+    if (normalizedName.length < 3 || !normalizedText.includes(normalizedName)) continue;
+    const current = exactMatchesByName.get(normalizedName);
+    if (!current || compareRequestedCardPriority(card, current) < 0) {
+      exactMatchesByName.set(normalizedName, card);
+    }
+  }
+  [...exactMatchesByName.values()]
+    .sort(compareRequestedCardPriority)
+    .forEach(addRequestedCard);
+
+  for (const term of getRequestedContextTerms(contextText)) {
+    if (requestedCards.length >= 6) break;
+    const candidate = cards
+      .filter((card) => {
+        const normalizedName = normalizeCardLimitName(card.name);
+        return normalizedName.length >= 3 && normalizedName.includes(term);
+      })
+      .sort((a, b) => compareRequestedCardForTerm(a, b, term))[0];
+    addRequestedCard(candidate);
+  }
+
+  return requestedCards.slice(0, 6);
+}
+
+function getRequestedContextTerms(contextText: string) {
+  const noiseWords = [
+    "デッキ",
+    "カード",
+    "ポケモン",
+    "使いたい",
+    "使用したい",
+    "中心",
+    "メイン",
+    "主体",
+    "採用",
+    "入れる",
+    "入れて",
+    "構築",
+    "補助",
+    "相性",
+    "軸",
+    "型",
+  ];
+  const rawTerms = contextText.split(/[\s　,、。・/／＋+&＆()（）「」『』【】\[\]\n\r]+/);
+  const terms = new Set<string>();
+
+  for (const rawTerm of rawTerms) {
+    for (const fragment of rawTerm.split(/[をがはにでへ]/)) {
+      const normalized = normalizeCardLimitName(removeRequestNoiseWords(fragment, noiseWords));
+      if (normalized.length < 3 || noiseWords.some((word) => normalizeCardLimitName(word) === normalized)) continue;
+      terms.add(normalized);
+    }
+  }
+
+  return [...terms];
+}
+
+function removeRequestNoiseWords(term: string, noiseWords: string[]) {
+  return noiseWords.reduce((current, word) => current.replaceAll(word, ""), term);
+}
+
+function compareRequestedCardForTerm(a: StaticCardDetail, b: StaticCardDetail, term: string) {
+  const normalizedA = normalizeCardLimitName(a.name);
+  const normalizedB = normalizeCardLimitName(b.name);
+  const aExact = normalizedA === term ? 0 : 1;
+  const bExact = normalizedB === term ? 0 : 1;
+  if (aExact !== bExact) return aExact - bExact;
+
+  const aStartsWith = normalizedA.startsWith(term) ? 0 : 1;
+  const bStartsWith = normalizedB.startsWith(term) ? 0 : 1;
+  if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+
+  const aPokemon = a.cardKind === "pokemon" ? 0 : 1;
+  const bPokemon = b.cardKind === "pokemon" ? 0 : 1;
+  if (aPokemon !== bPokemon) return aPokemon - bPokemon;
+
+  return compareRequestedCardPriority(a, b);
+}
+
+function compareRequestedCardPriority(a: StaticCardDetail, b: StaticCardDetail) {
+  const nameLengthDiff = normalizeCardLimitName(a.name).length - normalizeCardLimitName(b.name).length;
+  if (nameLengthDiff !== 0) return nameLengthDiff;
+
+  const cardIdDiff = Number(b.cardId) - Number(a.cardId);
+  if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
+
+  return String(b.cardId).localeCompare(String(a.cardId));
+}
+
+function removeOtherAceSpecCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  requestedName: string
+) {
+  const normalizedRequestedName = normalizeCardLimitName(requestedName);
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!isAceSpecCard(masterCard, card)) continue;
+    if (normalizeCardLimitName(card.cardName || masterCard?.name) === normalizedRequestedName) continue;
+    cards.splice(index, 1);
+  }
 }
 
 function addMissingEvolutionLineCards(
