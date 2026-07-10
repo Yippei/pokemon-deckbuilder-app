@@ -45,7 +45,9 @@ export default function CardSearch({ onAdd }: Props) {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<CardCategory>("");
+  const [recentlyAddedCardId, setRecentlyAddedCardId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const addedTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!modalOpen || !query.trim()) {
@@ -100,6 +102,14 @@ export default function CardSearch({ onAdd }: Props) {
     };
   }, [modalOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (addedTimerRef.current !== null) {
+        window.clearTimeout(addedTimerRef.current);
+      }
+    };
+  }, []);
+
   const filteredResults = useMemo(() => {
     return results.filter((card) => {
       if (categoryFilter && card.category !== categoryFilter) return false;
@@ -114,6 +124,14 @@ export default function CardSearch({ onAdd }: Props) {
       illustration: card.illustration,
       count: 1,
     });
+    setRecentlyAddedCardId(card.cardId);
+    if (addedTimerRef.current !== null) {
+      window.clearTimeout(addedTimerRef.current);
+    }
+    addedTimerRef.current = window.setTimeout(() => {
+      setRecentlyAddedCardId(null);
+      addedTimerRef.current = null;
+    }, 1200);
   };
 
   const hasActiveFilter = Boolean(categoryFilter || query.trim());
@@ -206,12 +224,19 @@ export default function CardSearch({ onAdd }: Props) {
           )}
           {filteredResults.length > 0 && (
             <ul className="deck-search-modal__grid">
-              {filteredResults.map((card) => (
+              {filteredResults.map((card) => {
+                const recentlyAdded = recentlyAddedCardId === card.cardId;
+                return (
                 <li key={card.cardId}>
                   <button
                     type="button"
                     onClick={() => handleSelect(card)}
-                    className="deck-search-modal__card"
+                    className={
+                      recentlyAdded
+                        ? "deck-search-modal__card deck-search-modal__card--added"
+                        : "deck-search-modal__card"
+                    }
+                    aria-live={recentlyAdded ? "polite" : undefined}
                   >
                     <span className="deck-search-modal__image-wrap">
                       {card.illustration ? (
@@ -230,10 +255,11 @@ export default function CardSearch({ onAdd }: Props) {
                     {card.regulation && (
                       <span className="deck-search-modal__card-meta">{card.regulation}</span>
                     )}
-                    <span className="deck-search-modal__add-label">追加</span>
+                    <span className="deck-search-modal__add-label">{recentlyAdded ? "追加済み" : "追加"}</span>
                   </button>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>

@@ -5053,6 +5053,40 @@ body {
   transform: translateY(-2px);
 }
 
+.deck-search-modal__card--added {
+  animation: deck-search-card-added 1200ms ease-out;
+  border-color: rgba(16, 185, 129, 0.95);
+  box-shadow:
+    0 0 0 3px rgba(16, 185, 129, 0.18),
+    0 18px 38px rgba(5, 150, 105, 0.22);
+}
+
+.deck-search-modal__card--added .deck-search-modal__add-label {
+  background: #10b981;
+  color: #ffffff;
+}
+
+@keyframes deck-search-card-added {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(16, 185, 129, 0.45),
+      0 12px 26px rgba(5, 150, 105, 0.18);
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    box-shadow:
+      0 0 0 8px rgba(16, 185, 129, 0.16),
+      0 22px 44px rgba(5, 150, 105, 0.24);
+    transform: translateY(-2px) scale(1.015);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(16, 185, 129, 0),
+      0 14px 28px rgba(15, 23, 42, 0.12);
+    transform: translateY(0) scale(1);
+  }
+}
+
 .deck-search-modal__image-wrap {
   display: flex;
   align-items: center;
