@@ -63,6 +63,8 @@ type StaticCardDetail = {
   stage?: string;
   stageCategory?: "basic" | "evolution" | "unknown";
   hp?: number;
+  types?: string[];
+  abilities?: Array<{ name?: string; text?: string }>;
   ruleText?: string;
   searchTokens?: string[];
   imageUrl?: string;
@@ -84,6 +86,17 @@ type CardRole =
   | "energy_acceleration"
   | "recovery"
   | "main_pokemon_only";
+
+type AbilityRole =
+  | "ability_draw"
+  | "ability_search"
+  | "ability_energy"
+  | "ability_stadium"
+  | "ability_recovery"
+  | "ability_switch"
+  | "ability_protection"
+  | "ability_damage_boost"
+  | "ability_lock";
 
 const DeckCardSchema = z.object({
   cardId: z.string().min(1),
@@ -142,6 +155,7 @@ const aceSpecCardNames = [
   "メガシグナル",
 ];
 const handRefreshTargetCount = 4;
+const systemPokemonTargetCount = 1;
 const selfPositiveHandRefreshCardNames = [
   "リーリエの決心",
   "ゼイユ",
@@ -458,6 +472,12 @@ async function normalizeGeneratedDeck(
       message: `入力されたメインポケモンを補助するカードを追加しました: ${appliedPolicyRules.mainPokemonSupportAddedNames.join("、")}`,
     });
   }
+  if (appliedPolicyRules.systemPokemonAddedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `デッキ進行を補助する特性持ちポケモンを追加しました: ${appliedPolicyRules.systemPokemonAddedNames.join("、")}`,
+    });
+  }
 
   const filledCardCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
   if (filledCardCount > 0) {
@@ -700,6 +720,50 @@ function cardHasRole(card: StaticCardDetail, role: CardRole) {
   return classifyCardRoles(card).has(role);
 }
 
+function classifyAbilityRoles(card: StaticCardDetail): Set<AbilityRole> {
+  const roles = new Set<AbilityRole>();
+  if (card.cardKind !== "pokemon" || !card.abilities?.length) return roles;
+
+  const abilityText = normalizeRuleText(getAbilitySearchableText(card));
+  if (!abilityText) return roles;
+
+  if (/山札.*引く|山札を[0-9０-９]+枚引く|カードを.*引く|手札が.*枚になるように.*引/.test(abilityText)) {
+    roles.add("ability_draw");
+  }
+  if (/自分の山札.*選び.*手札|自分の山札.*選び.*ベンチ|自分の山札.*選び.*場|山札から.*選び/.test(abilityText)) {
+    roles.add("ability_search");
+  }
+  if (/エネルギー.*つけ|エネルギー.*加速|エネルギー.*好きなようにつけ|エネルギー.*トラッシュ.*つけ/.test(abilityText)) {
+    roles.add("ability_energy");
+  }
+  if (/山札.*スタジアム.*手札|スタジアム.*選び.*手札/.test(abilityText)) {
+    roles.add("ability_stadium");
+  }
+  if (/トラッシュ.*(手札|山札|ベンチ)|回収|HPを.*回復|すべて回復/.test(abilityText)) {
+    roles.add("ability_recovery");
+  }
+  if (/入れ替える|ベンチにもど|バトルポケモンと入れ替/.test(abilityText)) {
+    roles.add("ability_switch");
+  }
+  if (/受けない|ダメージ.*-[0-9０-９]+|守る|効果を受けない|特性.*なくなる/.test(abilityText)) {
+    roles.add("ability_protection");
+  }
+  if (/ダメージ.*\\+[0-9０-９]+|ワザのダメージ.*上が|ダメージは.*追加/.test(abilityText)) {
+    roles.add("ability_damage_boost");
+  }
+  if (/相手.*特性.*なくなる|相手.*使えない|相手.*できない|相手.*手札|相手.*山札/.test(abilityText)) {
+    roles.add("ability_lock");
+  }
+
+  return roles;
+}
+
+function getAbilitySearchableText(card: StaticCardDetail) {
+  return (card.abilities || [])
+    .map((ability) => [ability.name, ability.text].filter(Boolean).join(" "))
+    .join(" ");
+}
+
 function getCardSearchableText(card: StaticCardDetail) {
   return [
     card.name,
@@ -902,9 +966,12 @@ function applyDeckPolicyRules(
   pokemonSearchAddedNames: string[];
   mainPokemonSupportAddedCount: number;
   mainPokemonSupportAddedNames: string[];
+  systemPokemonAddedCount: number;
+  systemPokemonAddedNames: string[];
 } {
   const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster);
   const mainPokemonSupportAddedNames = addMainPokemonSupportCards(cards, cardsByName, cardMaster, context);
+  const systemPokemonAddedNames = addSystemPokemonSupportCards(cards, cardMaster, context);
   const handRefreshNames = getHandRefreshPolicyNames(context, cardMaster);
   const currentCount = countCardsByNames(cards, handRefreshNames.all);
   let remainingCount = Math.max(0, handRefreshTargetCount - currentCount);
@@ -916,6 +983,8 @@ function applyDeckPolicyRules(
       pokemonSearchAddedNames,
       mainPokemonSupportAddedCount: mainPokemonSupportAddedNames.length,
       mainPokemonSupportAddedNames,
+      systemPokemonAddedCount: systemPokemonAddedNames.length,
+      systemPokemonAddedNames,
     };
   }
 
@@ -941,6 +1010,8 @@ function applyDeckPolicyRules(
     pokemonSearchAddedNames,
     mainPokemonSupportAddedCount: mainPokemonSupportAddedNames.length,
     mainPokemonSupportAddedNames,
+    systemPokemonAddedCount: systemPokemonAddedNames.length,
+    systemPokemonAddedNames,
   };
 }
 
@@ -1028,6 +1099,102 @@ function canMainPokemonSupportCardFitDeck(
   if (card.name === "ふしぎなアメ") return canRareCandyFitDeck(cards, cardMaster);
   if (isPokemonSearchCard(card)) return canPokemonSearchCardFitDeck(card, cards, cardMaster);
   return true;
+}
+
+function addSystemPokemonSupportCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const addedNames: string[] = [];
+  if (countSystemPokemon(cards, cardMaster) >= systemPokemonTargetCount) return addedNames;
+
+  const preferredRoles = getPreferredAbilityRoles(cards, cardMaster, context);
+  const candidate = Object.values(cardMaster)
+    .sort((a, b) => Number(b.cardId) - Number(a.cardId))
+    .find((card) => {
+      if (!canAddSystemPokemon(card, cards, cardMaster, context)) return false;
+      const roles = classifyAbilityRoles(card);
+      return preferredRoles.some((role) => roles.has(role));
+    });
+  if (!candidate?.name) return addedNames;
+
+  addSinglePolicyCard(cards, candidate, addedNames);
+  return addedNames;
+}
+
+function countSystemPokemon(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+  return cards.reduce((sum, card) => {
+    const masterCard = cardMaster[card.cardId];
+    return masterCard && isSystemPokemonCandidate(masterCard) ? sum + card.count : sum;
+  }, 0);
+}
+
+function canAddSystemPokemon(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (!isSystemPokemonCandidate(card)) return false;
+  if (!card.name || countCardsWithSameName(cards, { cardName: card.name }) > 0) return false;
+  if (contextMatchesTheme(context, card.name)) return true;
+  if (hasConflictingDedicatedAbility(card, cards, cardMaster, context)) return false;
+  return true;
+}
+
+function isSystemPokemonCandidate(card: StaticCardDetail) {
+  if (card.cardKind !== "pokemon" || !card.abilities?.length) return false;
+  if (!pokemonMatchesStage(card, "basic")) return false;
+  if (isRuleBoxPokemon(card)) return false;
+  const roles = classifyAbilityRoles(card);
+  return roles.has("ability_draw") ||
+    roles.has("ability_search") ||
+    roles.has("ability_energy") ||
+    roles.has("ability_stadium") ||
+    roles.has("ability_recovery") ||
+    roles.has("ability_switch");
+}
+
+function hasConflictingDedicatedAbility(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const abilityText = getAbilitySearchableText(card);
+  const matches = [...abilityText.matchAll(/「([^」]+)」/g)].map((match) => match[1]);
+  const dedicatedNames = matches.filter((name) => {
+    return !["基本 エネルギー", "基本エネルギー"].includes(name) && !name.includes("ポケモンex");
+  });
+  if (dedicatedNames.length === 0) return false;
+  return !dedicatedNames.some((name) => hasThemePokemon(cards, cardMaster, name) || contextMatchesTheme(context, name));
+}
+
+function getPreferredAbilityRoles(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+): AbilityRole[] {
+  const roles: AbilityRole[] = [];
+  if (isHandDisruptionTheme(context)) {
+    roles.push("ability_lock");
+  }
+  if (deckUsesEvolution(cards, cardMaster)) {
+    roles.push("ability_draw", "ability_search");
+  }
+  if (context?.selectedType) {
+    roles.push("ability_energy");
+  }
+  roles.push("ability_draw", "ability_search", "ability_stadium", "ability_recovery", "ability_switch");
+  return Array.from(new Set(roles));
+}
+
+function deckUsesEvolution(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+  return cards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    return masterCard?.cardKind === "pokemon" && pokemonMatchesStage(masterCard, "evolution");
+  });
 }
 
 function canRareCandyFitDeck(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
