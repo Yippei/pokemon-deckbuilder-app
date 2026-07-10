@@ -392,6 +392,7 @@ async function normalizeGeneratedDeck(
 
   const themeLockedRemoval = removeIncompatibleThemeLockedCards(cards, cardMaster, context);
   const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
+  const situationalRemoval = removeIncompatibleSituationalCards(cards, cardMaster, context);
   const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
@@ -417,6 +418,12 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "deck_policy",
       message: `対象ポケモンが不足しているサーチカードを除外しました: ${pokemonSearchRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (situationalRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `条件が厳しく汎用採用しにくいカードを除外しました: ${situationalRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
   if (aceSpecRemoval.removedCount > 0) {
@@ -572,6 +579,35 @@ function removeIncompatiblePokemonSearchCards(
   };
 }
 
+function removeIncompatibleSituationalCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const removedNames: string[] = [];
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || !isHighRiskSituationalSupport(masterCard) || contextMatchesTheme(context, masterCard.name || "")) {
+      continue;
+    }
+
+    removedNames.push(card.cardName || masterCard.name || card.cardId);
+    cards.splice(index, 1);
+  }
+  return {
+    removedCount: removedNames.length,
+    removedNames: removedNames.reverse(),
+  };
+}
+
+function isHighRiskSituationalSupport(card: StaticCardDetail) {
+  if (card.cardKind !== "trainer" || !String(card.subKind || "").includes("サポート")) return false;
+  const text = normalizeRuleText(getCardSearchableText(card));
+  return text.includes("このカードは、自分の手札がこのカード1枚だけのときにしか使えない") ||
+    (/ルールを持つポケモン.*のぞく/.test(text) && text.includes("ダメージ"));
+}
+
 function enforceAceSpecLimit(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
   const removedNames: string[] = [];
   let hasKeptAceSpec = false;
@@ -687,7 +723,7 @@ function isHandDisruptionCard(card: StaticCardDetail) {
   const text = normalizeRuleText(getCardSearchableText(card));
   const name = normalizeCardLimitName(card.name);
   if (disruptionHandRefreshCardNames.some((cardName) => normalizeCardLimitName(cardName) === name)) return true;
-  return /相手の手札|おたがいのプレイヤー.*手札.*山札|相手.*手札.*山札|手札干渉/.test(text);
+  return /相手の手札|相手プレイヤーの手札|おたがいのプレイヤー.*手札.*山札|相手.*手札を.*山札|相手.*手札.*引き直|手札干渉/.test(text);
 }
 
 function isThemeLockedCardCompatible(
@@ -1072,6 +1108,7 @@ function findAddablePolicyCard(
 ) {
   for (const name of candidateNames) {
     const card = cardsByName.get(normalizeCardLimitName(name));
+    if (card && isAceSpecCard(card, { cardName: card.name })) continue;
     if (card?.name && remainingCountForCardName(cards, { cardName: card.name }) > 0 && canAddCard(card)) return card;
   }
   return undefined;
