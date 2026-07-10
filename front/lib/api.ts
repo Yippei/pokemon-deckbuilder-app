@@ -72,6 +72,19 @@ type StaticCardMaster = {
   cards?: Record<string, StaticCardDetail>;
 };
 
+type CardRole =
+  | "pokemon_search"
+  | "ball_search"
+  | "evolution_support"
+  | "hand_refresh"
+  | "hand_disruption"
+  | "switch"
+  | "gust"
+  | "energy_search"
+  | "energy_acceleration"
+  | "recovery"
+  | "main_pokemon_only";
+
 const DeckCardSchema = z.object({
   cardId: z.string().min(1),
   cardName: z.string().optional(),
@@ -140,6 +153,7 @@ const selfPositiveHandRefreshCardNames = [
   "ピュール",
 ];
 const disruptionHandRefreshCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ", "ゴヨウ", "クラウン"];
+const genericSupportRolePriority: CardRole[] = ["switch", "gust", "recovery", "energy_search"];
 const basicEnergyByType: Record<string, string> = {
   grass: "基本草エネルギー",
   fire: "基本炎エネルギー",
@@ -597,6 +611,85 @@ function isAceSpecCard(masterCard: StaticCardDetail | undefined, card: Pick<Deck
   return /ACE\s*SPEC|エーススペック/i.test(text) || isAceSpecName(masterCard?.name || card.cardName);
 }
 
+function classifyCardRoles(card: StaticCardDetail): Set<CardRole> {
+  const roles = new Set<CardRole>();
+  if (card.cardKind !== "trainer") return roles;
+
+  const text = getCardSearchableText(card);
+  const normalizedText = normalizeRuleText(text);
+  const normalizedName = normalizeCardLimitName(card.name);
+
+  if (isPokemonSearchCard(card)) {
+    roles.add("pokemon_search");
+    if (/ボール|ポフィン|キャリー|アロマ/.test(card.name || "")) {
+      roles.add("ball_search");
+    }
+  }
+  if (
+    normalizedName === normalizeCardLimitName("ふしぎなアメ") ||
+    normalizedText.includes("進化") ||
+    normalizedText.includes("たねポケモンから進化")
+  ) {
+    roles.add("evolution_support");
+  }
+  if (isSelfPositiveHandRefreshCard(card)) {
+    roles.add("hand_refresh");
+  }
+  if (isHandDisruptionCard(card)) {
+    roles.add("hand_disruption");
+  }
+  if (/バトルポケモン.*ベンチポケモン.*入れ替|ベンチポケモン.*バトルポケモン.*入れ替/.test(normalizedText)) {
+    roles.add("switch");
+  }
+  if (/相手.*ベンチポケモン.*バトル場|相手.*ベンチ.*入れ替/.test(normalizedText)) {
+    roles.add("gust");
+  }
+  if (/自分の山札.*エネルギー.*手札|山札.*基本エネルギー.*手札/.test(normalizedText)) {
+    roles.add("energy_search");
+  }
+  if (/山札.*エネルギー.*つけ|トラッシュ.*エネルギー.*つけ|エネルギー.*加速/.test(normalizedText)) {
+    roles.add("energy_acceleration");
+  }
+  if (/トラッシュ.*(手札|山札|ベンチ)|回収/.test(normalizedText)) {
+    roles.add("recovery");
+  }
+  if (getRequiredPokemonGroups(card).length > 0) {
+    roles.add("main_pokemon_only");
+  }
+
+  return roles;
+}
+
+function cardHasRole(card: StaticCardDetail, role: CardRole) {
+  return classifyCardRoles(card).has(role);
+}
+
+function getCardSearchableText(card: StaticCardDetail) {
+  return [
+    card.name,
+    card.subKind,
+    card.stage,
+    card.ruleText,
+    ...(card.searchTokens || []),
+  ].filter(Boolean).join(" ");
+}
+
+function isSelfPositiveHandRefreshCard(card: StaticCardDetail) {
+  const text = normalizeRuleText(getCardSearchableText(card));
+  const name = normalizeCardLimitName(card.name);
+  if (selfPositiveHandRefreshCardNames.some((cardName) => normalizeCardLimitName(cardName) === name)) return true;
+  if (!/(引く|山札を引|カードを.*引)/.test(text)) return false;
+  if (/相手の手札|おたがいのプレイヤー.*手札/.test(text)) return false;
+  return /自分.*山札.*引|手札.*山札.*引|トラッシュ.*山札.*引|枚ぶん山札を引/.test(text);
+}
+
+function isHandDisruptionCard(card: StaticCardDetail) {
+  const text = normalizeRuleText(getCardSearchableText(card));
+  const name = normalizeCardLimitName(card.name);
+  if (disruptionHandRefreshCardNames.some((cardName) => normalizeCardLimitName(cardName) === name)) return true;
+  return /相手の手札|おたがいのプレイヤー.*手札.*山札|相手.*手札.*山札|手札干渉/.test(text);
+}
+
 function isThemeLockedCardCompatible(
   card: StaticCardDetail,
   deckCards: DeckCard[],
@@ -776,7 +869,7 @@ function applyDeckPolicyRules(
 } {
   const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster);
   const mainPokemonSupportAddedNames = addMainPokemonSupportCards(cards, cardsByName, cardMaster, context);
-  const handRefreshNames = getHandRefreshPolicyNames(context);
+  const handRefreshNames = getHandRefreshPolicyNames(context, cardMaster);
   const currentCount = countCardsByNames(cards, handRefreshNames.all);
   let remainingCount = Math.max(0, handRefreshTargetCount - currentCount);
   if (remainingCount === 0) {
@@ -828,11 +921,12 @@ function addMissingPokemonSearchKinds(
   cardMaster: Record<string, StaticCardDetail>
 ) {
   const addedNames: string[] = [];
+  const candidateNames = getPolicyCandidateNames(pokemonSearchSupportCardNames, cardMaster, "pokemon_search");
   while (countPokemonSearchCardKinds(cards, cardMaster) < minimumPokemonSearchCardKinds) {
     const existingSearchNames = getPokemonSearchCardNames(cards, cardMaster);
-    const candidate = findAddablePolicyCard(cards, cardsByName, pokemonSearchSupportCardNames, (card) => {
+    const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
       return !existingSearchNames.has(normalizeCardLimitName(card.name)) &&
-        isPokemonSearchCard(card) &&
+        cardHasRole(card, "pokemon_search") &&
         canPokemonSearchCardFitDeck(card, cards, cardMaster);
     });
     if (!candidate?.name) break;
@@ -883,9 +977,11 @@ function getMainPokemonSupportCandidateNames(cards: DeckCard[], cardMaster: Reco
     const masterCard = cardMaster[card.cardId];
     return masterCard?.cardKind === "pokemon" && pokemonMatchesStage(masterCard, "evolution");
   });
-  if (hasStage2) return [...evolutionSupportCardNames, ...pokemonSearchSupportCardNames];
-  if (hasEvolution) return evolutionSupportCardNames.filter((name) => name !== "ふしぎなアメ").concat(pokemonSearchSupportCardNames);
-  return pokemonSearchSupportCardNames;
+  const evolutionNames = getPolicyCandidateNames(evolutionSupportCardNames, cardMaster, "evolution_support");
+  const searchNames = getPolicyCandidateNames(pokemonSearchSupportCardNames, cardMaster, "pokemon_search");
+  if (hasStage2) return uniqueNames([...evolutionNames, ...searchNames]);
+  if (hasEvolution) return uniqueNames(evolutionNames.filter((name) => name !== "ふしぎなアメ").concat(searchNames));
+  return searchNames;
 }
 
 function canMainPokemonSupportCardFitDeck(
@@ -910,12 +1006,16 @@ function canRareCandyFitDeck(cards: DeckCard[], cardMaster: Record<string, Stati
   return hasBasic && hasStage2;
 }
 
-function getHandRefreshPolicyNames(context?: GenerateDeckContext) {
-  const disruption = isHandDisruptionTheme(context) ? disruptionHandRefreshCardNames : [];
+function getHandRefreshPolicyNames(context: GenerateDeckContext | undefined, cardMaster: Record<string, StaticCardDetail>) {
+  const selfPositive = getPolicyCandidateNames(selfPositiveHandRefreshCardNames, cardMaster, "hand_refresh")
+    .filter((name) => !disruptionHandRefreshCardNames.some((cardName) => normalizeCardLimitName(cardName) === normalizeCardLimitName(name)));
+  const disruption = isHandDisruptionTheme(context)
+    ? getPolicyCandidateNames(disruptionHandRefreshCardNames, cardMaster, "hand_disruption")
+    : [];
   return {
-    selfPositive: selfPositiveHandRefreshCardNames,
+    selfPositive,
     disruption,
-    all: [...selfPositiveHandRefreshCardNames, ...disruption],
+    all: uniqueNames([...selfPositive, ...disruption]),
   };
 }
 
@@ -977,6 +1077,29 @@ function findAddablePolicyCard(
   return undefined;
 }
 
+function getPolicyCandidateNames(
+  preferredNames: string[],
+  cardMaster: Record<string, StaticCardDetail>,
+  role: CardRole
+) {
+  const roleNames = Object.values(cardMaster)
+    .filter((card) => card.name && cardHasRole(card, role))
+    .map((card) => card.name as string);
+  return uniqueNames([...preferredNames, ...roleNames]);
+}
+
+function uniqueNames(names: string[]) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const name of names) {
+    const key = normalizeCardLimitName(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(name);
+  }
+  return unique;
+}
+
 function makeRoomForRequiredCard(cards: DeckCard[], requiredCount: number, protectedNames: string[]) {
   while (countDeckCards(cards) + requiredCount > targetDeckCardCount) {
     const removableIndex = findRemovableCardIndex(cards, protectedNames);
@@ -1021,6 +1144,25 @@ function fillDeckWithStaples(
       cardName: card.name,
       illustration: card.imageUrl,
       count: Math.min(wantedCount, targetDeckCardCount - countDeckCards(cards)),
+    });
+    filled += countDeckCards(cards) - before;
+  }
+
+  for (const role of genericSupportRolePriority) {
+    if (countDeckCards(cards) >= targetDeckCardCount) break;
+    const candidateNames = getPolicyCandidateNames([], cardMaster, role);
+    const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
+      if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
+      if (!isThemeLockedCardCompatible(card, cards, cardMaster, context)) return false;
+      return true;
+    });
+    if (!candidate?.name) continue;
+    const before = countDeckCards(cards);
+    addDeckCardWithLimits(cards, {
+      cardId: candidate.cardId,
+      cardName: candidate.name,
+      illustration: candidate.imageUrl,
+      count: 1,
     });
     filled += countDeckCards(cards) - before;
   }
