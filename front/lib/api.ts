@@ -488,6 +488,12 @@ async function normalizeGeneratedDeck(
       message: `進化ポケモンに必要な進化前を補いました: ${evolutionLineFix.addedNames.join("、")}`,
     });
   }
+  if (evolutionLineFix.missingNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `進化前を推定できなかったカードがあります。手動で進化ラインを確認してください: ${evolutionLineFix.missingNames.slice(0, 5).join("、")}`,
+    });
+  }
 
   const appliedPolicyRules = applyDeckPolicyRules(cards, cardsByName, cardMaster, context);
   if (appliedPolicyRules.handRefreshAddedCount > 0) {
@@ -1237,6 +1243,7 @@ function addMissingEvolutionLineCards(
   cardMaster: Record<string, StaticCardDetail>
 ) {
   const addedNames: string[] = [];
+  const missingNames: string[] = [];
   const evolutionCards = cards
     .map((card) => ({ deckCard: card, masterCard: cardMaster[card.cardId] }))
     .filter(({ masterCard }) => masterCard?.cardKind === "pokemon" && Number(masterCard.stageOrder || 0) > 0);
@@ -1244,6 +1251,9 @@ function addMissingEvolutionLineCards(
   for (const { deckCard, masterCard } of evolutionCards) {
     if (!masterCard) continue;
     const chain = inferEvolutionLine(masterCard, cardMaster);
+    if (chain.length < Number(masterCard.stageOrder || 0) && masterCard.name) {
+      missingNames.push(masterCard.name);
+    }
     const protectedLineNames = [masterCard.name || "", ...chain.map((card) => card.name || "")];
     for (const preEvolution of chain) {
       const wantedCount = getWantedPreEvolutionCount(masterCard, preEvolution, deckCard.count);
@@ -1268,17 +1278,24 @@ function addMissingEvolutionLineCards(
   return {
     addedCount: addedNames.length,
     addedNames: uniqueNames(addedNames),
+    missingNames: uniqueNames(missingNames),
   };
 }
 
-function inferEvolutionLine(target: StaticCardDetail, cardMaster: Record<string, StaticCardDetail>) {
+function inferEvolutionLine(
+  target: StaticCardDetail,
+  cardMaster: Record<string, StaticCardDetail>,
+  visited = new Set<string>()
+): StaticCardDetail[] {
   const stageOrder = Number(target.stageOrder || 0);
   const chain: StaticCardDetail[] = [];
   if (stageOrder <= 0) return chain;
+  if (visited.has(target.cardId)) return chain;
+  visited.add(target.cardId);
 
   let current = target;
   for (let desiredStage = stageOrder - 1; desiredStage >= 0; desiredStage -= 1) {
-    const previous = findPreviousEvolutionStage(current, desiredStage, cardMaster);
+    const previous = findPreviousEvolutionStage(current, desiredStage, cardMaster, visited);
     if (!previous) break;
     chain.unshift(previous);
     current = previous;
@@ -1289,24 +1306,96 @@ function inferEvolutionLine(target: StaticCardDetail, cardMaster: Record<string,
 function findPreviousEvolutionStage(
   target: StaticCardDetail,
   desiredStageOrder: number,
-  cardMaster: Record<string, StaticCardDetail>
-) {
+  cardMaster: Record<string, StaticCardDetail>,
+  visited: Set<string>
+): StaticCardDetail | undefined {
   const targetId = Number(target.cardId);
-  if (!Number.isFinite(targetId)) return undefined;
+  const explicitPrevious = findExplicitPreviousEvolution(target, desiredStageOrder, cardMaster);
+  if (explicitPrevious) return explicitPrevious;
+
+  const equivalentSource = findEquivalentEvolutionSource(target, cardMaster, visited);
+  if (equivalentSource) {
+    const previous = findPreviousEvolutionStage(equivalentSource, desiredStageOrder, cardMaster, visited);
+    if (previous) return previous;
+  }
 
   const candidates = Object.values(cardMaster)
     .filter((card) => {
       const cardId = Number(card.cardId);
-      if (!Number.isFinite(cardId) || cardId >= targetId) return false;
+      if (!Number.isFinite(targetId) || !Number.isFinite(cardId) || cardId >= targetId) return false;
       if (target.setName && card.setName !== target.setName) return false;
-      if (target.setCode && card.setCode !== target.setCode) return false;
       if (card.cardKind !== "pokemon") return false;
       if (Number(card.stageOrder || 0) !== desiredStageOrder) return false;
-      return targetId - cardId <= 12;
+      return targetId - cardId <= 24;
     })
-    .sort((a, b) => Number(b.cardId) - Number(a.cardId));
+    .sort((a, b) => scorePreviousEvolutionCandidate(a, target) - scorePreviousEvolutionCandidate(b, target));
 
   return candidates[0];
+}
+
+function findExplicitPreviousEvolution(
+  target: StaticCardDetail,
+  desiredStageOrder: number,
+  cardMaster: Record<string, StaticCardDetail>
+): StaticCardDetail | undefined {
+  const evolvesFrom = normalizeCardLimitName(target.evolvesFrom);
+  if (!evolvesFrom) return undefined;
+
+  return Object.values(cardMaster)
+    .filter((card) => {
+      if (card.cardKind !== "pokemon") return false;
+      if (Number(card.stageOrder || 0) !== desiredStageOrder) return false;
+      return normalizeCardLimitName(card.name) === evolvesFrom;
+    })
+    .sort((a, b) => scorePreviousEvolutionCandidate(a, target) - scorePreviousEvolutionCandidate(b, target))[0];
+}
+
+function findEquivalentEvolutionSource(
+  target: StaticCardDetail,
+  cardMaster: Record<string, StaticCardDetail>,
+  visited: Set<string>
+): StaticCardDetail | undefined {
+  const targetId = Number(target.cardId);
+  const normalizedName = normalizeCardLimitName(target.name);
+  if (!normalizedName || !Number.isFinite(targetId)) return undefined;
+
+  return Object.values(cardMaster)
+    .filter((card) => {
+      const cardId = Number(card.cardId);
+      if (!Number.isFinite(cardId) || cardId >= targetId || visited.has(card.cardId)) return false;
+      if (card.cardKind !== "pokemon") return false;
+      if (Number(card.stageOrder || 0) !== Number(target.stageOrder || 0)) return false;
+      return normalizeCardLimitName(card.name) === normalizedName;
+    })
+    .sort((a, b) => scoreEquivalentEvolutionSource(a, target) - scoreEquivalentEvolutionSource(b, target))[0];
+}
+
+function scoreEquivalentEvolutionSource(candidate: StaticCardDetail, target: StaticCardDetail) {
+  const candidateId = Number(candidate.cardId);
+  const targetId = Number(target.cardId);
+  let score = 0;
+  if (candidate.setName !== target.setName) score += 5000;
+  if (candidate.setCode !== target.setCode) score += 500;
+  score += Number.isFinite(candidateId) && Number.isFinite(targetId) ? Math.abs(targetId - candidateId) : 10000;
+  return score;
+}
+
+function scorePreviousEvolutionCandidate(candidate: StaticCardDetail, target: StaticCardDetail) {
+  const candidateId = Number(candidate.cardId);
+  const targetId = Number(target.cardId);
+  const distance = Number.isFinite(candidateId) && Number.isFinite(targetId) ? Math.abs(targetId - candidateId) : 10000;
+  let score = distance;
+
+  if (candidate.setName !== target.setName) score += 5000;
+  if (candidate.setCode !== target.setCode) score += 500;
+  if (!pokemonTypesOverlap(candidate, target)) score += 100;
+
+  return score;
+}
+
+function pokemonTypesOverlap(a: StaticCardDetail, b: StaticCardDetail) {
+  if (!a.types?.length || !b.types?.length) return true;
+  return a.types.some((type) => b.types?.includes(type));
 }
 
 function getWantedPreEvolutionCount(
