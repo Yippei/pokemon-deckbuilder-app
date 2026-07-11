@@ -119,10 +119,6 @@ export default function NewDeckPage() {
       });
       setCards(generated.cards);
       setGenerateWarnings((generated.warnings || []).map((warning) => warning.message));
-      if (!name.trim()) {
-        const titleParts = [selectedTypeLabel, selectedPlanLabel, pokemonName.trim(), theme.trim()].filter(Boolean);
-        setName(`${titleParts.join(" ").slice(0, 40)}デッキ`);
-      }
     } catch (e) {
       setGenerateError(e instanceof Error ? e.message : "生成に失敗しました");
     } finally {
