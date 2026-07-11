@@ -129,6 +129,7 @@ const stapleCards = [
   { name: "なかよしポフィン", targetCount: 2 },
 ];
 const minimumPokemonSearchCardKinds = 2;
+const pokemonSearchGoodsTargetCount = 4;
 const pokemonSearchSupportCardNames = [
   "ハイパーボール",
   "なかよしポフィン",
@@ -498,7 +499,7 @@ async function normalizeGeneratedDeck(
   if (appliedPolicyRules.pokemonSearchAddedCount > 0) {
     warnings.push({
       type: "deck_policy",
-      message: `デッキ方針により、ポケモンサーチを${minimumPokemonSearchCardKinds}種類以上に補いました: ${appliedPolicyRules.pokemonSearchAddedNames.join("、")}`,
+      message: `デッキ方針により、ポケモンサーチを${minimumPokemonSearchCardKinds}種類以上、グッズは${pokemonSearchGoodsTargetCount}枚目安で補いました: ${appliedPolicyRules.pokemonSearchAddedNames.join("、")}`,
     });
   }
   if (appliedPolicyRules.mainPokemonSupportAddedCount > 0) {
@@ -1409,7 +1410,46 @@ function addMissingPokemonSearchKinds(
     if (!candidate?.name) break;
     if (addSinglePolicyCard(cards, candidate, addedNames) === 0) break;
   }
+  addPokemonSearchGoodsToTargetCount(cards, cardMaster, addedNames);
   return addedNames;
+}
+
+function addPokemonSearchGoodsToTargetCount(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  addedNames: string[]
+) {
+  const candidates = cards
+    .map((card) => cardMaster[card.cardId])
+    .filter((card): card is StaticCardDetail => {
+      if (!card?.name || !isPokemonSearchGoodsCard(card)) return false;
+      if (isAceSpecCard(card, { cardName: card.name })) return false;
+      return canPokemonSearchCardFitDeck(card, cards, cardMaster);
+    })
+    .sort(comparePokemonSearchGoodsPriority);
+
+  for (const candidate of candidates) {
+    while (countCardsWithSameName(cards, { cardName: candidate.name }) < pokemonSearchGoodsTargetCount) {
+      if (addSinglePolicyCard(cards, candidate, addedNames) === 0) break;
+    }
+  }
+}
+
+function isPokemonSearchGoodsCard(card: StaticCardDetail) {
+  return card.cardKind === "trainer" &&
+    String(card.subKind || "").includes("グッズ") &&
+    isPokemonSearchCard(card);
+}
+
+function comparePokemonSearchGoodsPriority(a: StaticCardDetail, b: StaticCardDetail) {
+  const aBall = cardHasRole(a, "ball_search") ? 0 : 1;
+  const bBall = cardHasRole(b, "ball_search") ? 0 : 1;
+  if (aBall !== bBall) return aBall - bBall;
+
+  const cardIdDiff = Number(b.cardId) - Number(a.cardId);
+  if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
+
+  return String(b.cardId).localeCompare(String(a.cardId));
 }
 
 function countPokemonSearchCardKinds(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
