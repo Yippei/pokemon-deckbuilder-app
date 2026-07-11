@@ -182,6 +182,15 @@ const basicEnergyByType: Record<string, string> = {
   fighting: "基本闘エネルギー",
   dark: "基本悪エネルギー",
 };
+const pokemonTypeByContextType: Record<string, string> = {
+  grass: "草",
+  fire: "炎",
+  water: "水",
+  electric: "雷",
+  psychic: "超",
+  fighting: "闘",
+  dark: "悪",
+};
 let cardMasterPromise: Promise<Record<string, StaticCardDetail>> | null = null;
 
 export function isBasicEnergyName(name?: string): boolean {
@@ -412,6 +421,7 @@ async function normalizeGeneratedDeck(
   const themeLockedRemoval = removeIncompatibleThemeLockedCards(cards, cardMaster, context);
   const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
   const situationalRemoval = removeIncompatibleSituationalCards(cards, cardMaster, context);
+  const offTypePokemonRemoval = removeIncompatibleOffTypePokemon(cards, cardMaster, context);
   const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
@@ -445,6 +455,12 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "deck_policy",
       message: `条件が厳しく汎用採用しにくいカードを除外しました: ${situationalRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (offTypePokemonRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `選択タイプと噛み合わないポケモンを除外しました: ${offTypePokemonRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
   if (aceSpecRemoval.removedCount > 0) {
@@ -641,6 +657,34 @@ function removeIncompatibleSituationalCards(
     removedNames.push(card.cardName || masterCard.name || card.cardId);
     cards.splice(index, 1);
   }
+  return {
+    removedCount: removedNames.length,
+    removedNames: removedNames.reverse(),
+  };
+}
+
+function removeIncompatibleOffTypePokemon(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const removedNames: string[] = [];
+  if (!getSelectedPokemonType(context)) {
+    return {
+      removedCount: 0,
+      removedNames,
+    };
+  }
+
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || isPokemonTypeCompatibleWithDeck(masterCard, cards, cardMaster, context)) continue;
+
+    removedNames.push(card.cardName || masterCard.name || card.cardId);
+    cards.splice(index, 1);
+  }
+
   return {
     removedCount: removedNames.length,
     removedNames: removedNames.reverse(),
@@ -978,6 +1022,51 @@ function pokemonMatchesStage(pokemon: StaticCardDetail, stage: NonNullable<Pokem
 function isRuleBoxPokemon(pokemon: StaticCardDetail) {
   const text = `${pokemon.name || ""} ${pokemon.ruleText || ""}`;
   return /ポケモンex|メガシンカex|VSTAR|VMAX|V-UNION|ポケモンV/.test(text);
+}
+
+function getSelectedPokemonType(context?: GenerateDeckContext) {
+  return context?.selectedType ? pokemonTypeByContextType[context.selectedType] : undefined;
+}
+
+function pokemonMatchesSelectedType(pokemon: StaticCardDetail, context?: GenerateDeckContext) {
+  const selectedType = getSelectedPokemonType(context);
+  if (!selectedType) return true;
+  return (pokemon.types || []).includes(selectedType);
+}
+
+function isPokemonTypeCompatibleWithDeck(
+  pokemon: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (pokemon.cardKind !== "pokemon") return true;
+  if (!getSelectedPokemonType(context)) return true;
+  if (pokemonMatchesSelectedType(pokemon, context)) return true;
+  if (contextMatchesTheme(context, pokemon.name || "")) return true;
+  return isAllowedOffTypeSystemPokemon(pokemon, cards, cardMaster, context);
+}
+
+function isAllowedOffTypeSystemPokemon(
+  pokemon: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (!isSystemPokemonCandidate(pokemon)) return false;
+  if (isRuleBoxPokemon(pokemon)) return false;
+  if (hasConflictingDedicatedAbility(pokemon, cards, cardMaster, context)) return false;
+
+  const roles = classifyAbilityRoles(pokemon);
+  if (roles.has("ability_energy") || roles.has("ability_damage_boost") || roles.has("ability_protection") || roles.has("ability_lock")) {
+    return false;
+  }
+
+  return roles.has("ability_draw") ||
+    roles.has("ability_search") ||
+    roles.has("ability_stadium") ||
+    roles.has("ability_recovery") ||
+    roles.has("ability_switch");
 }
 
 function addRequestedContextCards(
@@ -1392,7 +1481,7 @@ function addSystemPokemonSupportCards(
 
   const preferredRoles = getPreferredAbilityRoles(cards, cardMaster, context);
   const candidate = Object.values(cardMaster)
-    .sort((a, b) => Number(b.cardId) - Number(a.cardId))
+    .sort((a, b) => compareSystemPokemonCandidatePriority(a, b, context))
     .find((card) => {
       if (!canAddSystemPokemon(card, cards, cardMaster, context)) return false;
       const roles = classifyAbilityRoles(card);
@@ -1421,6 +1510,7 @@ function canAddSystemPokemon(
   if (!card.name || countCardsWithSameName(cards, { cardName: card.name }) > 0) return false;
   if (contextMatchesTheme(context, card.name)) return true;
   if (hasConflictingDedicatedAbility(card, cards, cardMaster, context)) return false;
+  if (!isPokemonTypeCompatibleWithDeck(card, cards, cardMaster, context)) return false;
   return true;
 }
 
@@ -1435,6 +1525,21 @@ function isSystemPokemonCandidate(card: StaticCardDetail) {
     roles.has("ability_stadium") ||
     roles.has("ability_recovery") ||
     roles.has("ability_switch");
+}
+
+function compareSystemPokemonCandidatePriority(
+  a: StaticCardDetail,
+  b: StaticCardDetail,
+  context?: GenerateDeckContext
+) {
+  const aSameType = pokemonMatchesSelectedType(a, context) ? 0 : 1;
+  const bSameType = pokemonMatchesSelectedType(b, context) ? 0 : 1;
+  if (aSameType !== bSameType) return aSameType - bSameType;
+
+  const cardIdDiff = Number(b.cardId) - Number(a.cardId);
+  if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
+
+  return String(b.cardId).localeCompare(String(a.cardId));
 }
 
 function hasConflictingDedicatedAbility(
