@@ -192,6 +192,16 @@ const pokemonTypeByContextType: Record<string, string> = {
   fighting: "闘",
   dark: "悪",
 };
+const knownPreEvolutionByFamilyName: Record<string, string> = {
+  シャワーズ: "イーブイ",
+  サンダース: "イーブイ",
+  ブースター: "イーブイ",
+  エーフィ: "イーブイ",
+  ブラッキー: "イーブイ",
+  リーフィア: "イーブイ",
+  グレイシア: "イーブイ",
+  ニンフィア: "イーブイ",
+};
 let cardMasterPromise: Promise<Record<string, StaticCardDetail>> | null = null;
 
 export function isBasicEnergyName(name?: string): boolean {
@@ -1313,6 +1323,9 @@ function findPreviousEvolutionStage(
   const explicitPrevious = findExplicitPreviousEvolution(target, desiredStageOrder, cardMaster);
   if (explicitPrevious) return explicitPrevious;
 
+  const knownPrevious = findKnownPreviousEvolution(target, desiredStageOrder, cardMaster);
+  if (knownPrevious) return knownPrevious;
+
   const equivalentSource = findEquivalentEvolutionSource(target, cardMaster, visited);
   if (equivalentSource) {
     const previous = findPreviousEvolutionStage(equivalentSource, desiredStageOrder, cardMaster, visited);
@@ -1346,6 +1359,27 @@ function findExplicitPreviousEvolution(
       if (card.cardKind !== "pokemon") return false;
       if (Number(card.stageOrder || 0) !== desiredStageOrder) return false;
       return normalizeCardLimitName(card.name) === evolvesFrom;
+    })
+    .sort((a, b) => scorePreviousEvolutionCandidate(a, target) - scorePreviousEvolutionCandidate(b, target))[0];
+}
+
+function findKnownPreviousEvolution(
+  target: StaticCardDetail,
+  desiredStageOrder: number,
+  cardMaster: Record<string, StaticCardDetail>
+): StaticCardDetail | undefined {
+  if (desiredStageOrder !== 0) return undefined;
+
+  const familyName = normalizeFamilyName(target.familyId || target.name);
+  const preEvolutionName = knownPreEvolutionByFamilyName[familyName];
+  if (!preEvolutionName) return undefined;
+
+  const normalizedPreEvolutionName = normalizeCardLimitName(preEvolutionName);
+  return Object.values(cardMaster)
+    .filter((card) => {
+      if (card.cardKind !== "pokemon") return false;
+      if (Number(card.stageOrder || 0) !== desiredStageOrder) return false;
+      return normalizeCardLimitName(card.name) === normalizedPreEvolutionName;
     })
     .sort((a, b) => scorePreviousEvolutionCandidate(a, target) - scorePreviousEvolutionCandidate(b, target))[0];
 }
@@ -1396,6 +1430,12 @@ function scorePreviousEvolutionCandidate(candidate: StaticCardDetail, target: St
 function pokemonTypesOverlap(a: StaticCardDetail, b: StaticCardDetail) {
   if (!a.types?.length || !b.types?.length) return true;
   return a.types.some((type) => b.types?.includes(type));
+}
+
+function normalizeFamilyName(name?: string) {
+  return normalizeCardLimitName(name)
+    .replace(/^メガ/, "")
+    .replace(/ex$/, "");
 }
 
 function getWantedPreEvolutionCount(
