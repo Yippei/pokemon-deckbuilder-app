@@ -828,9 +828,17 @@ body {
 
 .home-command-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
   margin-top: 28px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home-command-actions::-webkit-scrollbar {
+  display: none;
 }
 
 .home-primary-action,
@@ -3604,7 +3612,7 @@ body {
 
 @media (min-width: 1024px) {
   .home-command-hero {
-    grid-template-columns: minmax(0, 1fr) minmax(420px, 0.78fr);
+    grid-template-columns: minmax(640px, 1fr) minmax(420px, 0.72fr);
   }
 
   .home-command-hero__visual {
@@ -3672,18 +3680,6 @@ body {
 
   .home-news-panel__topline a {
     max-width: 100%;
-  }
-
-  .home-command-actions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .home-command-actions::-webkit-scrollbar {
-    display: none;
   }
 
   .home-command-stats {
