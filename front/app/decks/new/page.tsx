@@ -109,7 +109,6 @@ export default function NewDeckPage() {
     try {
       const generated = await generateDeck({
         theme: generationParts.join(" / "),
-        existingDeck: cards.length > 0 ? cards : undefined,
         generationContext: {
           selectedType,
           selectedPlan,
