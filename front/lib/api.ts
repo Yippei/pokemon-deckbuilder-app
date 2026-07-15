@@ -545,6 +545,19 @@ async function normalizeGeneratedDeck(
       message: `補正後に外れた指定カードを戻しました: ${finalRequestedCardFix.addedNames.join("、")}`,
     });
   }
+  const finalEvolutionLineFix = addMissingEvolutionLineCards(cards, cardMaster);
+  if (finalEvolutionLineFix.addedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `最終補正で進化ポケモンに必要なたね・進化前を戻しました: ${finalEvolutionLineFix.addedNames.join("、")}`,
+    });
+  }
+  if (finalEvolutionLineFix.missingNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `最終補正後も進化前を推定できないカードがあります。手動で進化ラインを確認してください: ${finalEvolutionLineFix.missingNames.slice(0, 5).join("、")}`,
+    });
+  }
   const total = countDeckCards(cards);
   if (total !== targetDeckCardCount) {
     warnings.push({
@@ -1260,8 +1273,8 @@ function addMissingEvolutionLineCards(
 
   for (const { deckCard, masterCard } of evolutionCards) {
     if (!masterCard) continue;
-    const chain = inferEvolutionLine(masterCard, cardMaster);
-    if (chain.length < Number(masterCard.stageOrder || 0) && masterCard.name) {
+    const chain = ensureBasicEvolutionInChain(inferEvolutionLine(masterCard, cardMaster), masterCard, cardMaster);
+    if (!chain.some((card) => Number(card.stageOrder || 0) === 0) && masterCard.name) {
       missingNames.push(masterCard.name);
     }
     const protectedLineNames = [masterCard.name || "", ...chain.map((card) => card.name || "")];
@@ -1290,6 +1303,19 @@ function addMissingEvolutionLineCards(
     addedNames: uniqueNames(addedNames),
     missingNames: uniqueNames(missingNames),
   };
+}
+
+function ensureBasicEvolutionInChain(
+  chain: StaticCardDetail[],
+  target: StaticCardDetail,
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  if (Number(target.stageOrder || 0) <= 0) return chain;
+  if (chain.some((card) => Number(card.stageOrder || 0) === 0)) return chain;
+
+  const basic = findRequiredBasicEvolution(target, cardMaster);
+  if (!basic) return chain;
+  return [basic, ...chain.filter((card) => normalizeCardLimitName(card.name) !== normalizeCardLimitName(basic.name))];
 }
 
 function inferEvolutionLine(
@@ -1384,6 +1410,60 @@ function findKnownPreviousEvolution(
     .sort((a, b) => scorePreviousEvolutionCandidate(a, target) - scorePreviousEvolutionCandidate(b, target))[0];
 }
 
+function findRequiredBasicEvolution(
+  target: StaticCardDetail,
+  cardMaster: Record<string, StaticCardDetail>
+): StaticCardDetail | undefined {
+  const explicitBasic = findExplicitBasicEvolution(target, cardMaster);
+  if (explicitBasic) return explicitBasic;
+
+  const knownBasic = findKnownPreviousEvolution(target, 0, cardMaster);
+  if (knownBasic) return knownBasic;
+
+  const familyBasic = findFamilyBasicEvolution(target, cardMaster);
+  if (familyBasic) return familyBasic;
+
+  const targetId = Number(target.cardId);
+  const candidates = Object.values(cardMaster)
+    .filter((card) => {
+      const cardId = Number(card.cardId);
+      if (!Number.isFinite(targetId) || !Number.isFinite(cardId) || cardId >= targetId) return false;
+      if (card.cardKind !== "pokemon") return false;
+      if (Number(card.stageOrder || 0) !== 0) return false;
+      if (target.setName && card.setName !== target.setName) return false;
+      return targetId - cardId <= 36;
+    })
+    .sort((a, b) => scoreBasicEvolutionCandidate(a, target) - scoreBasicEvolutionCandidate(b, target));
+
+  return candidates[0];
+}
+
+function findExplicitBasicEvolution(
+  target: StaticCardDetail,
+  cardMaster: Record<string, StaticCardDetail>
+): StaticCardDetail | undefined {
+  const directPrevious = findExplicitPreviousEvolution(target, Math.max(0, Number(target.stageOrder || 0) - 1), cardMaster);
+  if (!directPrevious) return undefined;
+  if (Number(directPrevious.stageOrder || 0) === 0) return directPrevious;
+  return findRequiredBasicEvolution(directPrevious, cardMaster);
+}
+
+function findFamilyBasicEvolution(
+  target: StaticCardDetail,
+  cardMaster: Record<string, StaticCardDetail>
+): StaticCardDetail | undefined {
+  const familyName = normalizeFamilyName(target.familyId || target.name);
+  if (!familyName) return undefined;
+
+  return Object.values(cardMaster)
+    .filter((card) => {
+      if (card.cardKind !== "pokemon") return false;
+      if (Number(card.stageOrder || 0) !== 0) return false;
+      return normalizeFamilyName(card.familyId || card.name) === familyName;
+    })
+    .sort((a, b) => scoreBasicEvolutionCandidate(a, target) - scoreBasicEvolutionCandidate(b, target))[0];
+}
+
 function findEquivalentEvolutionSource(
   target: StaticCardDetail,
   cardMaster: Record<string, StaticCardDetail>,
@@ -1424,6 +1504,14 @@ function scorePreviousEvolutionCandidate(candidate: StaticCardDetail, target: St
   if (candidate.setCode !== target.setCode) score += 500;
   if (!pokemonTypesOverlap(candidate, target)) score += 100;
 
+  return score;
+}
+
+function scoreBasicEvolutionCandidate(candidate: StaticCardDetail, target: StaticCardDetail) {
+  let score = scorePreviousEvolutionCandidate(candidate, target);
+  const knownBasicName = knownPreEvolutionByFamilyName[normalizeFamilyName(target.familyId || target.name)];
+  if (knownBasicName && normalizeCardLimitName(candidate.name) === normalizeCardLimitName(knownBasicName)) score -= 10000;
+  if (candidate.stageCategory !== "basic") score += 200;
   return score;
 }
 
