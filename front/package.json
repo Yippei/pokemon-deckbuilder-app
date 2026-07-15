@@ -7,6 +7,7 @@
     "build": "next build",
     "build:aws": "next build --webpack",
     "deploy:aws": "bash ./scripts/deploy-aws.sh",
+    "news:update": "node ./scripts/update-pokemon-card-news.mjs",
     "start": "next start",
     "lint": "eslint"
   },

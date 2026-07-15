@@ -1,0 +1,37 @@
+name: Update Pokemon Card News
+
+on:
+  schedule:
+    - cron: "10 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Update official news JSON
+        run: node front/scripts/update-pokemon-card-news.mjs
+
+      - name: Commit news update
+        run: |
+          if git diff --quiet -- front/public/pokemon-card-news.json; then
+            echo "No news changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add front/public/pokemon-card-news.json
+          git commit -m "Update Pokemon Card official news"
+          git push
