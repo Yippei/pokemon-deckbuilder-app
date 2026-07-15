@@ -856,6 +856,7 @@ body {
   border-radius: 16px;
   padding: 0 18px;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .home-primary-action {
