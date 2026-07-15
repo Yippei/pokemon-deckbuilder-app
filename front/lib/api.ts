@@ -1110,19 +1110,22 @@ function addRequestedContextCards(
 
   for (const requested of requestedCards) {
     if (!requested.name) continue;
-    if (countCardsWithSameName(cards, { cardName: requested.name }) > 0) continue;
+    const targetCount = getRequestedContextCardTargetCount(requested, context);
+    const currentCount = countCardsWithSameName(cards, { cardName: requested.name });
+    if (currentCount >= targetCount) continue;
 
     if (isAceSpecCard(requested, { cardName: requested.name })) {
       removeOtherAceSpecCards(cards, cardMaster, requested.name);
     }
 
-    makeRoomForRequiredCard(cards, 1, protectedNames);
+    const addCount = Math.max(0, targetCount - currentCount);
+    makeRoomForRequiredCard(cards, addCount, protectedNames);
     const before = countCardsWithSameName(cards, { cardName: requested.name });
     addDeckCardWithLimits(cards, {
       cardId: requested.cardId,
       cardName: requested.name,
       illustration: requested.imageUrl,
-      count: 1,
+      count: addCount,
     });
     if (countCardsWithSameName(cards, { cardName: requested.name }) > before) {
       addedNames.push(requested.name);
@@ -1133,6 +1136,13 @@ function addRequestedContextCards(
     addedCount: addedNames.length,
     addedNames: uniqueNames(addedNames),
   };
+}
+
+function getRequestedContextCardTargetCount(card: StaticCardDetail, context?: GenerateDeckContext) {
+  if (isExactMainPokemon(card, context)) {
+    return Math.min(3, maxCountForCard({ cardName: card.name }));
+  }
+  return 1;
 }
 
 function getRequestedContextCards(
@@ -1154,10 +1164,22 @@ function getRequestedContextCards(
   };
 
   const cards = Object.values(cardMaster);
+  const exactMainPokemon = findExactMainPokemonCard(cards, context);
+  addRequestedCard(exactMainPokemon);
+
+  const normalizedMainPokemon = normalizeCardLimitName(context?.pokemonName);
   const exactMatchesByName = new Map<string, StaticCardDetail>();
   for (const card of cards) {
     const normalizedName = normalizeCardLimitName(card.name);
     if (normalizedName.length < 3 || !normalizedText.includes(normalizedName)) continue;
+    if (
+      exactMainPokemon &&
+      normalizedMainPokemon &&
+      normalizedName !== normalizedMainPokemon &&
+      normalizedMainPokemon.includes(normalizedName)
+    ) {
+      continue;
+    }
     const current = exactMatchesByName.get(normalizedName);
     if (!current || compareRequestedCardPriority(card, current) < 0) {
       exactMatchesByName.set(normalizedName, card);
@@ -1179,6 +1201,23 @@ function getRequestedContextCards(
   }
 
   return requestedCards.slice(0, 6);
+}
+
+function findExactMainPokemonCard(cards: StaticCardDetail[], context?: GenerateDeckContext) {
+  const normalizedMainPokemon = normalizeCardLimitName(context?.pokemonName);
+  if (!normalizedMainPokemon) return undefined;
+
+  return cards
+    .filter((card) => {
+      if (card.cardKind !== "pokemon") return false;
+      return normalizeCardLimitName(card.name) === normalizedMainPokemon;
+    })
+    .sort(compareRequestedCardPriority)[0];
+}
+
+function isExactMainPokemon(card: StaticCardDetail, context?: GenerateDeckContext) {
+  const normalizedMainPokemon = normalizeCardLimitName(context?.pokemonName);
+  return Boolean(normalizedMainPokemon && card.cardKind === "pokemon" && normalizeCardLimitName(card.name) === normalizedMainPokemon);
 }
 
 function getRequestedContextTerms(contextText: string) {
