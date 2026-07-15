@@ -1273,6 +1273,10 @@ body {
   margin-bottom: 18px;
 }
 
+.home-command-panel--gym-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .home-command-panel__main,
 .home-command-panel__side,
 .home-tips-band,
@@ -3658,6 +3662,10 @@ body {
   .home-command-panel {
     grid-template-columns: minmax(0, 1fr) minmax(360px, 0.48fr);
     align-items: stretch;
+  }
+
+  .home-command-panel--gym-only {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .home-lab-grid {

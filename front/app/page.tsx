@@ -338,6 +338,9 @@ export default function Home() {
               <Link href="/ai-battle-room?mode=solo" className="home-secondary-action">
                 一人回しを始める
               </Link>
+              <Link href="/ai-battle-room?mode=ai" className="home-secondary-action">
+                AI対戦を始める
+              </Link>
               <a href="#deck-list" className="home-ghost-action">
                 デッキ一覧
               </a>
@@ -406,24 +409,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="home-command-panel">
-          <div className="home-command-panel__main">
-            <div className="home-section-heading">
-              <p>QUICK ACCESS</p>
-              <h2>プレイラボ</h2>
-            </div>
-            <div className="home-lab-grid">
-              <Link href="/ai-battle-room?mode=ai" className="home-lab-tile home-lab-tile--ai">
-                <span>AI対戦</span>
-                <strong>対戦を始める</strong>
-              </Link>
-              <Link href="/ai-battle-room?mode=solo" className="home-lab-tile home-lab-tile--solo">
-                <span>一人回し</span>
-                <strong>盤面を確認する</strong>
-              </Link>
-            </div>
-          </div>
-
+        <section className="home-command-panel home-command-panel--gym-only">
           <aside className="home-gym-panel home-command-panel__side" id="card-gym-finder">
             <div className="home-gym-panel__header">
               <div className="home-gym-panel__ball" aria-hidden="true">
