@@ -41,16 +41,6 @@ const typeMarks = [
   { type: "fairy", size: "56px", rotate: "20deg", top: "61%", left: "48%", opacity: 0.13 },
 ];
 
-const starterRules = [
-  "カードを大切に扱う",
-  "シャッフルはしっかり行なってから相手にカットしてもらう",
-  "対戦相手へのリスペクトを忘れない",
-  "ワザやカードの効果をしっかり宣言する",
-  "カードの効果がわからないときはジャッジもしくはQ&Aを確認",
-  "ダメージ計算を正確に行う",
-  "楽しむ心を忘れない！！",
-];
-
 type CardGym = {
   id: string;
   name: string;
@@ -131,7 +121,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [selectedType, setSelectedType] = useState(getInitialSelectedType);
-  const [playTipsOpen, setPlayTipsOpen] = useState(false);
   const [deletingDeckId, setDeletingDeckId] = useState<string | null>(null);
   const [cardGyms, setCardGyms] = useState<CardGym[]>([]);
   const [gymMasterLoading, setGymMasterLoading] = useState(false);
@@ -468,36 +457,6 @@ export default function Home() {
               )}
             </div>
           </aside>
-        </section>
-
-        <section className="home-tips-band">
-          <div className="home-section-heading">
-            <p>PLAY STANDARD</p>
-            <h2>プレイワンポイント</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => setPlayTipsOpen((open) => !open)}
-            className="home-tip-toggle"
-            aria-expanded={playTipsOpen}
-            aria-controls="play-tips-panel"
-            aria-label={playTipsOpen ? "プレイワンポイントを閉じる" : "プレイワンポイントを開く"}
-          >
-            {playTipsOpen ? "閉じる" : "開く"}
-          </button>
-          <div
-            id="play-tips-panel"
-            className={`home-tips-band__body ${playTipsOpen ? "home-tips-band__body--open" : ""}`}
-            aria-hidden={!playTipsOpen}
-          >
-            <ul>
-              {starterRules.map((rule) => (
-                <li key={rule}>{rule}</li>
-              ))}
-              <li>たねポケモンを呼ぶカードは最低8枚入れる</li>
-              <li>最後まで思考を諦めず、突破口を見落とさない</li>
-            </ul>
-          </div>
         </section>
 
         <div className="home-type-rail" aria-label="タイプ別デッキ一覧">

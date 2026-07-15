@@ -837,8 +837,7 @@ body {
 .home-secondary-action,
 .home-ghost-action,
 .home-mini-action,
-.home-row-action,
-.home-tip-toggle {
+.home-row-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -881,8 +880,7 @@ body {
 .home-secondary-action:hover,
 .home-ghost-action:hover,
 .home-mini-action:hover,
-.home-row-action:hover,
-.home-tip-toggle:hover {
+.home-row-action:hover {
   transform: translateY(-2px);
 }
 
@@ -1280,7 +1278,6 @@ body {
 
 .home-command-panel__main,
 .home-command-panel__side,
-.home-tips-band,
 .home-deck-section {
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(255, 255, 255, 0.74);
@@ -1289,7 +1286,6 @@ body {
 }
 
 .home-command-panel__main,
-.home-tips-band,
 .home-deck-section {
   border-radius: 26px;
   padding: 18px;
@@ -1388,55 +1384,6 @@ body {
   border-color: #0f172a;
   background: #0f172a;
   color: #ffffff;
-}
-
-.home-tips-band {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.home-tip-toggle {
-  min-height: 40px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 12px;
-  background: #ffffff;
-  padding: 0 14px;
-  color: #0f172a;
-  font-size: 12px;
-}
-
-.home-tips-band__body {
-  grid-column: 1 / -1;
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-height 260ms ease, opacity 220ms ease;
-}
-
-.home-tips-band__body--open {
-  max-height: 460px;
-  opacity: 1;
-}
-
-.home-tips-band__body ul {
-  display: grid;
-  gap: 8px;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.home-tips-band__body li {
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 14px;
-  background: rgba(248, 250, 252, 0.82);
-  padding: 10px 12px;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .home-type-rail {
@@ -3673,10 +3620,6 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-tips-band__body ul {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .home-hero__grid {
     grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
     align-items: stretch;
@@ -3743,18 +3686,9 @@ body {
   }
 
   .home-command-panel__main,
-  .home-tips-band,
   .home-deck-section {
     border-radius: 22px;
     padding: 14px;
-  }
-
-  .home-tips-band {
-    grid-template-columns: 1fr;
-  }
-
-  .home-tip-toggle {
-    width: 100%;
   }
 
   .home-deck-section__header {
