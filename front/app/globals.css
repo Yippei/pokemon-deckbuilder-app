@@ -856,6 +856,10 @@ body {
   padding: 0 18px;
   font-size: 14px;
   white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 
 .home-primary-action {
@@ -3670,7 +3674,18 @@ body {
     max-width: 100%;
   }
 
-  .home-command-actions,
+  .home-command-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .home-command-actions::-webkit-scrollbar {
+    display: none;
+  }
+
   .home-command-stats {
     grid-template-columns: 1fr;
   }
@@ -3678,7 +3693,7 @@ body {
   .home-primary-action,
   .home-secondary-action,
   .home-ghost-action {
-    width: 100%;
+    min-width: max-content;
   }
 
   .home-command-stats {
