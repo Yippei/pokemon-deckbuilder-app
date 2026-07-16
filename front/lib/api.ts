@@ -587,6 +587,20 @@ async function normalizeGeneratedDeck(
     });
   }
 
+  const countAdjustment = adjustCardCountsByEffect(cards, cardMaster, context);
+  if (countAdjustment.increasedNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `カード効果に合わせて採用枚数を増やしました: ${countAdjustment.increasedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (countAdjustment.reducedNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `条件が重いカードや補助カードの採用枚数を調整しました: ${countAdjustment.reducedNames.slice(0, 5).join("、")}`,
+    });
+  }
+
   const filledCardCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
   if (filledCardCount > 0) {
     warnings.push({
@@ -1792,6 +1806,122 @@ function countCardsByNames(cards: DeckCard[], names: string[]) {
   const normalizedNames = new Set(names.map(normalizeCardLimitName));
   return cards.reduce((sum, card) => {
     return normalizedNames.has(normalizeCardLimitName(card.cardName)) ? sum + card.count : sum;
+  }, 0);
+}
+
+function adjustCardCountsByEffect(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const increasedNames: string[] = [];
+  const reducedNames: string[] = [];
+  const requestedTargets = getRequestedContextCards(cardMaster, context)
+    .filter((card) => card.name)
+    .map((card) => [normalizeCardLimitName(card.name), getRequestedContextCardTargetCount(card, context)] as const);
+  const requestedTargetByName = new Map(requestedTargets);
+
+  for (const card of cards) {
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard?.name) continue;
+    const targetCount = getEffectBasedTargetCount(masterCard, cards, cardMaster, context);
+    if (targetCount === undefined) continue;
+
+    const requestedTarget = requestedTargetByName.get(normalizeCardLimitName(masterCard.name)) || 0;
+    const protectedTarget = Math.max(targetCount, requestedTarget);
+    if (card.count > protectedTarget) {
+      card.count = protectedTarget;
+      reducedNames.push(masterCard.name);
+    }
+  }
+
+  const candidates = [...cards]
+    .map((card) => cardMaster[card.cardId])
+    .filter((card): card is StaticCardDetail => Boolean(card?.name))
+    .sort(compareEffectCountCandidatePriority);
+
+  for (const candidate of candidates) {
+    const targetCount = getEffectBasedTargetCount(candidate, cards, cardMaster, context);
+    if (targetCount === undefined || targetCount <= 0) continue;
+
+    const requestedTarget = requestedTargetByName.get(normalizeCardLimitName(candidate.name)) || 0;
+    const protectedTarget = Math.max(targetCount, requestedTarget);
+    while (countCardsWithSameName(cards, { cardName: candidate.name }) < protectedTarget) {
+      const addedCount = addSinglePolicyCard(cards, candidate, increasedNames);
+      if (addedCount === 0) break;
+    }
+  }
+
+  return {
+    increasedNames: uniqueNames(increasedNames),
+    reducedNames: uniqueNames(reducedNames),
+  };
+}
+
+function getEffectBasedTargetCount(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (!card.name || isBasicEnergyName(card.name)) return undefined;
+  if (isAceSpecCard(card, { cardName: card.name })) return 1;
+
+  if (card.cardKind === "pokemon") {
+    if (isExactMainPokemon(card, context)) return Math.min(3, maxCountForCard({ cardName: card.name }));
+    if (isSystemPokemonCandidate(card)) return Math.min(1, maxCountForCard({ cardName: card.name }));
+    if (pokemonMatchesStage(card, "stage2")) return Math.min(2, maxCountForCard({ cardName: card.name }));
+    if (pokemonMatchesStage(card, "stage1")) return Math.min(2, maxCountForCard({ cardName: card.name }));
+    return undefined;
+  }
+
+  if (card.cardKind !== "trainer") return undefined;
+  if (isHighRiskSituationalSupport(card)) return contextMatchesTheme(context, card.name) ? 1 : 0;
+
+  const roles = classifyCardRoles(card);
+  const normalizedName = normalizeCardLimitName(card.name);
+  if (normalizedName === normalizeCardLimitName("ふしぎなアメ")) {
+    if (!canRareCandyFitDeck(cards, cardMaster)) return 0;
+    return countPokemonByStage(cards, cardMaster, "stage2") >= 2 ? 3 : 2;
+  }
+  if (isPokemonSearchGoodsCard(card) && canPokemonSearchCardFitDeck(card, cards, cardMaster)) return 4;
+  if (roles.has("hand_disruption")) return isHandDisruptionTheme(context) ? 2 : 1;
+  if (roles.has("hand_refresh")) return 3;
+  if (roles.has("pokemon_search")) return 2;
+  if (roles.has("evolution_support")) return deckUsesEvolution(cards, cardMaster) ? 2 : 0;
+  if (roles.has("energy_acceleration")) return 2;
+  if (roles.has("energy_search")) return 1;
+  if (roles.has("switch")) return 2;
+  if (roles.has("gust")) return 2;
+  if (roles.has("recovery")) return 1;
+  if (roles.has("main_pokemon_only")) return 1;
+  return undefined;
+}
+
+function compareEffectCountCandidatePriority(a: StaticCardDetail, b: StaticCardDetail) {
+  const aSearchGoods = isPokemonSearchGoodsCard(a) ? 0 : 1;
+  const bSearchGoods = isPokemonSearchGoodsCard(b) ? 0 : 1;
+  if (aSearchGoods !== bSearchGoods) return aSearchGoods - bSearchGoods;
+
+  const aTrainer = a.cardKind === "trainer" ? 0 : 1;
+  const bTrainer = b.cardKind === "trainer" ? 0 : 1;
+  if (aTrainer !== bTrainer) return aTrainer - bTrainer;
+
+  const cardIdDiff = Number(b.cardId) - Number(a.cardId);
+  if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
+
+  return String(b.cardId).localeCompare(String(a.cardId));
+}
+
+function countPokemonByStage(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  stage: NonNullable<PokemonSearchCondition["stage"]>
+) {
+  return cards.reduce((sum, card) => {
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || masterCard.cardKind !== "pokemon" || !pokemonMatchesStage(masterCard, stage)) return sum;
+    return sum + card.count;
   }, 0);
 }
 
