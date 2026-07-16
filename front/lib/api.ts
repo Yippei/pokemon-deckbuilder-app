@@ -58,6 +58,7 @@ export type GenerateDeckContext = {
 type StaticCardDetail = {
   cardId: string;
   name?: string;
+  regulation?: string;
   cardKind?: string;
   subKind?: string;
   setCode?: string;
@@ -73,11 +74,14 @@ type StaticCardDetail = {
   ruleText?: string;
   searchTokens?: string[];
   imageUrl?: string;
+  effectProfile?: unknown;
 };
 
 type StaticCardMaster = {
   cards?: Record<string, StaticCardDetail>;
 };
+
+type CardsByName = Map<string, StaticCardDetail[]>;
 
 type CardRole =
   | "pokemon_search"
@@ -655,12 +659,29 @@ async function loadCardMaster(): Promise<Record<string, StaticCardDetail>> {
 }
 
 function buildCardsByName(cardMaster: Record<string, StaticCardDetail>) {
-  const cardsByName = new Map<string, StaticCardDetail>();
+  const cardsByName: CardsByName = new Map();
   for (const card of Object.values(cardMaster)) {
     if (!card.name) continue;
-    cardsByName.set(normalizeCardLimitName(card.name), card);
+    const key = normalizeCardLimitName(card.name);
+    const candidates = cardsByName.get(key) || [];
+    candidates.push(card);
+    cardsByName.set(key, candidates);
+  }
+  for (const candidates of cardsByName.values()) {
+    candidates.sort(compareSameNameCardCandidatePriority);
   }
   return cardsByName;
+}
+
+function compareSameNameCardCandidatePriority(a: StaticCardDetail, b: StaticCardDetail) {
+  const aHasEffectProfile = a.cardKind === "trainer" && Boolean(a.effectProfile) ? 0 : 1;
+  const bHasEffectProfile = b.cardKind === "trainer" && Boolean(b.effectProfile) ? 0 : 1;
+  if (aHasEffectProfile !== bHasEffectProfile) return aHasEffectProfile - bHasEffectProfile;
+
+  const cardIdDiff = Number(b.cardId) - Number(a.cardId);
+  if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
+
+  return String(b.cardId).localeCompare(String(a.cardId));
 }
 
 function addDeckCardWithLimits(cards: DeckCard[], card: DeckCard): number {
@@ -1699,7 +1720,7 @@ function getWantedPreEvolutionCount(
 
 function applyDeckPolicyRules(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>,
+  cardsByName: CardsByName,
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ): {
@@ -1775,7 +1796,7 @@ function countCardsByNames(cards: DeckCard[], names: string[]) {
 
 function addMissingPokemonSearchKinds(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>,
+  cardsByName: CardsByName,
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ) {
@@ -1854,7 +1875,7 @@ function isPokemonSearchCard(card: StaticCardDetail) {
 
 function addMainPokemonSupportCards(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>,
+  cardsByName: CardsByName,
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ) {
@@ -2042,7 +2063,7 @@ function isHandDisruptionTheme(context?: GenerateDeckContext) {
 
 function addCardsFromPolicyCandidates(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>,
+  cardsByName: CardsByName,
   candidateNames: string[],
   wantedCount: number,
   addedNames: string[],
@@ -2078,16 +2099,27 @@ function addSinglePolicyCard(cards: DeckCard[], candidate: StaticCardDetail, add
 
 function findAddablePolicyCard(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>,
+  cardsByName: CardsByName,
   candidateNames: string[],
   canAddCard: (card: StaticCardDetail) => boolean = () => true
 ) {
   for (const name of candidateNames) {
-    const card = cardsByName.get(normalizeCardLimitName(name));
-    if (card && isAceSpecCard(card, { cardName: card.name })) continue;
-    if (card?.name && remainingCountForCardName(cards, { cardName: card.name }) > 0 && canAddCard(card)) return card;
+    const candidates = cardsByName.get(normalizeCardLimitName(name)) || [];
+    for (const card of candidates) {
+      if (card && isAceSpecCard(card, { cardName: card.name })) continue;
+      if (card?.name && remainingCountForCardName(cards, { cardName: card.name }) > 0 && canAddCard(card)) return card;
+    }
   }
   return undefined;
+}
+
+function findFirstCardCandidate(
+  cardsByName: CardsByName,
+  name: string,
+  canUseCard: (card: StaticCardDetail) => boolean = () => true
+) {
+  const candidates = cardsByName.get(normalizeCardLimitName(name)) || [];
+  return candidates.find((card) => card?.name && canUseCard(card));
 }
 
 function isPolicyCandidateCompatible(
@@ -2148,16 +2180,15 @@ function findRemovableCardIndex(cards: DeckCard[], protectedNames: string[]) {
 
 function fillDeckWithStaples(
   cards: DeckCard[],
-  cardsByName: Map<string, StaticCardDetail>,
+  cardsByName: CardsByName,
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ) {
   let filled = 0;
   for (const staple of stapleCards) {
     if (countDeckCards(cards) >= targetDeckCardCount) break;
-    const card = cardsByName.get(normalizeCardLimitName(staple.name));
+    const card = findFirstCardCandidate(cardsByName, staple.name, (candidate) => canPokemonSearchCardFitDeck(candidate, cards, cardMaster));
     if (!card?.name) continue;
-    if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) continue;
     const currentCount = countCardsWithSameName(cards, { cardName: card.name });
     const wantedCount = Math.max(0, staple.targetCount - currentCount);
     if (wantedCount <= 0) continue;
@@ -2193,7 +2224,7 @@ function fillDeckWithStaples(
 
   const energyName = context?.selectedType ? basicEnergyByType[context.selectedType] : undefined;
   if (energyName) {
-    const card = cardsByName.get(normalizeCardLimitName(energyName));
+    const card = findFirstCardCandidate(cardsByName, energyName);
     if (card?.name) {
       while (countDeckCards(cards) < targetDeckCardCount) {
         const before = countDeckCards(cards);
