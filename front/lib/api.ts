@@ -129,7 +129,6 @@ const GenerateDeckResultSchema = z.object({
 const targetDeckCardCount = 60;
 const stapleCards = [
   { name: "ハイパーボール", targetCount: 4 },
-  { name: "ポケモンいれかえ", targetCount: 2 },
   { name: "ボスの指令", targetCount: 2 },
   { name: "夜のタンカ", targetCount: 1 },
   { name: "なかよしポフィン", targetCount: 2 },
@@ -179,7 +178,7 @@ const selfPositiveHandRefreshCardNames = [
   "ピュール",
 ];
 const disruptionHandRefreshCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ", "ゴヨウ", "クラウン"];
-const genericSupportRolePriority: CardRole[] = ["switch", "gust", "recovery", "energy_search"];
+const genericSupportRolePriority: CardRole[] = ["recovery"];
 const humanCharacterNamePrefixes = [
   "アオキ",
   "アカギ",
@@ -1985,17 +1984,52 @@ function getEffectBasedTargetCount(
     return countPokemonByStage(cards, cardMaster, "stage2") >= 2 ? 3 : 2;
   }
   if (isPokemonSearchGoodsCard(card) && canPokemonSearchCardFitDeck(card, cards, cardMaster)) return 4;
-  if (roles.has("hand_disruption")) return isHandDisruptionTheme(context) ? 2 : 1;
+  if (roles.has("hand_disruption")) return shouldUseHandDisruptionSupport(context) ? 2 : 0;
   if (roles.has("hand_refresh")) return 3;
   if (roles.has("pokemon_search")) return 2;
   if (roles.has("evolution_support")) return deckUsesEvolution(cards, cardMaster) ? 2 : 0;
   if (roles.has("energy_acceleration")) return 2;
-  if (roles.has("energy_search")) return 1;
+  if (roles.has("energy_search")) return shouldUseEnergySearchSupport(cards, cardMaster, context) ? 1 : undefined;
   if (roles.has("switch")) return 2;
-  if (roles.has("gust")) return 2;
+  if (roles.has("gust")) {
+    if (isCoinBasedGustCard(card) && hasCardNamed(cards, cardMaster, "ボスの指令")) return 0;
+    return getSelectedDeckPlan(context) === "disruption" ? 2 : 1;
+  }
   if (roles.has("recovery")) return 1;
   if (roles.has("main_pokemon_only")) return 1;
   return undefined;
+}
+
+function shouldUseHandDisruptionSupport(context?: GenerateDeckContext) {
+  const plan = getSelectedDeckPlan(context);
+  return plan === "disruption" || plan === "lo" || isHandDisruptionTheme(context);
+}
+
+function shouldUseEnergySearchSupport(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (getSelectedDeckPlan(context) === "speed") return true;
+  return cards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    if (masterCard?.cardKind !== "pokemon") return false;
+    return (masterCard.attacks || []).some((attack) => (attack.cost?.length || 0) >= 3);
+  });
+}
+
+function isCoinBasedGustCard(card: StaticCardDetail) {
+  const normalizedName = normalizeCardLimitName(card.name);
+  const text = normalizeRuleText(getCardSearchableText(card));
+  return normalizedName === normalizeCardLimitName("ポケモンキャッチャー") || (text.includes("コイン") && cardHasRole(card, "gust"));
+}
+
+function hasCardNamed(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>, name: string) {
+  const normalizedName = normalizeCardLimitName(name);
+  return cards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    return normalizeCardLimitName(card.cardName || masterCard?.name) === normalizedName && card.count > 0;
+  });
 }
 
 function compareEffectCountCandidatePriority(a: StaticCardDetail, b: StaticCardDetail) {
@@ -2114,6 +2148,9 @@ function addCardsForRoleTarget(
       if (!isPolicyCandidateCompatible(card, cards, cardMaster, context)) return false;
       if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
       if (role === "evolution_support" && !canMainPokemonSupportCardFitDeck(card, cards, cardMaster)) return false;
+      if (role === "hand_disruption" && !shouldUseHandDisruptionSupport(context)) return false;
+      if (role === "energy_search" && !shouldUseEnergySearchSupport(cards, cardMaster, context)) return false;
+      if (role === "gust" && isCoinBasedGustCard(card) && hasCardNamed(cards, cardMaster, "ボスの指令")) return false;
       return true;
     });
     if (!candidate?.name) break;
