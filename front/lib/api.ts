@@ -174,6 +174,63 @@ const selfPositiveHandRefreshCardNames = [
 ];
 const disruptionHandRefreshCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ", "ゴヨウ", "クラウン"];
 const genericSupportRolePriority: CardRole[] = ["switch", "gust", "recovery", "energy_search"];
+const humanCharacterNamePrefixes = [
+  "アオキ",
+  "アカギ",
+  "アクロマ",
+  "アセロラ",
+  "アンズ",
+  "ウォロ",
+  "エリカ",
+  "カイ",
+  "カキ",
+  "カスミ",
+  "カツラ",
+  "カナリィ",
+  "キバナ",
+  "グズマ",
+  "クラベル",
+  "グラジオ",
+  "コルニ",
+  "サカキ",
+  "シロナ",
+  "スグリ",
+  "ゼイユ",
+  "タケシ",
+  "タロ",
+  "ダンデ",
+  "チリ",
+  "ツツジ",
+  "トウコ",
+  "ナンジャモ",
+  "ネモ",
+  "ハイダイ",
+  "ハウ",
+  "ヒカリ",
+  "ヒビキ",
+  "ビワ",
+  "フトゥー",
+  "プルメリ",
+  "ペパー",
+  "ボタン",
+  "マツバ",
+  "マリィ",
+  "ミモザ",
+  "メロコ",
+  "リーリエ",
+];
+const humanCharacterStandaloneTrainerNames = [
+  "カナリィ",
+  "クラウン",
+  "ゴヨウ",
+  "サーファー",
+  "ドラセナ",
+  "ハイダイ",
+  "ヒカリ",
+  "ピュール",
+  "ムク",
+  "メロコ",
+];
 const basicEnergyByType: Record<string, string> = {
   grass: "基本草エネルギー",
   fire: "基本炎エネルギー",
@@ -433,6 +490,7 @@ async function normalizeGeneratedDeck(
   const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
   const situationalRemoval = removeIncompatibleSituationalCards(cards, cardMaster, context);
   const offTypePokemonRemoval = removeIncompatibleOffTypePokemon(cards, cardMaster, context);
+  const humanCharacterRemoval = removeIncompatibleHumanCharacterNamedCards(cards, cardMaster, context);
   const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
@@ -472,6 +530,12 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "deck_policy",
       message: `選択タイプと噛み合わないポケモンを除外しました: ${offTypePokemonRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (humanCharacterRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `人物名つきの専用寄りカードを除外しました: ${humanCharacterRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
   if (aceSpecRemoval.removedCount > 0) {
@@ -558,6 +622,20 @@ async function normalizeGeneratedDeck(
       message: `最終補正後も進化前を推定できないカードがあります。手動で進化ラインを確認してください: ${finalEvolutionLineFix.missingNames.slice(0, 5).join("、")}`,
     });
   }
+  const finalHumanCharacterRemoval = removeIncompatibleHumanCharacterNamedCards(cards, cardMaster, context);
+  if (finalHumanCharacterRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `最終補正で入り直した人物名つきカードを除外しました: ${finalHumanCharacterRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+    const refilledCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
+    if (refilledCount > 0) {
+      warnings.push({
+        type: "staple_fill",
+        message: `人物名つきカードを除外した不足分${refilledCount}枚を汎用カードまたは基本エネルギーで補いました。`,
+      });
+    }
+  }
   const total = countDeckCards(cards);
   if (total !== targetDeckCardCount) {
     warnings.push({
@@ -642,6 +720,26 @@ function removeIncompatibleThemeLockedCards(
     const card = cards[index];
     const masterCard = cardMaster[card.cardId];
     if (!masterCard || isThemeLockedCardCompatible(masterCard, cards, cardMaster, context)) continue;
+
+    removedNames.push(card.cardName || masterCard.name || card.cardId);
+    cards.splice(index, 1);
+  }
+  return {
+    removedCount: removedNames.length,
+    removedNames: removedNames.reverse(),
+  };
+}
+
+function removeIncompatibleHumanCharacterNamedCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const removedNames: string[] = [];
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || isHumanCharacterNamedCardCompatible(masterCard, cards, cardMaster, context)) continue;
 
     removedNames.push(card.cardName || masterCard.name || card.cardId);
     cards.splice(index, 1);
@@ -903,6 +1001,29 @@ function isThemeLockedCardCompatible(
     const ownerPrefix = groupName.replace(/ポケモン$/, "");
     return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
   });
+}
+
+function isHumanCharacterNamedCardCompatible(
+  card: StaticCardDetail,
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const ownerPrefix = getHumanCharacterCardOwnerPrefix(card);
+  if (!ownerPrefix) return true;
+  return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
+}
+
+function getHumanCharacterCardOwnerPrefix(card: StaticCardDetail) {
+  if (card.cardKind !== "trainer") return "";
+  const normalizedName = normalizeCardLimitName(card.name);
+  if (!normalizedName) return "";
+
+  const prefix = humanCharacterNamePrefixes.find((name) => normalizedName.startsWith(`${normalizeCardLimitName(name)}の`));
+  if (prefix) return prefix;
+
+  const standalone = humanCharacterStandaloneTrainerNames.find((name) => normalizedName === normalizeCardLimitName(name));
+  return standalone || "";
 }
 
 function getRequiredPokemonGroups(card: StaticCardDetail) {
@@ -1596,7 +1717,7 @@ function applyDeckPolicyRules(
   systemPokemonAddedCount: number;
   systemPokemonAddedNames: string[];
 } {
-  const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster);
+  const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster, context);
   const mainPokemonSupportAddedNames = addMainPokemonSupportCards(cards, cardsByName, cardMaster, context);
   const systemPokemonAddedNames = addSystemPokemonSupportCards(cards, cardMaster, context);
   const handRefreshNames = getHandRefreshPolicyNames(context, cardMaster);
@@ -1624,12 +1745,20 @@ function applyDeckPolicyRules(
       cardsByName,
       handRefreshNames.disruption,
       disruptionWantedCount,
-      addedNames
+      addedNames,
+      (card) => isPolicyCandidateCompatible(card, cards, cardMaster, context)
     );
     remainingCount -= addedCount;
   }
 
-  addCardsFromPolicyCandidates(cards, cardsByName, handRefreshNames.selfPositive, remainingCount, addedNames);
+  addCardsFromPolicyCandidates(
+    cards,
+    cardsByName,
+    handRefreshNames.selfPositive,
+    remainingCount,
+    addedNames,
+    (card) => isPolicyCandidateCompatible(card, cards, cardMaster, context)
+  );
   return {
     handRefreshAddedCount: addedNames.length,
     handRefreshAddedNames: addedNames,
@@ -1652,7 +1781,8 @@ function countCardsByNames(cards: DeckCard[], names: string[]) {
 function addMissingPokemonSearchKinds(
   cards: DeckCard[],
   cardsByName: Map<string, StaticCardDetail>,
-  cardMaster: Record<string, StaticCardDetail>
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
 ) {
   const addedNames: string[] = [];
   const candidateNames = getPolicyCandidateNames(pokemonSearchSupportCardNames, cardMaster, "pokemon_search");
@@ -1661,7 +1791,8 @@ function addMissingPokemonSearchKinds(
     const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
       return !existingSearchNames.has(normalizeCardLimitName(card.name)) &&
         cardHasRole(card, "pokemon_search") &&
-        canPokemonSearchCardFitDeck(card, cards, cardMaster);
+        canPokemonSearchCardFitDeck(card, cards, cardMaster) &&
+        isPolicyCandidateCompatible(card, cards, cardMaster, context);
     });
     if (!candidate?.name) break;
     if (addSinglePolicyCard(cards, candidate, addedNames) === 0) break;
@@ -1736,7 +1867,8 @@ function addMainPokemonSupportCards(
   const addedNames: string[] = [];
   const candidateNames = getMainPokemonSupportCandidateNames(cards, cardMaster);
   addCardsFromPolicyCandidates(cards, cardsByName, candidateNames, 2, addedNames, (card) => {
-    return canMainPokemonSupportCardFitDeck(card, cards, cardMaster);
+    return canMainPokemonSupportCardFitDeck(card, cards, cardMaster) &&
+      isPolicyCandidateCompatible(card, cards, cardMaster, context);
   });
   return addedNames;
 }
@@ -1963,6 +2095,16 @@ function findAddablePolicyCard(
   return undefined;
 }
 
+function isPolicyCandidateCompatible(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  return isThemeLockedCardCompatible(card, cards, cardMaster, context) &&
+    isHumanCharacterNamedCardCompatible(card, cards, cardMaster, context);
+}
+
 function getPolicyCandidateNames(
   preferredNames: string[],
   cardMaster: Record<string, StaticCardDetail>,
@@ -2040,6 +2182,7 @@ function fillDeckWithStaples(
     const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
       if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
       if (!isThemeLockedCardCompatible(card, cards, cardMaster, context)) return false;
+      if (!isHumanCharacterNamedCardCompatible(card, cards, cardMaster, context)) return false;
       return true;
     });
     if (!candidate?.name) continue;
