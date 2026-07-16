@@ -1020,6 +1020,7 @@ function isCharacterThemeCardCompatible(
 ) {
   const ownerPrefix = getCharacterThemeOwnerPrefix(card);
   if (!ownerPrefix) return true;
+  if (card.cardKind === "pokemon") return contextMatchesTheme(context, ownerPrefix);
   return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
 }
 
