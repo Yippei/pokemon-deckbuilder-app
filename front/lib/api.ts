@@ -1762,7 +1762,6 @@ function scorePreviousEvolutionCandidate(candidate: StaticCardDetail, target: St
   if (candidate.setName !== target.setName) score += 5000;
   if (candidate.setCode !== target.setCode) score += 500;
   if (!pokemonTypesOverlap(candidate, target)) score += 100;
-  score += scorePokemonVariantCandidate(candidate);
 
   return score;
 }
@@ -1817,8 +1816,9 @@ function applyDeckPolicyRules(
   systemPokemonAddedCount: number;
   systemPokemonAddedNames: string[];
 } {
-  const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster, context);
-  const mainPokemonSupportAddedNames = addMainPokemonSupportCards(cards, cardsByName, cardMaster, context);
+  const evolutionLineNames = getRequiredEvolutionLineNames(cards, cardMaster);
+  const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster, context, evolutionLineNames);
+  const mainPokemonSupportAddedNames = addMainPokemonSupportCards(cards, cardsByName, cardMaster, context, evolutionLineNames);
   const systemPokemonAddedNames = addSystemPokemonSupportCards(cards, cardMaster, context);
   const handRefreshNames = getHandRefreshPolicyNames(context, cardMaster);
   const currentCount = countCardsByNames(cards, handRefreshNames.all);
@@ -1846,7 +1846,8 @@ function applyDeckPolicyRules(
       handRefreshNames.disruption,
       disruptionWantedCount,
       addedNames,
-      (card) => isPolicyCandidateCompatible(card, cards, cardMaster, context)
+      (card) => isPolicyCandidateCompatible(card, cards, cardMaster, context),
+      evolutionLineNames
     );
     remainingCount -= addedCount;
   }
@@ -1857,7 +1858,8 @@ function applyDeckPolicyRules(
     handRefreshNames.selfPositive,
     remainingCount,
     addedNames,
-    (card) => isPolicyCandidateCompatible(card, cards, cardMaster, context)
+    (card) => isPolicyCandidateCompatible(card, cards, cardMaster, context),
+    evolutionLineNames
   );
   return {
     handRefreshAddedCount: addedNames.length,
@@ -1885,6 +1887,7 @@ function adjustCardCountsByEffect(
 ) {
   const increasedNames: string[] = [];
   const reducedNames: string[] = [];
+  const evolutionLineNames = getRequiredEvolutionLineNames(cards, cardMaster);
   const requestedTargets = getRequestedContextCards(cardMaster, context)
     .filter((card) => card.name)
     .map((card) => [normalizeCardLimitName(card.name), getRequestedContextCardTargetCount(card, context)] as const);
@@ -1916,7 +1919,7 @@ function adjustCardCountsByEffect(
     const requestedTarget = requestedTargetByName.get(normalizeCardLimitName(candidate.name)) || 0;
     const protectedTarget = Math.max(targetCount, requestedTarget);
     while (countCardsWithSameName(cards, { cardName: candidate.name }) < protectedTarget) {
-      const addedCount = addSinglePolicyCard(cards, candidate, increasedNames);
+      const addedCount = addSinglePolicyCard(cards, candidate, increasedNames, evolutionLineNames);
       if (addedCount === 0) break;
     }
   }
@@ -1925,6 +1928,22 @@ function adjustCardCountsByEffect(
     increasedNames: uniqueNames(increasedNames),
     reducedNames: uniqueNames(reducedNames),
   };
+}
+
+function getRequiredEvolutionLineNames(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  const names = new Set<string>();
+  for (const deckCard of cards) {
+    const masterCard = cardMaster[deckCard.cardId];
+    if (!masterCard || masterCard.cardKind !== "pokemon" || Number(masterCard.stageOrder || 0) <= 0) continue;
+    if (masterCard.name) names.add(masterCard.name);
+    for (const preEvolution of ensureBasicEvolutionInChain(inferEvolutionLine(masterCard, cardMaster), masterCard, cardMaster)) {
+      if (preEvolution.name) names.add(preEvolution.name);
+    }
+  }
+  return [...names];
 }
 
 function getEffectBasedTargetCount(
@@ -1998,7 +2017,8 @@ function addMissingPokemonSearchKinds(
   cards: DeckCard[],
   cardsByName: CardsByName,
   cardMaster: Record<string, StaticCardDetail>,
-  context?: GenerateDeckContext
+  context?: GenerateDeckContext,
+  protectedNames: string[] = []
 ) {
   const addedNames: string[] = [];
   const candidateNames = getPolicyCandidateNames(pokemonSearchSupportCardNames, cardMaster, "pokemon_search");
@@ -2011,16 +2031,17 @@ function addMissingPokemonSearchKinds(
         isPolicyCandidateCompatible(card, cards, cardMaster, context);
     });
     if (!candidate?.name) break;
-    if (addSinglePolicyCard(cards, candidate, addedNames) === 0) break;
+    if (addSinglePolicyCard(cards, candidate, addedNames, protectedNames) === 0) break;
   }
-  addPokemonSearchGoodsToTargetCount(cards, cardMaster, addedNames);
+  addPokemonSearchGoodsToTargetCount(cards, cardMaster, addedNames, protectedNames);
   return addedNames;
 }
 
 function addPokemonSearchGoodsToTargetCount(
   cards: DeckCard[],
   cardMaster: Record<string, StaticCardDetail>,
-  addedNames: string[]
+  addedNames: string[],
+  protectedNames: string[] = []
 ) {
   const candidates = cards
     .map((card) => cardMaster[card.cardId])
@@ -2033,7 +2054,7 @@ function addPokemonSearchGoodsToTargetCount(
 
   for (const candidate of candidates) {
     while (countCardsWithSameName(cards, { cardName: candidate.name }) < pokemonSearchGoodsTargetCount) {
-      if (addSinglePolicyCard(cards, candidate, addedNames) === 0) break;
+      if (addSinglePolicyCard(cards, candidate, addedNames, protectedNames) === 0) break;
     }
   }
 }
@@ -2077,7 +2098,8 @@ function addMainPokemonSupportCards(
   cards: DeckCard[],
   cardsByName: CardsByName,
   cardMaster: Record<string, StaticCardDetail>,
-  context?: GenerateDeckContext
+  context?: GenerateDeckContext,
+  protectedNames: string[] = []
 ) {
   if (!context?.pokemonName?.trim()) return [];
   const addedNames: string[] = [];
@@ -2085,7 +2107,7 @@ function addMainPokemonSupportCards(
   addCardsFromPolicyCandidates(cards, cardsByName, candidateNames, 2, addedNames, (card) => {
     return canMainPokemonSupportCardFitDeck(card, cards, cardMaster) &&
       isPolicyCandidateCompatible(card, cards, cardMaster, context);
-  });
+  }, protectedNames);
   return addedNames;
 }
 
@@ -2267,23 +2289,29 @@ function addCardsFromPolicyCandidates(
   candidateNames: string[],
   wantedCount: number,
   addedNames: string[],
-  canAddCard: (card: StaticCardDetail) => boolean = () => true
+  canAddCard: (card: StaticCardDetail) => boolean = () => true,
+  protectedNames: string[] = []
 ) {
   let addedCount = 0;
   while (addedCount < wantedCount) {
     const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, canAddCard);
     if (!candidate?.name) break;
 
-    const didAdd = addSinglePolicyCard(cards, candidate, addedNames);
+    const didAdd = addSinglePolicyCard(cards, candidate, addedNames, protectedNames);
     if (didAdd === 0) break;
     addedCount += didAdd;
   }
   return addedCount;
 }
 
-function addSinglePolicyCard(cards: DeckCard[], candidate: StaticCardDetail, addedNames: string[]) {
+function addSinglePolicyCard(
+  cards: DeckCard[],
+  candidate: StaticCardDetail,
+  addedNames: string[],
+  additionalProtectedNames: string[] = []
+) {
   if (!candidate.name) return 0;
-  makeRoomForRequiredCard(cards, 1, [candidate.name]);
+  makeRoomForRequiredCard(cards, 1, [candidate.name, ...additionalProtectedNames]);
   const before = countCardsWithSameName(cards, { cardName: candidate.name });
   const rejected = addDeckCardWithLimits(cards, {
     cardId: candidate.cardId,
