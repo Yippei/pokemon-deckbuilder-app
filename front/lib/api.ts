@@ -95,6 +95,7 @@ type CardRole =
   | "energy_search"
   | "energy_acceleration"
   | "recovery"
+  | "deck_disruption"
   | "main_pokemon_only";
 
 type AbilityRole =
@@ -602,6 +603,14 @@ async function normalizeGeneratedDeck(
     });
   }
 
+  const planBias = applySelectedPlanBias(cards, cardsByName, cardMaster, context);
+  if (planBias.addedNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `選択方針を強めるカードを追加しました: ${planBias.addedNames.slice(0, 5).join("、")}`,
+    });
+  }
+
   const filledCardCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
   if (filledCardCount > 0) {
     warnings.push({
@@ -930,6 +939,9 @@ function classifyCardRoles(card: StaticCardDetail): Set<CardRole> {
   }
   if (/トラッシュ.*(手札|山札|ベンチ)|回収/.test(normalizedText)) {
     roles.add("recovery");
+  }
+  if (/相手.*山札.*トラッシュ|山札.*上.*トラッシュ|山札.*下.*トラッシュ|相手.*山札.*見る|相手.*山札.*戻す|LO/.test(normalizedText)) {
+    roles.add("deck_disruption");
   }
   if (getRequiredPokemonGroups(card).length > 0) {
     roles.add("main_pokemon_only");
@@ -2009,6 +2021,117 @@ function countPokemonByStage(
   return cards.reduce((sum, card) => {
     const masterCard = cardMaster[card.cardId];
     if (!masterCard || masterCard.cardKind !== "pokemon" || !pokemonMatchesStage(masterCard, stage)) return sum;
+    return sum + card.count;
+  }, 0);
+}
+
+type DeckPlan = "stable" | "disruption" | "lo" | "speed" | "tank" | "combo" | "unknown";
+
+function applySelectedPlanBias(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const plan = getSelectedDeckPlan(context);
+  const addedNames: string[] = [];
+  if (plan === "unknown") {
+    return { addedNames };
+  }
+
+  const protectedNames = [
+    ...getRequiredEvolutionLineNames(cards, cardMaster),
+    ...getRequestedContextCards(cardMaster, context).map((card) => card.name || "").filter(Boolean),
+  ];
+
+  const addRole = (role: CardRole, targetCount: number) => {
+    const addedCount = addCardsForRoleTarget(cards, cardsByName, cardMaster, role, targetCount, addedNames, context, protectedNames);
+    return addedCount;
+  };
+
+  if (plan === "stable") {
+    addRole("pokemon_search", 8);
+    addRole("hand_refresh", 4);
+    addRole("switch", 2);
+    addRole("recovery", 2);
+  } else if (plan === "disruption") {
+    addRole("hand_disruption", 4);
+    addRole("gust", 3);
+    addRole("switch", 2);
+  } else if (plan === "lo") {
+    addRole("deck_disruption", 4);
+    addRole("hand_disruption", 3);
+    addRole("recovery", 3);
+    addRole("switch", 2);
+  } else if (plan === "speed") {
+    addRole("pokemon_search", 9);
+    addRole("energy_search", 3);
+    addRole("energy_acceleration", 2);
+    addRole("switch", 3);
+  } else if (plan === "tank") {
+    addRole("recovery", 4);
+    addRole("switch", 2);
+    addRole("hand_refresh", 3);
+  } else if (plan === "combo") {
+    addRole("pokemon_search", 8);
+    addRole("hand_refresh", 5);
+    addRole("recovery", 2);
+    if (deckUsesEvolution(cards, cardMaster)) addRole("evolution_support", 4);
+  }
+
+  return {
+    addedNames: uniqueNames(addedNames),
+  };
+}
+
+function getSelectedDeckPlan(context?: GenerateDeckContext): DeckPlan {
+  const text = normalizeCardLimitName(context?.selectedPlan);
+  if (!text) return "unknown";
+  if (/手札干渉|妨害|ハンデス/.test(text)) return "disruption";
+  if (/lo|ライブラリアウト|山札切れ/.test(text)) return "lo";
+  if (/速攻|初動|アグロ/.test(text)) return "speed";
+  if (/耐久|受け|回復/.test(text)) return "tank";
+  if (/コンボ|再現性/.test(text)) return "combo";
+  if (/安定|事故/.test(text)) return "stable";
+  return "unknown";
+}
+
+function addCardsForRoleTarget(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  role: CardRole,
+  targetCount: number,
+  addedNames: string[],
+  context?: GenerateDeckContext,
+  protectedNames: string[] = []
+) {
+  let addedCount = 0;
+  while (countCardsByRole(cards, cardMaster, role) < targetCount) {
+    const candidateNames = getPolicyCandidateNames([], cardMaster, role);
+    const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
+      if (!cardHasRole(card, role)) return false;
+      if (!isPolicyCandidateCompatible(card, cards, cardMaster, context)) return false;
+      if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
+      if (role === "evolution_support" && !canMainPokemonSupportCardFitDeck(card, cards, cardMaster)) return false;
+      return true;
+    });
+    if (!candidate?.name) break;
+    const didAdd = addSinglePolicyCard(cards, candidate, addedNames, protectedNames);
+    if (didAdd === 0) break;
+    addedCount += didAdd;
+  }
+  return addedCount;
+}
+
+function countCardsByRole(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  role: CardRole
+) {
+  return cards.reduce((sum, card) => {
+    const masterCard = cardMaster[card.cardId];
+    if (!masterCard || !cardHasRole(masterCard, role)) return sum;
     return sum + card.count;
   }, 0);
 }
