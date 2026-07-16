@@ -219,18 +219,6 @@ const humanCharacterNamePrefixes = [
   "メロコ",
   "リーリエ",
 ];
-const humanCharacterStandaloneTrainerNames = [
-  "カナリィ",
-  "クラウン",
-  "ゴヨウ",
-  "サーファー",
-  "ドラセナ",
-  "ハイダイ",
-  "ヒカリ",
-  "ピュール",
-  "ムク",
-  "メロコ",
-];
 const basicEnergyByType: Record<string, string> = {
   grass: "基本草エネルギー",
   fire: "基本炎エネルギー",
@@ -490,7 +478,7 @@ async function normalizeGeneratedDeck(
   const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
   const situationalRemoval = removeIncompatibleSituationalCards(cards, cardMaster, context);
   const offTypePokemonRemoval = removeIncompatibleOffTypePokemon(cards, cardMaster, context);
-  const humanCharacterRemoval = removeIncompatibleHumanCharacterNamedCards(cards, cardMaster, context);
+  const characterThemeRemoval = removeIncompatibleCharacterThemeCards(cards, cardMaster, context);
   const aceSpecRemoval = enforceAceSpecLimit(cards, cardMaster);
 
   const trimmedCardCount = trimDeckToCount(cards, targetDeckCardCount);
@@ -532,10 +520,10 @@ async function normalizeGeneratedDeck(
       message: `選択タイプと噛み合わないポケモンを除外しました: ${offTypePokemonRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
-  if (humanCharacterRemoval.removedCount > 0) {
+  if (characterThemeRemoval.removedCount > 0) {
     warnings.push({
       type: "deck_policy",
-      message: `人物名つきの専用寄りカードを除外しました: ${humanCharacterRemoval.removedNames.slice(0, 5).join("、")}`,
+      message: `キャラクター専用テーマカードを除外しました: ${characterThemeRemoval.removedNames.slice(0, 5).join("、")}`,
     });
   }
   if (aceSpecRemoval.removedCount > 0) {
@@ -622,17 +610,17 @@ async function normalizeGeneratedDeck(
       message: `最終補正後も進化前を推定できないカードがあります。手動で進化ラインを確認してください: ${finalEvolutionLineFix.missingNames.slice(0, 5).join("、")}`,
     });
   }
-  const finalHumanCharacterRemoval = removeIncompatibleHumanCharacterNamedCards(cards, cardMaster, context);
-  if (finalHumanCharacterRemoval.removedCount > 0) {
+  const finalCharacterThemeRemoval = removeIncompatibleCharacterThemeCards(cards, cardMaster, context);
+  if (finalCharacterThemeRemoval.removedCount > 0) {
     warnings.push({
       type: "deck_policy",
-      message: `最終補正で入り直した人物名つきカードを除外しました: ${finalHumanCharacterRemoval.removedNames.slice(0, 5).join("、")}`,
+      message: `最終補正で入り直したキャラクター専用テーマカードを除外しました: ${finalCharacterThemeRemoval.removedNames.slice(0, 5).join("、")}`,
     });
     const refilledCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
     if (refilledCount > 0) {
       warnings.push({
         type: "staple_fill",
-        message: `人物名つきカードを除外した不足分${refilledCount}枚を汎用カードまたは基本エネルギーで補いました。`,
+        message: `専用テーマカードを除外した不足分${refilledCount}枚を汎用カードまたは基本エネルギーで補いました。`,
       });
     }
   }
@@ -730,7 +718,7 @@ function removeIncompatibleThemeLockedCards(
   };
 }
 
-function removeIncompatibleHumanCharacterNamedCards(
+function removeIncompatibleCharacterThemeCards(
   cards: DeckCard[],
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
@@ -739,7 +727,7 @@ function removeIncompatibleHumanCharacterNamedCards(
   for (let index = cards.length - 1; index >= 0; index -= 1) {
     const card = cards[index];
     const masterCard = cardMaster[card.cardId];
-    if (!masterCard || isHumanCharacterNamedCardCompatible(masterCard, cards, cardMaster, context)) continue;
+    if (!masterCard || isCharacterThemeCardCompatible(masterCard, cards, cardMaster, context)) continue;
 
     removedNames.push(card.cardName || masterCard.name || card.cardId);
     cards.splice(index, 1);
@@ -1003,27 +991,34 @@ function isThemeLockedCardCompatible(
   });
 }
 
-function isHumanCharacterNamedCardCompatible(
+function isCharacterThemeCardCompatible(
   card: StaticCardDetail,
   deckCards: DeckCard[],
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ) {
-  const ownerPrefix = getHumanCharacterCardOwnerPrefix(card);
+  const ownerPrefix = getCharacterThemeOwnerPrefix(card);
   if (!ownerPrefix) return true;
   return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
 }
 
-function getHumanCharacterCardOwnerPrefix(card: StaticCardDetail) {
-  if (card.cardKind !== "trainer") return "";
+function getCharacterThemeOwnerPrefix(card: StaticCardDetail) {
   const normalizedName = normalizeCardLimitName(card.name);
   if (!normalizedName) return "";
 
-  const prefix = humanCharacterNamePrefixes.find((name) => normalizedName.startsWith(`${normalizeCardLimitName(name)}の`));
-  if (prefix) return prefix;
+  if (card.cardKind === "pokemon") {
+    return humanCharacterNamePrefixes.find((name) => normalizedName.startsWith(`${normalizeCardLimitName(name)}の`)) || "";
+  }
 
-  const standalone = humanCharacterStandaloneTrainerNames.find((name) => normalizedName === normalizeCardLimitName(name));
-  return standalone || "";
+  if (card.cardKind === "trainer") {
+    const requiredGroups = getRequiredPokemonGroups(card);
+    const requiredOwner = requiredGroups
+      .map((groupName) => groupName.replace(/ポケモン$/, "").replace(/の$/, ""))
+      .find((ownerName) => humanCharacterNamePrefixes.some((name) => normalizeCardLimitName(name) === normalizeCardLimitName(ownerName)));
+    return requiredOwner || "";
+  }
+
+  return "";
 }
 
 function getRequiredPokemonGroups(card: StaticCardDetail) {
@@ -2102,7 +2097,7 @@ function isPolicyCandidateCompatible(
   context?: GenerateDeckContext
 ) {
   return isThemeLockedCardCompatible(card, cards, cardMaster, context) &&
-    isHumanCharacterNamedCardCompatible(card, cards, cardMaster, context);
+    isCharacterThemeCardCompatible(card, cards, cardMaster, context);
 }
 
 function getPolicyCandidateNames(
@@ -2182,7 +2177,7 @@ function fillDeckWithStaples(
     const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
       if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
       if (!isThemeLockedCardCompatible(card, cards, cardMaster, context)) return false;
-      if (!isHumanCharacterNamedCardCompatible(card, cards, cardMaster, context)) return false;
+      if (!isCharacterThemeCardCompatible(card, cards, cardMaster, context)) return false;
       return true;
     });
     if (!candidate?.name) continue;
