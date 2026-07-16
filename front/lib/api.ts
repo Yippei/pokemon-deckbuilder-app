@@ -70,6 +70,7 @@ type StaticCardDetail = {
   stageOrder?: number;
   hp?: number;
   types?: string[];
+  attacks?: Array<{ name?: string; damage?: number | string; cost?: string[]; text?: string }>;
   abilities?: Array<{ name?: string; text?: string }>;
   ruleText?: string;
   searchTokens?: string[];
@@ -1333,12 +1334,12 @@ function getRequestedContextCards(
       continue;
     }
     const current = exactMatchesByName.get(normalizedName);
-    if (!current || compareRequestedCardPriority(card, current) < 0) {
+    if (!current || compareRequestedCardPriority(card, current, context) < 0) {
       exactMatchesByName.set(normalizedName, card);
     }
   }
   [...exactMatchesByName.values()]
-    .sort(compareRequestedCardPriority)
+    .sort((a, b) => compareRequestedCardPriority(a, b, context))
     .forEach(addRequestedCard);
 
   for (const term of getRequestedContextTerms(contextText)) {
@@ -1364,7 +1365,7 @@ function findExactMainPokemonCard(cards: StaticCardDetail[], context?: GenerateD
       if (card.cardKind !== "pokemon") return false;
       return normalizeCardLimitName(card.name) === normalizedMainPokemon;
     })
-    .sort(compareRequestedCardPriority)[0];
+    .sort((a, b) => compareRequestedCardPriority(a, b, context))[0];
 }
 
 function isExactMainPokemon(card: StaticCardDetail, context?: GenerateDeckContext) {
@@ -1427,14 +1428,81 @@ function compareRequestedCardForTerm(a: StaticCardDetail, b: StaticCardDetail, t
   return compareRequestedCardPriority(a, b);
 }
 
-function compareRequestedCardPriority(a: StaticCardDetail, b: StaticCardDetail) {
+function compareRequestedCardPriority(a: StaticCardDetail, b: StaticCardDetail, context?: GenerateDeckContext) {
   const nameLengthDiff = normalizeCardLimitName(a.name).length - normalizeCardLimitName(b.name).length;
   if (nameLengthDiff !== 0) return nameLengthDiff;
+
+  if (a.cardKind === "pokemon" && b.cardKind === "pokemon") {
+    const pokemonVariantScoreDiff = scorePokemonVariantCandidate(a, context) - scorePokemonVariantCandidate(b, context);
+    if (pokemonVariantScoreDiff !== 0) return pokemonVariantScoreDiff;
+  }
 
   const cardIdDiff = Number(b.cardId) - Number(a.cardId);
   if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
 
   return String(b.cardId).localeCompare(String(a.cardId));
+}
+
+function scorePokemonVariantCandidate(card: StaticCardDetail, context?: GenerateDeckContext) {
+  let score = 0;
+  if (pokemonMatchesSelectedType(card, context)) score -= 120;
+  if (isRuleBoxPokemon(card)) score -= isExactMainPokemon(card, context) ? 80 : 20;
+
+  const abilityRoles = classifyAbilityRoles(card);
+  if (abilityRoles.has("ability_draw")) score -= 90;
+  if (abilityRoles.has("ability_search")) score -= 90;
+  if (abilityRoles.has("ability_energy")) score -= 80;
+  if (abilityRoles.has("ability_recovery")) score -= 45;
+  if (abilityRoles.has("ability_switch")) score -= 35;
+  if (abilityRoles.has("ability_damage_boost")) score -= 55;
+  if (abilityRoles.has("ability_protection")) score -= 25;
+  if (abilityRoles.has("ability_lock")) score -= isHandDisruptionTheme(context) ? 60 : 10;
+
+  const attackScore = scorePokemonAttacks(card, context);
+  score += attackScore;
+  score -= Math.min(80, Math.max(0, Number(card.hp || 0)) / 4);
+
+  if (hasConfusingOrLowImpactAttackOnly(card)) score += 35;
+  return score;
+}
+
+function scorePokemonAttacks(card: StaticCardDetail, context?: GenerateDeckContext) {
+  if (!card.attacks?.length) return 60;
+  const selectedType = getSelectedPokemonType(context);
+  let bestScore = 80;
+
+  for (const attack of card.attacks) {
+    let score = 0;
+    const damage = normalizeAttackDamage(attack.damage);
+    const costLength = attack.cost?.length || 0;
+    const text = normalizeRuleText(attack.text);
+
+    score -= Math.min(100, damage / 2);
+    score += costLength * 12;
+    if (selectedType && attack.cost?.includes(selectedType)) score -= 18;
+    if (/山札.*選び|山札.*手札|山札.*ベンチ|エネルギー.*つけ|トラッシュ.*手札|入れ替/.test(text)) score -= 35;
+    if (/コイン|ウラなら|このポケモンにも|自分のポケモンにも|次の自分の番/.test(text)) score += 20;
+
+    bestScore = Math.min(bestScore, score);
+  }
+
+  return bestScore;
+}
+
+function normalizeAttackDamage(damage?: number | string) {
+  if (typeof damage === "number") return damage;
+  const match = String(damage || "").match(/[0-9０-９]+/);
+  if (!match) return 0;
+  return Number(match[0].replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0)));
+}
+
+function hasConfusingOrLowImpactAttackOnly(card: StaticCardDetail) {
+  if (!card.attacks?.length || card.abilities?.length) return false;
+  return card.attacks.every((attack) => {
+    const damage = normalizeAttackDamage(attack.damage);
+    const text = normalizeRuleText(attack.text);
+    return damage <= 30 && !/(山札|エネルギー|トラッシュ|ベンチ|手札|入れ替)/.test(text);
+  });
 }
 
 function removeOtherAceSpecCards(
@@ -1694,6 +1762,7 @@ function scorePreviousEvolutionCandidate(candidate: StaticCardDetail, target: St
   if (candidate.setName !== target.setName) score += 5000;
   if (candidate.setCode !== target.setCode) score += 500;
   if (!pokemonTypesOverlap(candidate, target)) score += 100;
+  score += scorePokemonVariantCandidate(candidate);
 
   return score;
 }
