@@ -155,6 +155,7 @@ const aceSpecCardNames = [
   "サバイブギプス",
   "レガシーエネルギー",
   "ネオアッパーエネルギー",
+  "リブートポッド",
   "ポケモン回収サイクロン",
   "シークレットボックス",
   "ニュートラルセンター",
@@ -1340,6 +1341,10 @@ function isThemeLockedCardCompatible(
   cardMaster: Record<string, StaticCardDetail>,
   context?: GenerateDeckContext
 ) {
+  if (requiresFuturePokemon(card)) {
+    return hasFuturePokemon(deckCards, cardMaster) || contextMatchesTheme(context, "未来");
+  }
+
   const requiredPokemonGroups = getRequiredPokemonGroups(card);
   if (requiredPokemonGroups.length === 0) return true;
 
@@ -1347,6 +1352,30 @@ function isThemeLockedCardCompatible(
     const ownerPrefix = groupName.replace(/ポケモン$/, "");
     return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
   });
+}
+
+function requiresFuturePokemon(card: StaticCardDetail) {
+  const text = normalizeRuleText(getCardSearchableText(card));
+  return /「未来」.*ポケモン|未来のポケモン/.test(text);
+}
+
+function hasFuturePokemon(
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  return deckCards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    return isFuturePokemonCard(masterCard);
+  });
+}
+
+function isFuturePokemonCard(card?: StaticCardDetail) {
+  if (!card || card.cardKind !== "pokemon") return false;
+  const name = normalizeCardLimitName(card.name);
+  const text = normalizeCardLimitName(getCardSearchableText(card));
+  return name.startsWith(normalizeCardLimitName("テツノ")) ||
+    name.includes(normalizeCardLimitName("ミライドン")) ||
+    text.includes(normalizeCardLimitName("未来"));
 }
 
 function isCharacterThemeCardCompatible(
