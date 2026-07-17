@@ -120,10 +120,9 @@ export default function DeckPage() {
       const typeLabel = deckTypes.find((deckType) => deckType.type === selectedType)?.label;
       const generated = await generateDeck({
         theme: theme.trim() || [typeLabel, name].filter(Boolean).join(" ") || name,
-        existingDeck: cards,
         generationContext: {
           selectedType,
-          selectedPlan: "改善",
+          selectedPlan: "再生成",
           supplementalTheme: theme,
         },
       });
@@ -207,12 +206,12 @@ export default function DeckPage() {
 
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
-      {/* AI改善提案（編集中のみ） */}
+      {/* AI再生成（編集中のみ） */}
       {editing && (
         <div className="mb-6 border rounded-lg p-4 bg-blue-50">
-          <h2 className="text-sm font-bold mb-2 text-blue-700">✨ AIでデッキを改善</h2>
+          <h2 className="text-sm font-bold mb-2 text-blue-700">AIでデッキを再生成</h2>
           <p className="text-xs text-blue-600 mb-3">
-            現在のデッキをAIが分析して60枚の最適な構成を提案します。
+            現在のカード内容は引き継がず、入力した条件から60枚の構成を作り直します。
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
@@ -220,14 +219,14 @@ export default function DeckPage() {
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               className="min-w-0 flex-1 rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder={`改善の方向性（任意）例：もっと速いデッキにしたい`}
+              placeholder={`再生成の条件（任意）例：もっと速いデッキにしたい`}
             />
             <button
               onClick={handleGenerate}
               disabled={generating}
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-sm rounded font-medium whitespace-nowrap"
             >
-              {generating ? "生成中..." : "改善する"}
+              {generating ? "生成中..." : "再生成する"}
             </button>
           </div>
           {generateError && <p className="text-red-500 text-xs mt-2">{generateError}</p>}
@@ -240,7 +239,7 @@ export default function DeckPage() {
           )}
           {generating && (
             <p className="text-blue-500 text-xs mt-2 animate-pulse">
-              AIがデッキを分析しています...しばらくお待ちください
+              AIがデッキを再生成しています...しばらくお待ちください
             </p>
           )}
         </div>
