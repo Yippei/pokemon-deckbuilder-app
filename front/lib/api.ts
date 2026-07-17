@@ -242,6 +242,19 @@ const pokemonTypeByContextType: Record<string, string> = {
   fighting: "闘",
   dark: "悪",
 };
+const basicEnergyByPokemonType: Record<string, string> = {
+  草: "基本草エネルギー",
+  炎: "基本炎エネルギー",
+  水: "基本水エネルギー",
+  雷: "基本雷エネルギー",
+  超: "基本超エネルギー",
+  闘: "基本闘エネルギー",
+  悪: "基本悪エネルギー",
+  鋼: "基本鋼エネルギー",
+};
+const pokemonTypeByBasicEnergyName = Object.fromEntries(
+  Object.entries(basicEnergyByPokemonType).map(([type, name]) => [normalizeCardLimitName(name), type])
+);
 const knownPreEvolutionByFamilyName: Record<string, string> = {
   シャワーズ: "イーブイ",
   サンダース: "イーブイ",
@@ -607,6 +620,26 @@ async function normalizeGeneratedDeck(
     warnings.push({
       type: "deck_policy",
       message: `選択方針を強めるカードを追加しました: ${planBias.addedNames.slice(0, 5).join("、")}`,
+    });
+  }
+
+  const energyPolicy = applyEnergyRequirementPolicy(cards, cardsByName, cardMaster, context);
+  if (energyPolicy.addedAccelerationNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `複数タイプのエネルギー要求に合わせて、エネ加速カードを追加しました: ${energyPolicy.addedAccelerationNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (energyPolicy.addedBasicEnergyNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `ワザコストに合わせて基本エネルギーを補いました: ${energyPolicy.addedBasicEnergyNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (energyPolicy.reducedSpecialEnergyNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `特殊エネルギーの採用を控えめに調整しました: ${energyPolicy.reducedSpecialEnergyNames.slice(0, 5).join("、")}`,
     });
   }
 
@@ -2566,6 +2599,129 @@ function findRemovableCardIndex(cards: DeckCard[], protectedNames: string[]) {
   return -1;
 }
 
+type EnergyRequirementAnalysis = {
+  requiredTypes: string[];
+  weightsByType: Map<string, number>;
+};
+
+function applyEnergyRequirementPolicy(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const analysis = analyzeEnergyRequirements(cards, cardMaster, context);
+  const protectedNames = [
+    ...getRequiredEvolutionLineNames(cards, cardMaster),
+    ...getRequestedContextCards(cardMaster, context).map((card) => card.name || "").filter(Boolean),
+  ];
+  const addedAccelerationNames: string[] = [];
+  const addedBasicEnergyNames: string[] = [];
+  const reducedSpecialEnergyNames = reduceSpecialEnergyCards(cards, cardMaster, protectedNames);
+
+  if (analysis.requiredTypes.length >= 2) {
+    addCardsForRoleTarget(cards, cardsByName, cardMaster, "energy_acceleration", 2, addedAccelerationNames, context, protectedNames);
+  }
+
+  for (const type of analysis.requiredTypes) {
+    const energyName = basicEnergyByPokemonType[type];
+    if (!energyName) continue;
+    const currentCount = countCardsWithSameName(cards, { cardName: energyName });
+    const minimumCount = analysis.requiredTypes.length >= 2 ? 2 : 0;
+    for (let count = currentCount; count < minimumCount; count += 1) {
+      const candidate = findFirstCardCandidate(cardsByName, energyName);
+      if (!candidate?.name) break;
+      if (addSinglePolicyCard(cards, candidate, addedBasicEnergyNames, protectedNames) === 0) break;
+    }
+  }
+
+  return {
+    addedAccelerationNames: uniqueNames(addedAccelerationNames),
+    addedBasicEnergyNames: uniqueNames(addedBasicEnergyNames),
+    reducedSpecialEnergyNames: uniqueNames(reducedSpecialEnergyNames),
+  };
+}
+
+function analyzeEnergyRequirements(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+): EnergyRequirementAnalysis {
+  const weightsByType = new Map<string, number>();
+  for (const deckCard of cards) {
+    const masterCard = cardMaster[deckCard.cardId];
+    if (!masterCard || masterCard.cardKind !== "pokemon") continue;
+    const pokemonWeight = Math.max(1, deckCard.count) * (isExactMainPokemon(masterCard, context) ? 2 : 1);
+    for (const attack of masterCard.attacks || []) {
+      for (const cost of attack.cost || []) {
+        const type = normalizePokemonEnergyType(cost);
+        if (!type || !basicEnergyByPokemonType[type]) continue;
+        weightsByType.set(type, (weightsByType.get(type) || 0) + pokemonWeight);
+      }
+    }
+  }
+
+  if (weightsByType.size === 0) {
+    const selectedType = context?.selectedType ? pokemonTypeByContextType[context.selectedType] : undefined;
+    if (selectedType) weightsByType.set(selectedType, 1);
+  }
+
+  return {
+    requiredTypes: [...weightsByType.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"))
+      .map(([type]) => type),
+    weightsByType,
+  };
+}
+
+function normalizePokemonEnergyType(cost?: string) {
+  const normalized = String(cost || "").replace(/[ 　・\-－]/g, "");
+  if (!normalized || normalized.includes("無") || normalized.includes("無色") || normalized.includes("Colorless")) return undefined;
+  if (normalized.includes("草")) return "草";
+  if (normalized.includes("炎")) return "炎";
+  if (normalized.includes("水")) return "水";
+  if (normalized.includes("雷")) return "雷";
+  if (normalized.includes("超")) return "超";
+  if (normalized.includes("闘")) return "闘";
+  if (normalized.includes("悪")) return "悪";
+  if (normalized.includes("鋼")) return "鋼";
+  return undefined;
+}
+
+function reduceSpecialEnergyCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  protectedNames: string[],
+  maxSpecialEnergyCount = 1
+) {
+  const reducedNames: string[] = [];
+  let specialEnergyCount = cards.reduce((sum, card) => {
+    const masterCard = cardMaster[card.cardId];
+    return isSpecialEnergyCard(masterCard) ? sum + card.count : sum;
+  }, 0);
+  if (specialEnergyCount <= maxSpecialEnergyCount) return reducedNames;
+
+  const protectedNameSet = new Set(protectedNames.map(normalizeCardLimitName));
+  for (let index = cards.length - 1; index >= 0 && specialEnergyCount > maxSpecialEnergyCount; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!isSpecialEnergyCard(masterCard)) continue;
+    if (protectedNameSet.has(normalizeCardLimitName(card.cardName || masterCard?.name))) continue;
+    const removeCount = Math.min(card.count, specialEnergyCount - maxSpecialEnergyCount);
+    if (removeCount <= 0) continue;
+    card.count -= removeCount;
+    specialEnergyCount -= removeCount;
+    reducedNames.push(card.cardName || masterCard?.name || card.cardId);
+  }
+  return reducedNames;
+}
+
+function isSpecialEnergyCard(card?: StaticCardDetail) {
+  if (!card || card.cardKind !== "energy") return false;
+  if (isBasicEnergyName(card.name)) return false;
+  return String(card.subKind || "").includes("特殊") || normalizeRuleText(card.ruleText || "").includes("特殊エネルギー");
+}
+
 function fillDeckWithStaples(
   cards: DeckCard[],
   cardsByName: CardsByName,
@@ -2610,25 +2766,67 @@ function fillDeckWithStaples(
     filled += countDeckCards(cards) - before;
   }
 
-  const energyName = context?.selectedType ? basicEnergyByType[context.selectedType] : undefined;
-  if (energyName) {
+  filled += fillRemainingSlotsWithBasicEnergy(cards, cardsByName, cardMaster, context);
+
+  return filled;
+}
+
+function fillRemainingSlotsWithBasicEnergy(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  let filled = 0;
+  const analysis = analyzeEnergyRequirements(cards, cardMaster, context);
+  const weightedTypes = analysis.requiredTypes.length > 0
+    ? analysis.requiredTypes
+    : context?.selectedType && pokemonTypeByContextType[context.selectedType]
+      ? [pokemonTypeByContextType[context.selectedType]]
+      : [];
+  if (weightedTypes.length === 0) return filled;
+
+  while (countDeckCards(cards) < targetDeckCardCount) {
+    const nextType = chooseNextBasicEnergyType(cards, analysis.weightsByType, weightedTypes);
+    const energyName = basicEnergyByPokemonType[nextType] || basicEnergyByType[context?.selectedType || ""];
+    if (!energyName) break;
+
     const card = findFirstCardCandidate(cardsByName, energyName);
-    if (card?.name) {
-      while (countDeckCards(cards) < targetDeckCardCount) {
-        const before = countDeckCards(cards);
-        addDeckCardWithLimits(cards, {
-          cardId: card.cardId,
-          cardName: card.name,
-          illustration: card.imageUrl,
-          count: targetDeckCardCount - before,
-        });
-        filled += countDeckCards(cards) - before;
-        if (countDeckCards(cards) === before) break;
-      }
-    }
+    if (!card?.name) break;
+
+    const before = countDeckCards(cards);
+    addDeckCardWithLimits(cards, {
+      cardId: card.cardId,
+      cardName: card.name,
+      illustration: card.imageUrl,
+      count: 1,
+    });
+    filled += countDeckCards(cards) - before;
+    if (countDeckCards(cards) === before) break;
   }
 
   return filled;
+}
+
+function chooseNextBasicEnergyType(
+  cards: DeckCard[],
+  weightsByType: Map<string, number>,
+  types: string[]
+) {
+  return [...types].sort((a, b) => {
+    const aWeight = Math.max(1, weightsByType.get(a) || 1);
+    const bWeight = Math.max(1, weightsByType.get(b) || 1);
+    const aCurrent = countBasicEnergyByPokemonType(cards, a);
+    const bCurrent = countBasicEnergyByPokemonType(cards, b);
+    return bWeight / (bCurrent + 1) - aWeight / (aCurrent + 1);
+  })[0];
+}
+
+function countBasicEnergyByPokemonType(cards: DeckCard[], type: string) {
+  return cards.reduce((sum, card) => {
+    const energyType = pokemonTypeByBasicEnergyName[normalizeCardLimitName(card.cardName)];
+    return energyType === type ? sum + card.count : sum;
+  }, 0);
 }
 
 function countDeckCards(cards: DeckCard[]) {
