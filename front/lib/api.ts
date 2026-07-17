@@ -129,6 +129,7 @@ const GenerateDeckResultSchema = z.object({
 const targetDeckCardCount = 60;
 const stapleCards = [
   { name: "ハイパーボール", targetCount: 4 },
+  { name: "ポケパッド", targetCount: 2 },
   { name: "ボスの指令", targetCount: 2 },
   { name: "夜のタンカ", targetCount: 1 },
   { name: "なかよしポフィン", targetCount: 2 },
@@ -137,9 +138,9 @@ const minimumPokemonSearchCardKinds = 2;
 const pokemonSearchGoodsTargetCount = 4;
 const pokemonSearchSupportCardNames = [
   "ハイパーボール",
+  "ポケパッド",
   "なかよしポフィン",
   "プレシャスキャリー",
-  "ポケパッド",
   "カナリィ",
   "ヒカリ",
   "タケシのスカウト",
