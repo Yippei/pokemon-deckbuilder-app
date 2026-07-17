@@ -644,6 +644,20 @@ async function normalizeGeneratedDeck(
     });
   }
 
+  const aceSpecChoice = applyOptimalAceSpecChoice(cards, cardsByName, cardMaster, context);
+  if (aceSpecChoice.selectedName) {
+    warnings.push({
+      type: "deck_policy",
+      message: `デッキ内容に合わせてACE SPECを選択しました: ${aceSpecChoice.selectedName}`,
+    });
+  }
+  if (aceSpecChoice.removedNames.length > 0) {
+    warnings.push({
+      type: "card_limit",
+      message: `選択したACE SPEC以外を除外しました: ${aceSpecChoice.removedNames.slice(0, 5).join("、")}`,
+    });
+  }
+
   const filledCardCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
   if (filledCardCount > 0) {
     warnings.push({
@@ -929,6 +943,269 @@ function isAceSpecCard(masterCard: StaticCardDetail | undefined, card: Pick<Deck
     card.cardName,
   ].filter(Boolean).join(" ");
   return /ACE\s*SPEC|エーススペック/i.test(text) || isAceSpecName(masterCard?.name || card.cardName);
+}
+
+type AceSpecChoiceResult = {
+  selectedName?: string;
+  removedNames: string[];
+};
+
+type DeckFeatureProfile = {
+  plan: DeckPlan;
+  pokemonCount: number;
+  basicPokemonCount: number;
+  evolutionPokemonCount: number;
+  stage2PokemonCount: number;
+  mainPokemonIsEvolution: boolean;
+  mainPokemonIsStage2: boolean;
+  ruleBoxPokemonCount: number;
+  requiredEnergyTypeCount: number;
+  maxAttackCost: number;
+  pokemonSearchCount: number;
+  handRefreshCount: number;
+  switchCount: number;
+  gustCount: number;
+  recoveryCount: number;
+};
+
+function applyOptimalAceSpecChoice(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+): AceSpecChoiceResult {
+  const explicitlyRequestedAceSpec = getRequestedContextCards(cardMaster, context)
+    .find((card) => card.name && isAceSpecCard(card, { cardName: card.name }));
+  if (explicitlyRequestedAceSpec?.name) {
+    enforceSingleAceSpecByName(cards, cardMaster, explicitlyRequestedAceSpec.name);
+    return { selectedName: undefined, removedNames: [] };
+  }
+
+  const bestAceSpec = selectOptimalAceSpecCard(cards, cardsByName, cardMaster, context);
+  if (!bestAceSpec?.name) return { removedNames: [] };
+
+  const removedNames = enforceSingleAceSpecByName(cards, cardMaster, bestAceSpec.name);
+  const alreadyHasBest = countCardsWithSameName(cards, { cardName: bestAceSpec.name }) > 0;
+  if (!alreadyHasBest) {
+    const protectedNames = [
+      bestAceSpec.name,
+      ...getRequiredEvolutionLineNames(cards, cardMaster),
+      ...getRequestedContextCards(cardMaster, context).map((card) => card.name || "").filter(Boolean),
+    ];
+    addSinglePolicyCard(cards, bestAceSpec, [], protectedNames);
+  }
+
+  return {
+    selectedName: bestAceSpec.name,
+    removedNames: uniqueNames(removedNames),
+  };
+}
+
+function enforceSingleAceSpecByName(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  selectedName: string
+) {
+  const removedNames: string[] = [];
+  const normalizedSelectedName = normalizeCardLimitName(selectedName);
+  for (const card of cards) {
+    const masterCard = cardMaster[card.cardId];
+    if (!isAceSpecCard(masterCard, card)) continue;
+
+    const cardName = card.cardName || masterCard?.name || card.cardId;
+    if (normalizeCardLimitName(cardName) === normalizedSelectedName) {
+      if (card.count > 1) {
+        removedNames.push(cardName);
+        card.count = 1;
+      }
+      continue;
+    }
+
+    if (card.count > 0) removedNames.push(cardName);
+    card.count = 0;
+  }
+  return removedNames;
+}
+
+function selectOptimalAceSpecCard(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const featureProfile = buildDeckFeatureProfile(cards, cardMaster, context);
+  const candidates = getAceSpecCandidates(cardsByName, cardMaster)
+    .filter((card) => canUseAceSpecCandidate(card, cards, cardMaster, context))
+    .sort((a, b) => {
+      const scoreDiff = scoreAceSpecCandidate(b, featureProfile) - scoreAceSpecCandidate(a, featureProfile);
+      if (scoreDiff !== 0) return scoreDiff;
+      return compareSameNameCardCandidatePriority(a, b);
+    });
+  return candidates[0];
+}
+
+function getAceSpecCandidates(cardsByName: CardsByName, cardMaster: Record<string, StaticCardDetail>) {
+  const names = uniqueNames([
+    ...aceSpecCardNames,
+    ...Object.values(cardMaster)
+      .filter((card) => card.name && isAceSpecCard(card, { cardName: card.name }))
+      .map((card) => card.name as string),
+  ]);
+  const candidates: StaticCardDetail[] = [];
+  for (const name of names) {
+    const card = findFirstCardCandidate(cardsByName, name, (candidate) => isAceSpecCard(candidate, { cardName: candidate.name }));
+    if (card) candidates.push(card);
+  }
+  return candidates;
+}
+
+function canUseAceSpecCandidate(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (!card.name) return false;
+  if (!isPolicyCandidateCompatible(card, cards, cardMaster, context)) return false;
+  if (isPokemonSearchCard(card) && !canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
+  if (card.name === "ハイパーアロマ" && !deckUsesEvolution(cards, cardMaster)) return false;
+  if (card.name === "偉大な大樹" && !deckUsesEvolution(cards, cardMaster)) return false;
+  if (card.name === "ネオアッパーエネルギー" && countPokemonByStage(cards, cardMaster, "stage2") === 0) return false;
+  return true;
+}
+
+function buildDeckFeatureProfile(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+): DeckFeatureProfile {
+  const energyAnalysis = analyzeEnergyRequirements(cards, cardMaster, context);
+  let pokemonCount = 0;
+  let basicPokemonCount = 0;
+  let evolutionPokemonCount = 0;
+  let stage2PokemonCount = 0;
+  let mainPokemonIsEvolution = false;
+  let mainPokemonIsStage2 = false;
+  let ruleBoxPokemonCount = 0;
+  let maxAttackCost = 0;
+
+  for (const deckCard of cards) {
+    const masterCard = cardMaster[deckCard.cardId];
+    if (!masterCard || masterCard.cardKind !== "pokemon") continue;
+    pokemonCount += deckCard.count;
+    if (pokemonMatchesStage(masterCard, "basic")) basicPokemonCount += deckCard.count;
+    if (pokemonMatchesStage(masterCard, "evolution")) evolutionPokemonCount += deckCard.count;
+    if (pokemonMatchesStage(masterCard, "stage2")) stage2PokemonCount += deckCard.count;
+    if (isRuleBoxPokemon(masterCard)) ruleBoxPokemonCount += deckCard.count;
+    if (isExactMainPokemon(masterCard, context)) {
+      mainPokemonIsEvolution = pokemonMatchesStage(masterCard, "evolution");
+      mainPokemonIsStage2 = pokemonMatchesStage(masterCard, "stage2");
+    }
+    for (const attack of masterCard.attacks || []) {
+      maxAttackCost = Math.max(maxAttackCost, attack.cost?.length || 0);
+    }
+  }
+
+  return {
+    plan: getSelectedDeckPlan(context),
+    pokemonCount,
+    basicPokemonCount,
+    evolutionPokemonCount,
+    stage2PokemonCount,
+    mainPokemonIsEvolution,
+    mainPokemonIsStage2,
+    ruleBoxPokemonCount,
+    requiredEnergyTypeCount: energyAnalysis.requiredTypes.length,
+    maxAttackCost,
+    pokemonSearchCount: countCardsByRole(cards, cardMaster, "pokemon_search"),
+    handRefreshCount: countCardsByRole(cards, cardMaster, "hand_refresh"),
+    switchCount: countCardsByRole(cards, cardMaster, "switch"),
+    gustCount: countCardsByRole(cards, cardMaster, "gust"),
+    recoveryCount: countCardsByRole(cards, cardMaster, "recovery"),
+  };
+}
+
+function scoreAceSpecCandidate(card: StaticCardDetail, profile: DeckFeatureProfile) {
+  const name = normalizeCardLimitName(card.name);
+  let score = 40;
+
+  if (name === normalizeCardLimitName("プライムキャッチャー")) {
+    score += 42;
+    if (profile.gustCount <= 1) score += 14;
+    if (profile.switchCount <= 1) score += 8;
+    if (profile.plan === "disruption" || profile.plan === "speed") score += 8;
+  } else if (name === normalizeCardLimitName("アンフェアスタンプ")) {
+    score += 34;
+    if (profile.plan === "disruption" || profile.plan === "lo") score += 30;
+    if (profile.handRefreshCount <= 2) score += 8;
+  } else if (name === normalizeCardLimitName("ハイパーアロマ")) {
+    score += profile.evolutionPokemonCount * 6 + profile.stage2PokemonCount * 8;
+    if (profile.mainPokemonIsEvolution) score += 24;
+    if (profile.mainPokemonIsStage2) score += 16;
+  } else if (name === normalizeCardLimitName("偉大な大樹")) {
+    score += profile.evolutionPokemonCount * 5 + profile.stage2PokemonCount * 9;
+    if (profile.mainPokemonIsStage2) score += 24;
+    if (profile.plan === "combo" || profile.plan === "stable") score += 10;
+  } else if (name === normalizeCardLimitName("ネオアッパーエネルギー")) {
+    score += profile.stage2PokemonCount * 10;
+    if (profile.mainPokemonIsStage2) score += 30;
+    if (profile.requiredEnergyTypeCount >= 2) score += 16;
+    if (profile.maxAttackCost >= 3) score += 12;
+  } else if (name === normalizeCardLimitName("プレシャスキャリー")) {
+    score += 28;
+    if (profile.basicPokemonCount >= 8) score += 18;
+    if (profile.plan === "speed" || profile.plan === "stable") score += 12;
+    if (profile.stage2PokemonCount >= 3) score -= 8;
+  } else if (name === normalizeCardLimitName("きらめく結晶")) {
+    score += 20;
+    if (profile.requiredEnergyTypeCount >= 2) score += 28;
+    if (profile.maxAttackCost >= 3) score += 18;
+    if (profile.plan === "speed") score += 8;
+  } else if (name === normalizeCardLimitName("エネルギー転送PRO")) {
+    score += 16;
+    if (profile.requiredEnergyTypeCount >= 2) score += 26;
+    if (profile.maxAttackCost >= 3) score += 10;
+    if (profile.plan === "speed") score += 8;
+  } else if (name === normalizeCardLimitName("ヒーローマント")) {
+    score += 18;
+    if (profile.plan === "tank") score += 36;
+    if (profile.ruleBoxPokemonCount > 0) score += 12;
+  } else if (name === normalizeCardLimitName("サバイブギプス")) {
+    score += 12;
+    if (profile.plan === "tank") score += 30;
+    if (profile.plan === "lo") score += 10;
+  } else if (name === normalizeCardLimitName("マキシマムベルト")) {
+    score += 26;
+    if (profile.plan === "speed") score += 18;
+    if (profile.ruleBoxPokemonCount > 0) score += 8;
+  } else if (name === normalizeCardLimitName("シークレットボックス")) {
+    score += 22;
+    if (profile.plan === "combo") score += 34;
+    if (profile.handRefreshCount <= 2) score += 8;
+  } else if (name === normalizeCardLimitName("パーフェクトミキサー")) {
+    score += 16;
+    if (profile.plan === "combo") score += 30;
+    if (profile.recoveryCount >= 2) score += 8;
+  } else if (name === normalizeCardLimitName("レガシーエネルギー")) {
+    score += 14;
+    if (profile.plan === "tank" || profile.plan === "lo") score += 12;
+    if (profile.requiredEnergyTypeCount >= 2) score += 10;
+  } else if (name === normalizeCardLimitName("ポケモン回収サイクロン")) {
+    score += 14;
+    if (profile.plan === "tank" || profile.plan === "combo") score += 14;
+  } else if (name === normalizeCardLimitName("メガシグナル")) {
+    score += 10;
+    if (profile.mainPokemonIsEvolution) score += 18;
+    if (profile.plan === "disruption") score += 8;
+  } else if (name === normalizeCardLimitName("ニュートラルセンター")) {
+    score += 8;
+    if (profile.plan === "tank" || profile.plan === "lo") score += 20;
+  } else if (name === normalizeCardLimitName("デラックスボム")) {
+    score += 8;
+    if (profile.plan === "disruption") score += 8;
+  }
+
+  return score;
 }
 
 function classifyCardRoles(card: StaticCardDetail): Set<CardRole> {
