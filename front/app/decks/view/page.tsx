@@ -14,6 +14,7 @@ import {
   maxCountForCard,
   countCardsWithSameName,
   remainingCountForCardName,
+  normalizeCardLimitName,
 } from "@/lib/api";
 import CardSearch from "@/components/CardSearch";
 import AuthGate from "@/components/AuthGate";
@@ -81,11 +82,11 @@ export default function DeckPage() {
 
   const addCard = (card: DeckCard) => {
     setCards((prev) => {
-      const existing = prev.find((c) => c.cardId === card.cardId);
+      const existing = prev.find((c) => normalizeCardLimitName(c.cardName) === normalizeCardLimitName(card.cardName));
       if (existing) {
         if (remainingCountForCardName(prev, card) <= 0) return prev;
         return prev.map((c) =>
-          c.cardId === card.cardId ? { ...c, count: c.count + 1 } : c
+          c.cardId === existing.cardId ? { ...c, count: c.count + 1 } : c
         );
       }
       if (remainingCountForCardName(prev, card) <= 0) return prev;

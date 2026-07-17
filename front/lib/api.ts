@@ -743,7 +743,7 @@ function compareSameNameCardCandidatePriority(a: StaticCardDetail, b: StaticCard
 function addDeckCardWithLimits(cards: DeckCard[], card: DeckCard): number {
   const addableCount = Math.min(card.count, remainingCountForCardName(cards, card), remainingAceSpecCount(cards, card));
   if (addableCount <= 0) return card.count;
-  const existing = cards.find((current) => current.cardId === card.cardId);
+  const existing = cards.find((current) => normalizeCardLimitName(current.cardName) === normalizeCardLimitName(card.cardName));
   if (existing) {
     existing.count += addableCount;
   } else {
