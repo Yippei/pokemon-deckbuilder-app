@@ -124,6 +124,7 @@ export default function DeckPage() {
           selectedType,
           selectedPlan: "再生成",
           supplementalTheme: theme,
+          regenerationNonce: crypto.randomUUID(),
         },
       });
       setCards(generated.cards);

@@ -115,6 +115,7 @@ export default function NewDeckPage() {
           selectedPlan,
           pokemonName,
           supplementalTheme: theme,
+          regenerationNonce: crypto.randomUUID(),
         },
       });
       setCards(generated.cards);
@@ -296,7 +297,7 @@ export default function NewDeckPage() {
                 )}
                 {generating && (
                   <p className="deck-builder-message deck-builder-message--loading">
-                    生成しています。既存のカードがある場合は内容を踏まえて再構築します。
+                    生成しています。入力した条件から新しい構成を作ります。
                   </p>
                 )}
               </section>

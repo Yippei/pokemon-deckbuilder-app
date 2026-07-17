@@ -53,6 +53,7 @@ export type GenerateDeckContext = {
   selectedPlan?: string;
   pokemonName?: string;
   supplementalTheme?: string;
+  regenerationNonce?: string;
 };
 
 type StaticCardDetail = {
