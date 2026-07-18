@@ -282,7 +282,10 @@ export function maxCountForCard(card: Pick<DeckCard, "cardName">): number {
 }
 
 export function normalizeCardLimitName(name?: string): string {
-  return (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
+  return (name || "")
+    .replace(/[ぁ-ん]/g, (char) => String.fromCharCode(char.charCodeAt(0) + 0x60))
+    .replace(/[ 　・\-－]/g, "")
+    .toLowerCase();
 }
 
 export function isAceSpecName(name?: string): boolean {
