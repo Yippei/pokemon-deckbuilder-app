@@ -61,6 +61,8 @@ type EffectAction =
       target: SearchTarget;
       count: number;
       destination: "hand" | "bench" | "stadium" | "attach_energy";
+      splitDestination?: { hand?: number; attachEnergy?: number };
+      distinctBasicEnergyTypes?: boolean;
       look?: { from: "top" | "bottom"; count: number; opponent?: boolean };
       remainingDestination?: "deck" | "discard";
     }
@@ -283,8 +285,14 @@ function getEffectProfile(card?: SoloCard | null): EffectProfile | null {
   const masterAction = masterProfile?.actions[0];
 
   if (!masterProfile) return fallbackProfile;
+  if (fallbackProfile && shouldPreferFallbackEffectProfile(card)) return fallbackProfile;
   if (fallbackProfile && masterAction?.type === "resolve_effect") return fallbackProfile;
   return masterProfile;
+}
+
+function shouldPreferFallbackEffectProfile(card?: SoloCard | null) {
+  const name = normalizePokemonNameCore(card?.cardName);
+  return name === "アカマツ";
 }
 
 function getFallbackEffectProfile(card?: SoloCard | null): EffectProfile | null {
@@ -327,6 +335,21 @@ function getFallbackEffectProfile(card?: SoloCard | null): EffectProfile | null 
     return {
       label: "山札から基本エネルギーを1枚手札に加える",
       actions: [{ type: "search_deck", target: "basic_energy", count: 1, destination: "hand" }],
+    };
+  }
+  if (name === "アカマツ") {
+    return {
+      label: "山札から違うタイプの基本エネルギーを2枚まで選び、1枚を手札に加え、残りを自分のポケモンにつける",
+      actions: [
+        {
+          type: "search_deck",
+          target: "basic_energy",
+          count: 2,
+          destination: "hand",
+          splitDestination: { hand: 1, attachEnergy: 1 },
+          distinctBasicEnergyTypes: true,
+        },
+      ],
     };
   }
   if (name === "ふしぎなアメ") {
@@ -405,6 +428,12 @@ function getSearchTargetLabel(target: SearchTarget): string {
     stadium: "スタジアム",
   };
   return labels[target];
+}
+
+function getBasicEnergyType(card?: SoloCard | null) {
+  const name = String(card?.cardName || card?.name || "");
+  const match = name.match(/^基本(.+)エネルギー$/);
+  return match?.[1] || "";
 }
 
 function getStageCategory(stage?: string, stageCategory?: string) {
@@ -1531,7 +1560,9 @@ export default function AIBattleRoomPage() {
     setSoloNotice(
       action.look
         ? `${action.look.from === "bottom" ? "山札の下" : "山札の上"}から${action.look.count}枚を確認し、${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`
-        : `山札から${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`
+        : action.splitDestination
+          ? `山札から${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。1枚目を手札に加え、2枚目を場のポケモンにつけます。`
+          : `山札から${getSearchTargetLabel(action.target)}を${action.count}枚まで選んでください。`
     );
     return true;
   };
@@ -1840,9 +1871,26 @@ export default function AIBattleRoomPage() {
   const toggleEffectPileSelection = (pileIndex: number) => {
     setSoloEffectPrompt((prompt) => {
       if (!prompt || prompt.kind !== "search_deck") return prompt;
-      const selected = prompt.selectedPileIndexes.includes(pileIndex)
-        ? prompt.selectedPileIndexes.filter((index) => index !== pileIndex)
-        : [...prompt.selectedPileIndexes, pileIndex].slice(0, prompt.action.count);
+      if (prompt.selectedPileIndexes.includes(pileIndex)) {
+        return {
+          ...prompt,
+          selectedPileIndexes: prompt.selectedPileIndexes.filter((index) => index !== pileIndex),
+        };
+      }
+
+      if (prompt.action.distinctBasicEnergyTypes) {
+        const nextCardType = getBasicEnergyType(soloPile[pileIndex]);
+        const selectedTypes = prompt.selectedPileIndexes
+          .map((index) => getBasicEnergyType(soloPile[index]))
+          .filter(Boolean);
+        if (nextCardType && selectedTypes.includes(nextCardType)) {
+          setSoloNotice("アカマツでは、それぞれ違うタイプの基本エネルギーを選んでください。");
+          return prompt;
+        }
+      }
+
+      const selected =
+        [...prompt.selectedPileIndexes, pileIndex].slice(0, prompt.action.count);
       return { ...prompt, selectedPileIndexes: selected };
     });
   };
@@ -1865,7 +1913,37 @@ export default function AIBattleRoomPage() {
       .map(({ card }) => card)
       .sort(() => Math.random() - 0.5);
 
-    if (soloEffectPrompt.action.destination === "bench") {
+    if (soloEffectPrompt.action.splitDestination) {
+      const handCount = Math.max(0, soloEffectPrompt.action.splitDestination.hand || 0);
+      const attachCount = Math.max(0, soloEffectPrompt.action.splitDestination.attachEnergy || 0);
+      const handCards = selectedCards.slice(0, handCount);
+      const attachCards = selectedCards.slice(handCount, handCount + attachCount);
+
+      if (attachCards.length > 0) {
+        if (soloActiveStack.length > 0) {
+          setSoloAttachedEnergies((energies) => ({
+            ...energies,
+            active: [...energies.active, ...attachCards],
+          }));
+        } else {
+          const firstBenchIndex = soloBenchStacks.findIndex((stack) => stack.length > 0);
+          if (firstBenchIndex === -1) {
+            setSoloNotice("エネルギーをつけるポケモンが場にいません。");
+            return;
+          }
+          setSoloAttachedEnergies((energies) => ({
+            ...energies,
+            bench: energies.bench.map((attached, index) =>
+              index === firstBenchIndex ? [...attached, ...attachCards] : attached
+            ),
+          }));
+        }
+      }
+
+      if (handCards.length > 0) {
+        setSoloHand((hand) => [...hand, ...handCards]);
+      }
+    } else if (soloEffectPrompt.action.destination === "bench") {
       const emptyBenchIndexes = soloBenchStacks
         .map((stack, index) => ({ stack, index }))
         .filter(({ stack }) => stack.length === 0)
@@ -1927,7 +2005,9 @@ export default function AIBattleRoomPage() {
     setSoloSelectedHandIndex(null);
     setSoloEffectPrompt(null);
     setSoloNotice(
-      soloEffectPrompt.action.destination === "attach_energy"
+      soloEffectPrompt.action.splitDestination
+        ? `${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚を選び、手札とエネルギー加速に分けて処理しました。`
+        : soloEffectPrompt.action.destination === "attach_energy"
         ? `${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚を場のポケモンにつけ、山札をシャッフルしました。`
         : `${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果で${selectedCards.length}枚選び、山札をシャッフルしました。`
     );
@@ -2802,6 +2882,8 @@ export default function AIBattleRoomPage() {
                                 ? `${soloEffectPrompt.action.look.from === "bottom" ? "山札の下" : "山札の上"}から${soloEffectPrompt.action.look.count}枚を確認しています。`
                                 : "山札全体を確認しています。"}
                               {getSearchTargetLabel(soloEffectPrompt.action.target)}を{soloEffectPrompt.action.count}枚まで選んでください。
+                              {soloEffectPrompt.action.splitDestination ? " 1枚目を手札に加え、2枚目を場のポケモンにつけます。" : ""}
+                              {soloEffectPrompt.action.distinctBasicEnergyTypes ? " 同じタイプの基本エネルギーは同時に選べません。" : ""}
                             </p>
                             <div className="mt-2 grid max-h-72 gap-2 overflow-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
                               {effectSearchCandidates.length === 0 ? (
