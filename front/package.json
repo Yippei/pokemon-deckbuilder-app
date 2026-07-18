@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:aws": "next build --webpack",
+    "card-index:build": "node ./scripts/build-card-generation-index.mjs",
     "deploy:aws": "bash ./scripts/deploy-aws.sh",
     "news:update": "node ./scripts/update-pokemon-card-news.mjs",
     "start": "next start",
