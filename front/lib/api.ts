@@ -630,6 +630,14 @@ async function normalizeGeneratedDeck(
     });
   }
 
+  const typeSpecificPolicy = applyTypeSpecificCardPolicy(cards, cardMaster, context);
+  if (typeSpecificPolicy.addedNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `選択タイプに合う専用カードを追加しました: ${typeSpecificPolicy.addedNames.slice(0, 5).join("、")}`,
+    });
+  }
+
   const energyPolicy = applyEnergyRequirementPolicy(cards, cardsByName, cardMaster, context);
   if (energyPolicy.addedAccelerationNames.length > 0) {
     warnings.push({
@@ -2473,6 +2481,70 @@ function getSelectedDeckPlan(context?: GenerateDeckContext): DeckPlan {
   if (/コンボ|再現性/.test(text)) return "combo";
   if (/安定|事故/.test(text)) return "stable";
   return "unknown";
+}
+
+function applyTypeSpecificCardPolicy(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const selectedType = getSelectedPokemonType(context);
+  const addedNames: string[] = [];
+  if (!selectedType) return { addedNames };
+
+  const protectedNames = [
+    ...getRequiredEvolutionLineNames(cards, cardMaster),
+    ...getRequestedContextCards(cardMaster, context).map((card) => card.name || "").filter(Boolean),
+  ];
+  const candidates = Object.values(cardMaster)
+    .filter((card) => isTypeSpecificCardForType(card, selectedType))
+    .filter((card) => isPolicyCandidateCompatible(card, cards, cardMaster, context))
+    .sort((a, b) => scoreTypeSpecificCandidate(b, cards, cardMaster) - scoreTypeSpecificCandidate(a, cards, cardMaster));
+
+  for (const candidate of candidates) {
+    if (addedNames.length >= 2) break;
+    if (!candidate.name || countCardsWithSameName(cards, { cardName: candidate.name }) > 0) continue;
+    if (isAceSpecCard(candidate, { cardName: candidate.name })) continue;
+    addSinglePolicyCard(cards, candidate, addedNames, protectedNames);
+  }
+
+  return {
+    addedNames: uniqueNames(addedNames),
+  };
+}
+
+function isTypeSpecificCardForType(card: StaticCardDetail, selectedType: string) {
+  if (!card.name || card.cardKind === "pokemon") return false;
+  if (isBasicEnergyName(card.name)) return false;
+
+  const normalizedType = normalizeCardLimitName(selectedType);
+  const normalizedName = normalizeCardLimitName(card.name);
+  const normalizedRuleText = normalizeCardLimitName(card.ruleText);
+  const typeEnergyText = `${normalizedType}エネルギー`;
+  const typePokemonText = `${normalizedType}ポケモン`;
+  const typeText = `${normalizedType}タイプ`;
+
+  if (isSpecialEnergyCard(card) && normalizedName.includes(typeEnergyText)) return true;
+  return normalizedRuleText.includes(typeEnergyText) ||
+    normalizedRuleText.includes(typePokemonText) ||
+    normalizedRuleText.includes(typeText);
+}
+
+function scoreTypeSpecificCandidate(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  let score = 0;
+  const roles = classifyCardRoles(card);
+  if (roles.has("energy_acceleration")) score += 40;
+  if (roles.has("energy_search")) score += 28;
+  if (roles.has("pokemon_search")) score += 24;
+  if (roles.has("hand_refresh")) score += 16;
+  if (isSpecialEnergyCard(card)) score += 18;
+  if (canPokemonSearchCardFitDeck(card, cards, cardMaster)) score += 10;
+  score += Number(card.cardId || 0) / 100000;
+  return score;
 }
 
 function addCardsForRoleTarget(
