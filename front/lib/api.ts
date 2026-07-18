@@ -128,6 +128,7 @@ const GenerateDeckResultSchema = z.object({
 });
 
 const targetDeckCardCount = 60;
+const maxPokemonSearchCardCount = 12;
 const stapleCards = [
   { name: "ハイパーボール", targetCount: 4 },
   { name: "ポケパッド", targetCount: 2 },
@@ -720,6 +721,19 @@ async function normalizeGeneratedDeck(
         message: `専用テーマカードを除外した不足分${refilledCount}枚を汎用カードまたは基本エネルギーで補いました。`,
       });
     }
+  }
+  const pokemonSearchLimit = enforcePokemonSearchCardLimit(cards, cardsByName, cardMaster, context);
+  if (pokemonSearchLimit.reducedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `ポケモンサーチカードが多すぎたため、最大${maxPokemonSearchCardCount}枚に調整しました: ${pokemonSearchLimit.reducedNames.slice(0, 5).join("、")}`,
+    });
+  }
+  if (pokemonSearchLimit.filledCount > 0) {
+    warnings.push({
+      type: "staple_fill",
+      message: `ポケモンサーチ調整後の不足分${pokemonSearchLimit.filledCount}枚を非サーチカードで補いました。`,
+    });
   }
   const total = countDeckCards(cards);
   if (total !== targetDeckCardCount) {
@@ -2596,6 +2610,111 @@ function countCardsByRole(
     if (!masterCard || !cardHasRole(masterCard, role)) return sum;
     return sum + card.count;
   }, 0);
+}
+
+function enforcePokemonSearchCardLimit(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const protectedNames = [
+    ...getRequiredEvolutionLineNames(cards, cardMaster),
+    ...getRequestedContextCards(cardMaster, context).map((card) => card.name || "").filter(Boolean),
+  ];
+  const protectedNameSet = new Set(protectedNames.map(normalizeCardLimitName));
+  const reducedNames: string[] = [];
+  let reducedCount = 0;
+
+  while (countCardsByRole(cards, cardMaster, "pokemon_search") > maxPokemonSearchCardCount) {
+    const removableIndex = findRemovablePokemonSearchCardIndex(cards, cardMaster, protectedNameSet);
+    if (removableIndex < 0) break;
+    const card = cards[removableIndex];
+    card.count -= 1;
+    reducedCount += 1;
+    reducedNames.push(card.cardName || cardMaster[card.cardId]?.name || card.cardId);
+    if (card.count <= 0) cards.splice(removableIndex, 1);
+  }
+
+  const filledCount = fillMissingSlotsWithNonPokemonSearchCards(cards, cardsByName, cardMaster, context, protectedNames);
+  return {
+    reducedCount,
+    reducedNames: uniqueNames(reducedNames),
+    filledCount,
+  };
+}
+
+function findRemovablePokemonSearchCardIndex(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  protectedNameSet: Set<string>
+) {
+  const candidates = cards
+    .map((card, index) => ({ card, index, masterCard: cardMaster[card.cardId] }))
+    .filter(({ card, masterCard }) => {
+      if (!masterCard || !cardHasRole(masterCard, "pokemon_search")) return false;
+      return !protectedNameSet.has(normalizeCardLimitName(card.cardName || masterCard.name));
+    })
+    .sort((a, b) => scorePokemonSearchRemovalCandidate(b.masterCard!) - scorePokemonSearchRemovalCandidate(a.masterCard!));
+  return candidates[0]?.index ?? -1;
+}
+
+function scorePokemonSearchRemovalCandidate(card: StaticCardDetail) {
+  let score = 0;
+  if (isPokemonSearchGoodsCard(card)) score += 8;
+  if (!cardHasRole(card, "ball_search")) score += 4;
+  if (isAceSpecCard(card, { cardName: card.name })) score += 20;
+  if (cardHasRole(card, "evolution_support")) score -= 6;
+  if (normalizeCardLimitName(card.name) === normalizeCardLimitName("ハイパーボール")) score -= 4;
+  if (normalizeCardLimitName(card.name) === normalizeCardLimitName("ポケパッド")) score -= 3;
+  return score;
+}
+
+function fillMissingSlotsWithNonPokemonSearchCards(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext,
+  protectedNames: string[] = []
+) {
+  let filled = 0;
+  const preferredNames = [
+    "ナンジャモ",
+    "博士の研究",
+    "ボスの指令",
+    "ポケモンいれかえ",
+    "夜のタンカ",
+    "すごいつりざお",
+    "大地の器",
+  ];
+
+  while (countDeckCards(cards) < targetDeckCardCount) {
+    const candidate = findAddablePolicyCard(cards, cardsByName, preferredNames, (card) => (
+      !cardHasRole(card, "pokemon_search") &&
+      isPolicyCandidateCompatible(card, cards, cardMaster, context)
+    ));
+    if (!candidate?.name) break;
+    const added = addSinglePolicyCard(cards, candidate, [], protectedNames);
+    if (added === 0) break;
+    filled += added;
+  }
+
+  const fallbackRoles: CardRole[] = ["hand_refresh", "gust", "switch", "recovery", "energy_search", "energy_acceleration"];
+  for (const role of fallbackRoles) {
+    while (countDeckCards(cards) < targetDeckCardCount) {
+      const candidateNames = getPolicyCandidateNames([], cardMaster, role);
+      const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => (
+        !cardHasRole(card, "pokemon_search") &&
+        isPolicyCandidateCompatible(card, cards, cardMaster, context)
+      ));
+      if (!candidate?.name) break;
+      const added = addSinglePolicyCard(cards, candidate, [], protectedNames);
+      if (added === 0) break;
+      filled += added;
+    }
+  }
+
+  return filled;
 }
 
 function addMissingPokemonSearchKinds(
