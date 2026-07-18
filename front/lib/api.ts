@@ -412,10 +412,18 @@ export async function generateDeck(body: {
   generationContext?: GenerateDeckContext;
 }): Promise<GenerateDeckResult> {
   try {
+    const generationContext = {
+      ...body.generationContext,
+      regenerationNonce: body.generationContext?.regenerationNonce || crypto.randomUUID(),
+    };
     const res = await authFetch(`${API_URL}/decks/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      cache: "no-store",
+      body: JSON.stringify({
+        theme: body.theme,
+        generationContext,
+      }),
     });
     if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成に失敗しました"));
     const data = await res.json();
@@ -424,7 +432,7 @@ export async function generateDeck(body: {
       console.warn("Invalid generated deck response", parsed.error.flatten());
       throw new Error("AIの生成結果の形式が正しくありません。もう一度生成してください。");
     }
-    return await normalizeGeneratedDeck(parsed.data, body.generationContext);
+    return await normalizeGeneratedDeck(parsed.data, generationContext);
   } catch (error) {
     throw new Error(toJapaneseFetchError(error, "デッキの生成に失敗しました"));
   }
@@ -3032,9 +3040,13 @@ function analyzeEnergyRequirements(
   context?: GenerateDeckContext
 ): EnergyRequirementAnalysis {
   const weightsByType = new Map<string, number>();
+  const selectedPokemonType = getSelectedPokemonType(context);
   for (const deckCard of cards) {
     const masterCard = cardMaster[deckCard.cardId];
     if (!masterCard || masterCard.cardKind !== "pokemon") continue;
+    if (selectedPokemonType && !pokemonMatchesSelectedType(masterCard, context) && !isExactMainPokemon(masterCard, context)) {
+      continue;
+    }
     const pokemonWeight = Math.max(1, deckCard.count) * (isExactMainPokemon(masterCard, context) ? 2 : 1);
     for (const attack of masterCard.attacks || []) {
       for (const cost of attack.cost || []) {
@@ -3163,8 +3175,9 @@ function fillRemainingSlotsWithBasicEnergy(
 ) {
   let filled = 0;
   const analysis = analyzeEnergyRequirements(cards, cardMaster, context);
+  const selectedPokemonType = getSelectedPokemonType(context);
   const weightedTypes = analysis.requiredTypes.length > 0
-    ? analysis.requiredTypes
+    ? prioritizeSelectedEnergyType(analysis.requiredTypes, selectedPokemonType)
     : context?.selectedType && pokemonTypeByContextType[context.selectedType]
       ? [pokemonTypeByContextType[context.selectedType]]
       : [];
@@ -3190,6 +3203,15 @@ function fillRemainingSlotsWithBasicEnergy(
   }
 
   return filled;
+}
+
+function prioritizeSelectedEnergyType(requiredTypes: string[], selectedPokemonType?: string) {
+  if (!selectedPokemonType) return requiredTypes;
+  if (requiredTypes.includes(selectedPokemonType)) return [
+    selectedPokemonType,
+    ...requiredTypes.filter((type) => type !== selectedPokemonType),
+  ];
+  return [selectedPokemonType, ...requiredTypes];
 }
 
 function chooseNextBasicEnergyType(
