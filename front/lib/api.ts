@@ -418,7 +418,7 @@ export async function generateDeck(body: {
     };
     const res = await authFetch(`${API_URL}/decks/generate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      headers: { "Content-Type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({
         theme: body.theme,
