@@ -56,6 +56,8 @@ export default function DeckPage() {
 
   // AI改善
   const [theme, setTheme] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState("");
+  const [pokemonName, setPokemonName] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
   const [generateWarnings, setGenerateWarnings] = useState<string[]>([]);
@@ -118,11 +120,18 @@ export default function DeckPage() {
     setGenerating(true);
     try {
       const typeLabel = deckTypes.find((deckType) => deckType.type === selectedType)?.label;
+      const generationParts = [
+        typeLabel ? `タイプ: ${typeLabel}` : "",
+        selectedPlan.trim() ? `方針: ${selectedPlan.trim()}` : "",
+        pokemonName.trim() ? `中心ポケモン: ${pokemonName.trim()}` : "",
+        theme.trim() ? `補足: ${theme.trim()}` : "",
+      ].filter(Boolean);
       const generated = await generateDeck({
-        theme: theme.trim() || [typeLabel, name].filter(Boolean).join(" ") || name,
+        theme: generationParts.join(" / ") || name,
         generationContext: {
           selectedType,
-          selectedPlan: "再生成",
+          selectedPlan,
+          pokemonName,
           supplementalTheme: theme,
           regenerationNonce: crypto.randomUUID(),
         },
@@ -214,18 +223,32 @@ export default function DeckPage() {
           <p className="text-xs text-blue-600 mb-3">
             現在のカード内容は引き継がず、入力した条件から60枚の構成を作り直します。
           </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              type="text"
+              value={pokemonName}
+              onChange={(e) => setPokemonName(e.target.value)}
+              className="min-w-0 rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="中心ポケモン（任意）例：ニンフィアex"
+            />
+            <input
+              type="text"
+              value={selectedPlan}
+              onChange={(e) => setSelectedPlan(e.target.value)}
+              className="min-w-0 rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="方針（任意）例：安定 / 速攻 / コンボ"
+            />
             <input
               type="text"
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
-              className="min-w-0 flex-1 rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder={`再生成の条件（任意）例：もっと速いデッキにしたい`}
+              className="min-w-0 rounded border bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 sm:col-span-2"
+              placeholder="補足（任意）例：もっと速いデッキにしたい"
             />
             <button
               onClick={handleGenerate}
               disabled={generating}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-sm rounded font-medium whitespace-nowrap"
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white text-sm rounded font-medium whitespace-nowrap sm:col-span-2"
             >
               {generating ? "生成中..." : "再生成する"}
             </button>
