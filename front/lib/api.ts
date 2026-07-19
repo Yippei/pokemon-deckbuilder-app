@@ -666,6 +666,12 @@ async function normalizeGeneratedDeck(
       message: `特殊エネルギーの採用を控えめに調整しました: ${energyPolicy.reducedSpecialEnergyNames.slice(0, 5).join("、")}`,
     });
   }
+  if (energyPolicy.removedOffTypeBasicEnergyNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `選択タイプやメインポケモンのワザ要求と合わない基本エネルギーを除外しました: ${energyPolicy.removedOffTypeBasicEnergyNames.slice(0, 5).join("、")}`,
+    });
+  }
 
   const aceSpecChoice = applyOptimalAceSpecChoice(cards, cardsByName, cardMaster, context);
   if (aceSpecChoice.selectedName) {
@@ -1017,8 +1023,9 @@ function applyOptimalAceSpecChoice(
     return { selectedName: undefined, removedNames: [] };
   }
 
+  const incompatibleRemovedNames = removeIncompatibleAceSpecCards(cards, cardMaster, context);
   const bestAceSpec = selectOptimalAceSpecCard(cards, cardsByName, cardMaster, context);
-  if (!bestAceSpec?.name) return { removedNames: [] };
+  if (!bestAceSpec?.name) return { removedNames: incompatibleRemovedNames };
 
   const removedNames = enforceSingleAceSpecByName(cards, cardMaster, bestAceSpec.name);
   const alreadyHasBest = countCardsWithSameName(cards, { cardName: bestAceSpec.name }) > 0;
@@ -1033,8 +1040,25 @@ function applyOptimalAceSpecChoice(
 
   return {
     selectedName: bestAceSpec.name,
-    removedNames: uniqueNames(removedNames),
+    removedNames: uniqueNames([...incompatibleRemovedNames, ...removedNames]),
   };
+}
+
+function removeIncompatibleAceSpecCards(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const removedNames: string[] = [];
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const masterCard = cardMaster[card.cardId];
+    if (!isAceSpecCard(masterCard, card)) continue;
+    if (masterCard && canUseAceSpecCandidate(masterCard, cards, cardMaster, context)) continue;
+    removedNames.push(card.cardName || masterCard?.name || card.cardId);
+    cards.splice(index, 1);
+  }
+  return uniqueNames(removedNames);
 }
 
 function enforceSingleAceSpecByName(
@@ -1107,6 +1131,7 @@ function canUseAceSpecCandidate(
   if (card.name === "ハイパーアロマ" && !deckUsesEvolution(cards, cardMaster)) return false;
   if (card.name === "偉大な大樹" && !deckUsesEvolution(cards, cardMaster)) return false;
   if (card.name === "ネオアッパーエネルギー" && countPokemonByStage(cards, cardMaster, "stage2") === 0) return false;
+  if (card.name === "きらめく結晶" && !deckHasTeraPokemon(cards, cardMaster)) return false;
   return true;
 }
 
@@ -1159,6 +1184,18 @@ function buildDeckFeatureProfile(
     gustCount: countCardsByRole(cards, cardMaster, "gust"),
     recoveryCount: countCardsByRole(cards, cardMaster, "recovery"),
   };
+}
+
+function deckHasTeraPokemon(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+  return cards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    return Boolean(masterCard && masterCard.cardKind === "pokemon" && isTeraPokemon(masterCard));
+  });
+}
+
+function isTeraPokemon(card: StaticCardDetail) {
+  const text = getCardSearchableText(card);
+  return /テラスタル/.test(text);
 }
 
 function scoreAceSpecCandidate(card: StaticCardDetail, profile: DeckFeatureProfile) {
@@ -3129,6 +3166,7 @@ function applyEnergyRequirementPolicy(
   const addedAccelerationNames: string[] = [];
   const addedBasicEnergyNames: string[] = [];
   const reducedSpecialEnergyNames = reduceSpecialEnergyCards(cards, cardMaster, protectedNames);
+  const removedOffTypeBasicEnergyNames = removeUnneededBasicEnergyCards(cards, analysis, protectedNames, context);
 
   if (analysis.requiredTypes.length >= 2) {
     addCardsForRoleTarget(cards, cardsByName, cardMaster, "energy_acceleration", 2, addedAccelerationNames, context, protectedNames);
@@ -3150,6 +3188,7 @@ function applyEnergyRequirementPolicy(
     addedAccelerationNames: uniqueNames(addedAccelerationNames),
     addedBasicEnergyNames: uniqueNames(addedBasicEnergyNames),
     reducedSpecialEnergyNames: uniqueNames(reducedSpecialEnergyNames),
+    removedOffTypeBasicEnergyNames: uniqueNames(removedOffTypeBasicEnergyNames),
   };
 }
 
@@ -3229,6 +3268,32 @@ function reduceSpecialEnergyCards(
     reducedNames.push(card.cardName || masterCard?.name || card.cardId);
   }
   return reducedNames;
+}
+
+function removeUnneededBasicEnergyCards(
+  cards: DeckCard[],
+  analysis: EnergyRequirementAnalysis,
+  protectedNames: string[],
+  context?: GenerateDeckContext
+) {
+  const selectedType = getSelectedPokemonType(context);
+  if (!selectedType) return [];
+
+  const allowedTypes = new Set(analysis.requiredTypes.length > 0 ? analysis.requiredTypes : [selectedType]);
+  const protectedNameSet = new Set(protectedNames.map(normalizeCardLimitName));
+  const removedNames: string[] = [];
+
+  for (let index = cards.length - 1; index >= 0; index -= 1) {
+    const card = cards[index];
+    const cardName = card.cardName || "";
+    const energyType = pokemonTypeByBasicEnergyName[normalizeCardLimitName(cardName)];
+    if (!energyType || allowedTypes.has(energyType)) continue;
+    if (protectedNameSet.has(normalizeCardLimitName(cardName))) continue;
+    removedNames.push(cardName);
+    cards.splice(index, 1);
+  }
+
+  return removedNames;
 }
 
 function isSpecialEnergyCard(card?: StaticCardDetail) {
