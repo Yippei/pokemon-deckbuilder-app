@@ -616,6 +616,12 @@ async function normalizeGeneratedDeck(
       message: `デッキ進行を補助する特性持ちポケモンを追加しました: ${appliedPolicyRules.systemPokemonAddedNames.join("、")}`,
     });
   }
+  if (appliedPolicyRules.supplementalAbilityAddedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `補足内容に合う特性持ちポケモンを追加しました: ${appliedPolicyRules.supplementalAbilityAddedNames.join("、")}`,
+    });
+  }
 
   const countAdjustment = adjustCardCountsByEffect(cards, cardMaster, context);
   if (countAdjustment.increasedNames.length > 0) {
@@ -2238,11 +2244,14 @@ function applyDeckPolicyRules(
   mainPokemonSupportAddedNames: string[];
   systemPokemonAddedCount: number;
   systemPokemonAddedNames: string[];
+  supplementalAbilityAddedCount: number;
+  supplementalAbilityAddedNames: string[];
 } {
   const evolutionLineNames = getRequiredEvolutionLineNames(cards, cardMaster);
   const pokemonSearchAddedNames = addMissingPokemonSearchKinds(cards, cardsByName, cardMaster, context, evolutionLineNames);
   const mainPokemonSupportAddedNames = addMainPokemonSupportCards(cards, cardsByName, cardMaster, context, evolutionLineNames);
   const systemPokemonAddedNames = addSystemPokemonSupportCards(cards, cardMaster, context);
+  const supplementalAbilityAddedNames = addSupplementalAbilitySupportPokemon(cards, cardMaster, context, evolutionLineNames);
   const handRefreshNames = getHandRefreshPolicyNames(context, cardMaster);
   const currentCount = countCardsByNames(cards, handRefreshNames.all);
   let remainingCount = Math.max(0, handRefreshTargetCount - currentCount);
@@ -2256,6 +2265,8 @@ function applyDeckPolicyRules(
       mainPokemonSupportAddedNames,
       systemPokemonAddedCount: systemPokemonAddedNames.length,
       systemPokemonAddedNames,
+      supplementalAbilityAddedCount: supplementalAbilityAddedNames.length,
+      supplementalAbilityAddedNames,
     };
   }
 
@@ -2293,6 +2304,8 @@ function applyDeckPolicyRules(
     mainPokemonSupportAddedNames,
     systemPokemonAddedCount: systemPokemonAddedNames.length,
     systemPokemonAddedNames,
+    supplementalAbilityAddedCount: supplementalAbilityAddedNames.length,
+    supplementalAbilityAddedNames,
   };
 }
 
@@ -2900,6 +2913,36 @@ function addSystemPokemonSupportCards(
   return addedNames;
 }
 
+function addSupplementalAbilitySupportPokemon(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext,
+  protectedNames: string[] = []
+) {
+  const preferredRoles = getSupplementalPreferredAbilityRoles(context);
+  if (preferredRoles.length === 0) return [];
+
+  const addedNames: string[] = [];
+  const candidates = Object.values(cardMaster)
+    .filter((card) => canAddSystemPokemon(card, cards, cardMaster, context))
+    .filter((card) => {
+      const roles = classifyAbilityRoles(card);
+      return preferredRoles.some((role) => roles.has(role));
+    })
+    .sort((a, b) => (
+      scoreSupplementalAbilityCandidate(b, preferredRoles, context) -
+      scoreSupplementalAbilityCandidate(a, preferredRoles, context)
+    ));
+
+  for (const candidate of candidates) {
+    if (addedNames.length >= 2) break;
+    if (!candidate.name) continue;
+    addSinglePolicyCard(cards, candidate, addedNames, protectedNames);
+  }
+
+  return uniqueNames(addedNames);
+}
+
 function countSystemPokemon(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
   return cards.reduce((sum, card) => {
     const masterCard = cardMaster[card.cardId];
@@ -2947,6 +2990,68 @@ function compareSystemPokemonCandidatePriority(
   if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
 
   return String(b.cardId).localeCompare(String(a.cardId));
+}
+
+function scoreSupplementalAbilityCandidate(
+  card: StaticCardDetail,
+  preferredRoles: AbilityRole[],
+  context?: GenerateDeckContext
+) {
+  let score = 0;
+  const roles = classifyAbilityRoles(card);
+  for (const role of preferredRoles) {
+    if (roles.has(role)) score += 100;
+  }
+  if (pokemonMatchesSelectedType(card, context)) score += 30;
+  if (contextMatchesSupplementalAbilityText(card, context)) score += 24;
+  if (card.stageCategory === "basic") score += 12;
+  score += Math.min(Number(card.hp || 0), 150) / 100;
+  score += Number(card.cardId || 0) / 100000;
+  return score;
+}
+
+function contextMatchesSupplementalAbilityText(card: StaticCardDetail, context?: GenerateDeckContext) {
+  const supplementalText = normalizeCardLimitName(context?.supplementalTheme);
+  if (!supplementalText) return false;
+  const abilityText = normalizeCardLimitName(getAbilitySearchableText(card));
+  if (!abilityText) return false;
+  return supplementalText.split(/[、,\s　。.!！?？]+/).filter((term) => term.length >= 2).some((term) => abilityText.includes(term));
+}
+
+function getSupplementalPreferredAbilityRoles(context?: GenerateDeckContext): AbilityRole[] {
+  const text = normalizeCardLimitName(context?.supplementalTheme);
+  if (!text) return [];
+
+  const roles: AbilityRole[] = [];
+  if (/ドロー|引きたい|手札増|手札を増|手札補充|手札事故|事故|安定|回したい|回す|展開/.test(text)) {
+    roles.push("ability_draw");
+  }
+  if (/サーチ|持ってくる|呼び出|ベンチに出|展開|探す|山札から/.test(text)) {
+    roles.push("ability_search");
+  }
+  if (/エネ加速|エネルギー加速|エネをつけ|エネルギーをつけ|エネ不足|エネルギー不足|多色|複数タイプ/.test(text)) {
+    roles.push("ability_energy");
+  }
+  if (/スタジアム|場を出す|場を持って/.test(text)) {
+    roles.push("ability_stadium");
+  }
+  if (/回収|再利用|トラッシュ|復帰|回復/.test(text)) {
+    roles.push("ability_recovery");
+  }
+  if (/入れ替え|逃げ|にげ|ベンチに戻|下げたい/.test(text)) {
+    roles.push("ability_switch");
+  }
+  if (/耐久|守り|倒されにく|ダメージ軽減|受け/.test(text)) {
+    roles.push("ability_protection");
+  }
+  if (/火力|打点|ダメージを上げ|ワンパン|突破/.test(text)) {
+    roles.push("ability_damage_boost");
+  }
+  if (/妨害|ロック|手札干渉|相手を止め|特性を止め/.test(text)) {
+    roles.push("ability_lock");
+  }
+
+  return Array.from(new Set(roles));
 }
 
 function hasConflictingDedicatedAbility(
