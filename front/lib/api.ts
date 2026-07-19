@@ -257,6 +257,7 @@ const basicEnergyByPokemonType: Record<string, string> = {
   悪: "基本悪エネルギー",
   鋼: "基本鋼エネルギー",
 };
+const pokemonEnergyTypes = Object.keys(basicEnergyByPokemonType);
 const pokemonTypeByBasicEnergyName = Object.fromEntries(
   Object.entries(basicEnergyByPokemonType).map(([type, name]) => [normalizeCardLimitName(name), type])
 );
@@ -509,7 +510,7 @@ async function normalizeGeneratedDeck(
   }
 
   const themeLockedRemoval = removeIncompatibleThemeLockedCards(cards, cardMaster, context);
-  const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster);
+  const pokemonSearchRemoval = removeIncompatiblePokemonSearchCards(cards, cardMaster, context);
   const situationalRemoval = removeIncompatibleSituationalCards(cards, cardMaster, context);
   const offTypePokemonRemoval = removeIncompatibleOffTypePokemon(cards, cardMaster, context);
   const characterThemeRemoval = removeIncompatibleCharacterThemeCards(cards, cardMaster, context);
@@ -880,13 +881,14 @@ function removeIncompatibleCharacterThemeCards(
 
 function removeIncompatiblePokemonSearchCards(
   cards: DeckCard[],
-  cardMaster: Record<string, StaticCardDetail>
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
 ) {
   const removedNames: string[] = [];
   for (let index = cards.length - 1; index >= 0; index -= 1) {
     const card = cards[index];
     const masterCard = cardMaster[card.cardId];
-    if (!masterCard || canPokemonSearchCardFitDeck(masterCard, cards, cardMaster)) continue;
+    if (!masterCard || canPokemonSearchCardFitDeck(masterCard, cards, cardMaster, context)) continue;
 
     removedNames.push(card.cardName || masterCard.name || card.cardId);
     cards.splice(index, 1);
@@ -1133,7 +1135,7 @@ function canUseAceSpecCandidate(
 ) {
   if (!card.name) return false;
   if (!isPolicyCandidateCompatible(card, cards, cardMaster, context)) return false;
-  if (isPokemonSearchCard(card) && !canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
+  if (isPokemonSearchCard(card) && !canPokemonSearchCardFitDeck(card, cards, cardMaster, context)) return false;
   if (card.name === "ハイパーアロマ" && !deckUsesEvolution(cards, cardMaster)) return false;
   if (card.name === "偉大な大樹" && !deckUsesEvolution(cards, cardMaster)) return false;
   if (card.name === "ネオアッパーエネルギー" && countPokemonByStage(cards, cardMaster, "stage2") === 0) return false;
@@ -1525,14 +1527,66 @@ function contextMatchesTheme(context: GenerateDeckContext | undefined, ownerPref
 function canPokemonSearchCardFitDeck(
   card: StaticCardDetail,
   deckCards: DeckCard[],
-  cardMaster: Record<string, StaticCardDetail>
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
 ) {
   const requirements = getPokemonSearchRequirements(card);
   if (requirements.length === 0) return true;
+  if (!pokemonSearchCardMatchesDeckType(card, deckCards, cardMaster, context)) return false;
 
   return requirements.every((requirement) => {
     return requirement.some((condition) => hasPokemonMatchingCondition(deckCards, cardMaster, condition));
   });
+}
+
+function pokemonSearchCardMatchesDeckType(
+  card: StaticCardDetail,
+  deckCards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const searchTypes = getPokemonSearchCardRestrictedTypes(card);
+  if (searchTypes.length === 0) return true;
+
+  const selectedType = getSelectedPokemonType(context);
+  if (selectedType) return searchTypes.includes(selectedType);
+
+  const deckTypes = getPrimaryPokemonTypes(deckCards, cardMaster, context);
+  if (deckTypes.length === 0) return false;
+  return searchTypes.some((type) => deckTypes.includes(type));
+}
+
+function getPokemonSearchCardRestrictedTypes(card: StaticCardDetail) {
+  const text = normalizeRuleText(getCardSearchableText(card));
+  return pokemonEnergyTypes.filter((type) => (
+    text.includes(`${type}ポケモン`) ||
+    text.includes(`${type}タイプ`) ||
+    text.includes(`${type}のポケモン`)
+  ));
+}
+
+function getPrimaryPokemonTypes(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const selectedType = getSelectedPokemonType(context);
+  if (selectedType) return [selectedType];
+
+  const weights = new Map<string, number>();
+  for (const deckCard of cards) {
+    const pokemon = cardMaster[deckCard.cardId];
+    if (!pokemon || pokemon.cardKind !== "pokemon") continue;
+    const weight = Math.max(1, deckCard.count) * (isExactMainPokemon(pokemon, context) ? 3 : 1);
+    for (const type of pokemon.types || []) {
+      weights.set(type, (weights.get(type) || 0) + weight);
+    }
+  }
+
+  return [...weights.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"))
+    .map(([type]) => type)
+    .slice(0, 2);
 }
 
 type PokemonSearchCondition = {
@@ -2408,7 +2462,7 @@ function getEffectBasedTargetCount(
     if (!canRareCandyFitDeck(cards, cardMaster)) return 0;
     return countPokemonByStage(cards, cardMaster, "stage2") >= 2 ? 3 : 2;
   }
-  if (isPokemonSearchGoodsCard(card) && canPokemonSearchCardFitDeck(card, cards, cardMaster)) return 4;
+  if (isPokemonSearchGoodsCard(card) && canPokemonSearchCardFitDeck(card, cards, cardMaster, context)) return 4;
   if (roles.has("hand_disruption")) return shouldUseHandDisruptionSupport(context) ? 2 : 0;
   if (roles.has("hand_refresh")) return 3;
   if (roles.has("pokemon_search")) return 2;
@@ -2571,7 +2625,7 @@ function applyTypeSpecificCardPolicy(
   const candidates = Object.values(cardMaster)
     .filter((card) => isTypeSpecificCardForType(card, selectedType))
     .filter((card) => isPolicyCandidateCompatible(card, cards, cardMaster, context))
-    .sort((a, b) => scoreTypeSpecificCandidate(b, cards, cardMaster) - scoreTypeSpecificCandidate(a, cards, cardMaster));
+    .sort((a, b) => scoreTypeSpecificCandidate(b, cards, cardMaster, context) - scoreTypeSpecificCandidate(a, cards, cardMaster, context));
 
   for (const candidate of candidates) {
     if (addedNames.length >= 2) break;
@@ -2605,16 +2659,17 @@ function isTypeSpecificCardForType(card: StaticCardDetail, selectedType: string)
 function scoreTypeSpecificCandidate(
   card: StaticCardDetail,
   cards: DeckCard[],
-  cardMaster: Record<string, StaticCardDetail>
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
 ) {
   let score = 0;
   const roles = classifyCardRoles(card);
   if (roles.has("energy_acceleration")) score += 40;
   if (roles.has("energy_search")) score += 28;
-  if (roles.has("pokemon_search")) score += 24;
+  if (roles.has("pokemon_search")) score += 24 + scorePokemonSearchEfficiency(card, cards, cardMaster, context);
   if (roles.has("hand_refresh")) score += 16;
   if (isSpecialEnergyCard(card)) score += 18;
-  if (canPokemonSearchCardFitDeck(card, cards, cardMaster)) score += 10;
+  if (canPokemonSearchCardFitDeck(card, cards, cardMaster, context)) score += 10;
   score += Number(card.cardId || 0) / 100000;
   return score;
 }
@@ -2635,8 +2690,8 @@ function addCardsForRoleTarget(
     const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
       if (!cardHasRole(card, role)) return false;
       if (!isPolicyCandidateCompatible(card, cards, cardMaster, context)) return false;
-      if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
-      if (role === "evolution_support" && !canMainPokemonSupportCardFitDeck(card, cards, cardMaster)) return false;
+      if (!canPokemonSearchCardFitDeck(card, cards, cardMaster, context)) return false;
+      if (role === "evolution_support" && !canMainPokemonSupportCardFitDeck(card, cards, cardMaster, context)) return false;
       if (role === "hand_disruption" && !shouldUseHandDisruptionSupport(context)) return false;
       if (role === "energy_search" && !shouldUseEnergySearchSupport(cards, cardMaster, context)) return false;
       if (role === "gust" && isCoinBasedGustCard(card) && hasCardNamed(cards, cardMaster, "ボスの指令")) return false;
@@ -2776,18 +2831,21 @@ function addMissingPokemonSearchKinds(
 ) {
   const addedNames: string[] = [];
   const candidateNames = getPolicyCandidateNames(pokemonSearchSupportCardNames, cardMaster, "pokemon_search");
-  while (countPokemonSearchCardKinds(cards, cardMaster) < minimumPokemonSearchCardKinds) {
-    const existingSearchNames = getPokemonSearchCardNames(cards, cardMaster);
-    const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
-      return !existingSearchNames.has(normalizeCardLimitName(card.name)) &&
+  while (countPokemonSearchCardKinds(cards, cardMaster, context) < minimumPokemonSearchCardKinds) {
+    const existingSearchNames = getPokemonSearchCardNames(cards, cardMaster, context);
+    const candidate = candidateNames
+      .flatMap((name) => cardsByName.get(normalizeCardLimitName(name)) || [])
+      .filter((card) => {
+        return !existingSearchNames.has(normalizeCardLimitName(card.name)) &&
         cardHasRole(card, "pokemon_search") &&
-        canPokemonSearchCardFitDeck(card, cards, cardMaster) &&
+        canPokemonSearchCardFitDeck(card, cards, cardMaster, context) &&
         isPolicyCandidateCompatible(card, cards, cardMaster, context);
-    });
+      })
+      .sort((a, b) => scorePokemonSearchEfficiency(b, cards, cardMaster, context) - scorePokemonSearchEfficiency(a, cards, cardMaster, context))[0];
     if (!candidate?.name) break;
     if (addSinglePolicyCard(cards, candidate, addedNames, protectedNames) === 0) break;
   }
-  addPokemonSearchGoodsToTargetCount(cards, cardMaster, addedNames, protectedNames);
+  addPokemonSearchGoodsToTargetCount(cards, cardMaster, addedNames, context, protectedNames);
   return addedNames;
 }
 
@@ -2795,6 +2853,7 @@ function addPokemonSearchGoodsToTargetCount(
   cards: DeckCard[],
   cardMaster: Record<string, StaticCardDetail>,
   addedNames: string[],
+  context?: GenerateDeckContext,
   protectedNames: string[] = []
 ) {
   const candidates = cards
@@ -2802,9 +2861,9 @@ function addPokemonSearchGoodsToTargetCount(
     .filter((card): card is StaticCardDetail => {
       if (!card?.name || !isPokemonSearchGoodsCard(card)) return false;
       if (isAceSpecCard(card, { cardName: card.name })) return false;
-      return canPokemonSearchCardFitDeck(card, cards, cardMaster);
+      return canPokemonSearchCardFitDeck(card, cards, cardMaster, context);
     })
-    .sort(comparePokemonSearchGoodsPriority);
+    .sort((a, b) => comparePokemonSearchGoodsPriority(a, b, cards, cardMaster, context));
 
   for (const candidate of candidates) {
     while (countCardsWithSameName(cards, { cardName: candidate.name }) < pokemonSearchGoodsTargetCount) {
@@ -2819,10 +2878,15 @@ function isPokemonSearchGoodsCard(card: StaticCardDetail) {
     isPokemonSearchCard(card);
 }
 
-function comparePokemonSearchGoodsPriority(a: StaticCardDetail, b: StaticCardDetail) {
-  const aBall = cardHasRole(a, "ball_search") ? 0 : 1;
-  const bBall = cardHasRole(b, "ball_search") ? 0 : 1;
-  if (aBall !== bBall) return aBall - bBall;
+function comparePokemonSearchGoodsPriority(
+  a: StaticCardDetail,
+  b: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const scoreDiff = scorePokemonSearchEfficiency(b, cards, cardMaster, context) - scorePokemonSearchEfficiency(a, cards, cardMaster, context);
+  if (scoreDiff !== 0) return scoreDiff;
 
   const cardIdDiff = Number(b.cardId) - Number(a.cardId);
   if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
@@ -2830,15 +2894,80 @@ function comparePokemonSearchGoodsPriority(a: StaticCardDetail, b: StaticCardDet
   return String(b.cardId).localeCompare(String(a.cardId));
 }
 
-function countPokemonSearchCardKinds(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
-  return getPokemonSearchCardNames(cards, cardMaster).size;
+function scorePokemonSearchEfficiency(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (!isPokemonSearchCard(card) || !canPokemonSearchCardFitDeck(card, cards, cardMaster, context)) return -10000;
+
+  let score = 0;
+  const searchablePokemon = getSearchablePokemonForCard(card, cards, cardMaster);
+  const uniqueNames = new Set(searchablePokemon.map((pokemon) => normalizeCardLimitName(pokemon.name)));
+  const totalSearchableCopies = searchablePokemon.reduce((sum, pokemon) => sum + Math.max(1, pokemon.count), 0);
+  const requirements = getPokemonSearchRequirements(card);
+  const restrictedTypes = getPokemonSearchCardRestrictedTypes(card);
+  const text = normalizeRuleText(getCardSearchableText(card));
+
+  score += uniqueNames.size * 8;
+  score += totalSearchableCopies * 3;
+  if (card.cardKind === "trainer" && String(card.subKind || "").includes("グッズ")) score += 18;
+  if (cardHasRole(card, "ball_search")) score += 14;
+  if (restrictedTypes.length > 0) score += 12;
+  if (requirements.some((group) => group.some((condition) => condition.stage === "evolution" || condition.stage === "stage1" || condition.stage === "stage2"))) {
+    score += deckUsesEvolution(cards, cardMaster) ? 20 : -12;
+  }
+  if (requirements.some((group) => group.some((condition) => condition.hpMax !== undefined))) {
+    score += totalSearchableCopies >= 6 ? 8 : -18;
+  }
+  if (/好きなカード|カードを.*選び.*手札/.test(text)) score += 18;
+  if (/手札を.*トラッシュ|トラッシュする/.test(text)) score -= 4;
+  if (/コイン/.test(text)) score -= 16;
+  if (normalizeCardLimitName(card.name) === normalizeCardLimitName("ハイパーボール")) score += 10;
+  if (normalizeCardLimitName(card.name) === normalizeCardLimitName("ネストボール")) score += countPokemonByStage(cards, cardMaster, "basic") >= 6 ? 10 : 0;
+  if (normalizeCardLimitName(card.name) === normalizeCardLimitName("なかよしポフィン")) score += countLowHpBasicPokemon(cards, cardMaster, 70) >= 6 ? 16 : -24;
+
+  return score;
 }
 
-function getPokemonSearchCardNames(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+function getSearchablePokemonForCard(
+  searchCard: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>
+) {
+  const requirements = getPokemonSearchRequirements(searchCard);
+  if (requirements.length === 0) return [];
+
+  return cards
+    .map((deckCard) => {
+      const pokemon = cardMaster[deckCard.cardId];
+      return pokemon && pokemon.cardKind === "pokemon" ? { ...pokemon, count: deckCard.count } : undefined;
+    })
+    .filter((pokemon): pokemon is StaticCardDetail & { count: number } => {
+      if (!pokemon) return false;
+      return requirements.some((requirement) => requirement.some((condition) => pokemonMatchesCondition(pokemon, condition)));
+    });
+}
+
+function countLowHpBasicPokemon(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>, hpMax: number) {
+  return cards.reduce((sum, card) => {
+    const pokemon = cardMaster[card.cardId];
+    if (!pokemon || pokemon.cardKind !== "pokemon" || !pokemonMatchesStage(pokemon, "basic")) return sum;
+    if (pokemon.hp === undefined || pokemon.hp > hpMax) return sum;
+    return sum + card.count;
+  }, 0);
+}
+
+function countPokemonSearchCardKinds(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>, context?: GenerateDeckContext) {
+  return getPokemonSearchCardNames(cards, cardMaster, context).size;
+}
+
+function getPokemonSearchCardNames(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>, context?: GenerateDeckContext) {
   const names = new Set<string>();
   for (const card of cards) {
     const masterCard = cardMaster[card.cardId];
-    if (!masterCard || !isPokemonSearchCard(masterCard) || !canPokemonSearchCardFitDeck(masterCard, cards, cardMaster)) continue;
+    if (!masterCard || !isPokemonSearchCard(masterCard) || !canPokemonSearchCardFitDeck(masterCard, cards, cardMaster, context)) continue;
     names.add(normalizeCardLimitName(masterCard.name));
   }
   return names;
@@ -2859,7 +2988,7 @@ function addMainPokemonSupportCards(
   const addedNames: string[] = [];
   const candidateNames = getMainPokemonSupportCandidateNames(cards, cardMaster);
   addCardsFromPolicyCandidates(cards, cardsByName, candidateNames, 2, addedNames, (card) => {
-    return canMainPokemonSupportCardFitDeck(card, cards, cardMaster) &&
+    return canMainPokemonSupportCardFitDeck(card, cards, cardMaster, context) &&
       isPolicyCandidateCompatible(card, cards, cardMaster, context);
   }, protectedNames);
   return addedNames;
@@ -2884,10 +3013,11 @@ function getMainPokemonSupportCandidateNames(cards: DeckCard[], cardMaster: Reco
 function canMainPokemonSupportCardFitDeck(
   card: StaticCardDetail,
   cards: DeckCard[],
-  cardMaster: Record<string, StaticCardDetail>
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
 ) {
   if (card.name === "ふしぎなアメ") return canRareCandyFitDeck(cards, cardMaster);
-  if (isPokemonSearchCard(card)) return canPokemonSearchCardFitDeck(card, cards, cardMaster);
+  if (isPokemonSearchCard(card)) return canPokemonSearchCardFitDeck(card, cards, cardMaster, context);
   return true;
 }
 
@@ -3416,7 +3546,7 @@ function fillDeckWithStaples(
   let filled = 0;
   for (const staple of stapleCards) {
     if (countDeckCards(cards) >= targetDeckCardCount) break;
-    const card = findFirstCardCandidate(cardsByName, staple.name, (candidate) => canPokemonSearchCardFitDeck(candidate, cards, cardMaster));
+    const card = findFirstCardCandidate(cardsByName, staple.name, (candidate) => canPokemonSearchCardFitDeck(candidate, cards, cardMaster, context));
     if (!card?.name) continue;
     const currentCount = countCardsWithSameName(cards, { cardName: card.name });
     const wantedCount = Math.max(0, staple.targetCount - currentCount);
@@ -3435,7 +3565,7 @@ function fillDeckWithStaples(
     if (countDeckCards(cards) >= targetDeckCardCount) break;
     const candidateNames = getPolicyCandidateNames([], cardMaster, role);
     const candidate = findAddablePolicyCard(cards, cardsByName, candidateNames, (card) => {
-      if (!canPokemonSearchCardFitDeck(card, cards, cardMaster)) return false;
+      if (!canPokemonSearchCardFitDeck(card, cards, cardMaster, context)) return false;
       if (!isThemeLockedCardCompatible(card, cards, cardMaster, context)) return false;
       if (!isCharacterThemeCardCompatible(card, cards, cardMaster, context)) return false;
       return true;
