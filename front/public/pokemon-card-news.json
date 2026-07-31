@@ -1,47 +1,47 @@
 {
-  "updatedAt": "2026-07-24",
+  "updatedAt": "2026-07-31",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
     {
-      "id": "official-2026-07-24-www-pokemon-card-com-ex-m6",
+      "id": "official-2026-07-31-www-pokemon-card-com-info-005595-html",
+      "category": "その他",
+      "date": "2026.7.31",
+      "title": "「ヒカキン道場！ポケカ入門バトル」の開催について",
+      "summary": "「ヒカキン道場！ポケカ入門バトル」の開催について",
+      "url": "https://www.pokemon-card.com/info/005595.html"
+    },
+    {
+      "id": "official-2026-07-31-youtu-be-myp-4zxpfyc",
       "category": "商品",
-      "date": "2026.7.24",
-      "title": "拡張パック「ストームエメラルダ」のカードリスト公開！",
-      "summary": "拡張パック「ストームエメラルダ」のカードリスト公開！",
-      "url": "https://www.pokemon-card.com/ex/m6/"
+      "date": "2026.7.31",
+      "title": "7月31日（金）発売の周辺グッズの実物を、動画でチェック！",
+      "summary": "7月31日（金）発売の周辺グッズの実物を、動画でチェック！",
+      "url": "https://youtu.be/MYP-4zxPFYc"
     },
     {
-      "id": "official-2026-07-24-www-pokemon-card-com-ex-me",
-      "category": "商品",
-      "date": "2026.7.24",
-      "title": "構築デッキ「スターターセットex」のカードリスト公開！",
-      "summary": "構築デッキ「スターターセットex」のカードリスト公開！",
-      "url": "https://www.pokemon-card.com/ex/me/"
+      "id": "official-2026-07-31-www-pokemon-card-com-info-005568-html",
+      "category": "コラム",
+      "date": "2026.7.31",
+      "title": "拡張パック「ストームエメラルダ」のカードを使ったデッキレシピを公開！",
+      "summary": "拡張パック「ストームエメラルダ」のカードを使ったデッキレシピを公開！",
+      "url": "https://www.pokemon-card.com/info/005568.html"
     },
     {
-      "id": "official-2026-07-24-www-pokemon-card-com-info-005569-html",
+      "id": "official-2026-07-31-www-pokemon-card-com-info-005543-html",
       "category": "イベント",
-      "date": "2026.7.24",
-      "title": "お友達や家族と行こう 「いっしょにフレンドバトル」！",
-      "summary": "お友達や家族と行こう 「いっしょにフレンドバトル」！",
-      "url": "https://www.pokemon-card.com/info/005569.html"
+      "date": "2026.7.31",
+      "title": "その他コーナーの情報をさらに追加！",
+      "summary": "その他コーナーの情報をさらに追加！",
+      "url": "https://www.pokemon-card.com/info/005543.html"
     },
     {
-      "id": "official-2026-07-17-www-pokemon-card-com-info-005567-html",
+      "id": "official-2026-07-31-www-pokemon-card-com-info-005507-html",
       "category": "イベント",
-      "date": "2026.7.17",
-      "title": "プロモカードパック第5弾、公開！",
-      "summary": "プロモカードパック第5弾、公開！",
-      "url": "https://www.pokemon-card.com/info/005567.html"
-    },
-    {
-      "id": "official-2026-07-17-corocoro-news-jp-news-401202",
-      "category": "イベント",
-      "date": "2026.7.17",
-      "title": "ヒカキン道場！ポケカ入門バトル開催！",
-      "summary": "ヒカキン道場！ポケカ入門バトル開催！",
-      "url": "https://corocoro-news.jp/news/401202/"
+      "date": "2026.7.31",
+      "title": "メガエルレイドexSARゲットバトル、9月分、エントリー開始！",
+      "summary": "メガエルレイドexSARゲットバトル、9月分、エントリー開始！",
+      "url": "https://www.pokemon-card.com/info/005507.html"
     }
   ]
 }
