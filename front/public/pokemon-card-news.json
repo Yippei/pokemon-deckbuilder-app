@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-07-31",
+  "updatedAt": "2026-08-03",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-03-www-pokemon-card-com-info-005596-html",
+      "category": "その他",
+      "date": "2026.8.3",
+      "title": "【重要】プレイヤーズクラブの本人認証システムの障害について",
+      "summary": "【重要】プレイヤーズクラブの本人認証システムの障害について",
+      "url": "https://www.pokemon-card.com/info/005596.html"
+    },
+    {
+      "id": "official-2026-08-03-www-pokemon-card-com-info-005557-html",
+      "category": "その他",
+      "date": "2026.8.3",
+      "title": "【重要】プレイヤーズクラブへの本人認証システムの導入について",
+      "summary": "【重要】プレイヤーズクラブへの本人認証システムの導入について",
+      "url": "https://www.pokemon-card.com/info/005557.html"
+    },
     {
       "id": "official-2026-07-31-www-pokemon-card-com-info-005595-html",
       "category": "その他",
@@ -26,22 +42,6 @@
       "title": "拡張パック「ストームエメラルダ」のカードを使ったデッキレシピを公開！",
       "summary": "拡張パック「ストームエメラルダ」のカードを使ったデッキレシピを公開！",
       "url": "https://www.pokemon-card.com/info/005568.html"
-    },
-    {
-      "id": "official-2026-07-31-www-pokemon-card-com-info-005543-html",
-      "category": "イベント",
-      "date": "2026.7.31",
-      "title": "その他コーナーの情報をさらに追加！",
-      "summary": "その他コーナーの情報をさらに追加！",
-      "url": "https://www.pokemon-card.com/info/005543.html"
-    },
-    {
-      "id": "official-2026-07-31-www-pokemon-card-com-info-005507-html",
-      "category": "イベント",
-      "date": "2026.7.31",
-      "title": "メガエルレイドexSARゲットバトル、9月分、エントリー開始！",
-      "summary": "メガエルレイドexSARゲットバトル、9月分、エントリー開始！",
-      "url": "https://www.pokemon-card.com/info/005507.html"
     }
   ]
 }
