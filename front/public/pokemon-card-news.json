@@ -1,8 +1,40 @@
 {
-  "updatedAt": "2026-08-03",
+  "updatedAt": "2026-08-07",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-07-www-pokemon-card-com-info-005563-html",
+      "category": "イベント",
+      "date": "2026.8.7",
+      "title": "「チャンピオンズリーグ2027 横浜」 2026年9月20日（日）～22日（火・祝）開催！",
+      "summary": "「チャンピオンズリーグ2027 横浜」 2026年9月20日（日）～22日（火・祝）開催！",
+      "url": "https://www.pokemon-card.com/info/005563.html"
+    },
+    {
+      "id": "official-2026-08-07-www-pokemon-card-com-info-005597-html",
+      "category": "イベント",
+      "date": "2026.8.7",
+      "title": "ポケモンカードゲーム チャンピオンシップシリーズ2027について",
+      "summary": "ポケモンカードゲーム チャンピオンシップシリーズ2027について",
+      "url": "https://www.pokemon-card.com/info/005597.html"
+    },
+    {
+      "id": "official-2026-08-07-www-pokemon-card-com-info-005602-html",
+      "category": "イベント",
+      "date": "2026.8.7",
+      "title": "チャンピオンシップポイント累計賞品の発送に伴う、情報登録・更新のお願い",
+      "summary": "チャンピオンシップポイント累計賞品の発送に伴う、情報登録・更新のお願い",
+      "url": "https://www.pokemon-card.com/info/005602.html"
+    },
+    {
+      "id": "official-2026-08-07-www-pokemon-card-com-info-005559-html",
+      "category": "イベント",
+      "date": "2026.8.7",
+      "title": "「ここからデビュー！はじめてポケカ体験会」開催！",
+      "summary": "「ここからデビュー！はじめてポケカ体験会」開催！",
+      "url": "https://www.pokemon-card.com/info/005559.html"
+    },
     {
       "id": "official-2026-08-03-www-pokemon-card-com-info-005596-html",
       "category": "その他",
@@ -10,38 +42,6 @@
       "title": "【重要】プレイヤーズクラブの本人認証システムの障害について",
       "summary": "【重要】プレイヤーズクラブの本人認証システムの障害について",
       "url": "https://www.pokemon-card.com/info/005596.html"
-    },
-    {
-      "id": "official-2026-08-03-www-pokemon-card-com-info-005557-html",
-      "category": "その他",
-      "date": "2026.8.3",
-      "title": "【重要】プレイヤーズクラブへの本人認証システムの導入について",
-      "summary": "【重要】プレイヤーズクラブへの本人認証システムの導入について",
-      "url": "https://www.pokemon-card.com/info/005557.html"
-    },
-    {
-      "id": "official-2026-07-31-www-pokemon-card-com-info-005595-html",
-      "category": "その他",
-      "date": "2026.7.31",
-      "title": "「ヒカキン道場！ポケカ入門バトル」の開催について",
-      "summary": "「ヒカキン道場！ポケカ入門バトル」の開催について",
-      "url": "https://www.pokemon-card.com/info/005595.html"
-    },
-    {
-      "id": "official-2026-07-31-youtu-be-myp-4zxpfyc",
-      "category": "商品",
-      "date": "2026.7.31",
-      "title": "7月31日（金）発売の周辺グッズの実物を、動画でチェック！",
-      "summary": "7月31日（金）発売の周辺グッズの実物を、動画でチェック！",
-      "url": "https://youtu.be/MYP-4zxPFYc"
-    },
-    {
-      "id": "official-2026-07-31-www-pokemon-card-com-info-005568-html",
-      "category": "コラム",
-      "date": "2026.7.31",
-      "title": "拡張パック「ストームエメラルダ」のカードを使ったデッキレシピを公開！",
-      "summary": "拡張パック「ストームエメラルダ」のカードを使ったデッキレシピを公開！",
-      "url": "https://www.pokemon-card.com/info/005568.html"
     }
   ]
 }
