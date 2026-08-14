@@ -54,6 +54,7 @@ export type GenerateDeckContext = {
   pokemonName?: string;
   supplementalTheme?: string;
   regenerationNonce?: string;
+  tournamentPatternHints?: TournamentDeckPatternHint[];
 };
 
 type StaticCardDetail = {
@@ -84,6 +85,45 @@ type StaticCardMaster = {
 };
 
 type CardsByName = Map<string, StaticCardDetail[]>;
+
+type TournamentDeckPatternCard = {
+  name: string;
+  min?: number;
+  max?: number;
+};
+
+type TournamentDeckPattern = {
+  id: string;
+  title: string;
+  types?: string[];
+  keywords?: string[];
+  categoryCounts?: Record<string, [number, number]>;
+  coreCards?: TournamentDeckPatternCard[];
+  supportCards?: TournamentDeckPatternCard[];
+  systemCards?: string[];
+  energyCards?: string[];
+};
+
+type TournamentDeckPatternScore = {
+  score: number;
+  hasStrongMatch: boolean;
+};
+
+export type TournamentDeckPatternHint = {
+  id: string;
+  title: string;
+  score: number;
+  types: string[];
+  coreCards: TournamentDeckPatternCard[];
+  supportCards: TournamentDeckPatternCard[];
+  systemCards: string[];
+  energyCards: string[];
+  categoryCounts?: Record<string, [number, number]>;
+};
+
+type TournamentDeckPatternPayload = {
+  patterns?: TournamentDeckPattern[];
+};
 
 type CardRole =
   | "pokemon_search"
@@ -170,6 +210,7 @@ const aceSpecCardNames = [
   "エネルギー転送PRO",
   "メガシグナル",
 ];
+const twoPartStadiumCardNames = ["伝説の溶岩洞", "伝説の山頂", "伝説の海溝"];
 const handRefreshTargetCount = 4;
 const systemPokemonTargetCount = 1;
 const selfPositiveHandRefreshCardNames = [
@@ -185,6 +226,7 @@ const selfPositiveHandRefreshCardNames = [
 const disruptionHandRefreshCardNames = ["ナンジャモ", "ジャッジマン", "ツツジ", "マリィ", "リセットスタンプ", "ゴヨウ", "クラウン"];
 const genericSupportRolePriority: CardRole[] = ["recovery"];
 const humanCharacterNamePrefixes = [
+  "N",
   "アオキ",
   "アカギ",
   "アクロマ",
@@ -209,6 +251,7 @@ const humanCharacterNamePrefixes = [
   "タケシ",
   "タロ",
   "ダンデ",
+  "ダイゴ",
   "チリ",
   "ツツジ",
   "トウコ",
@@ -218,16 +261,21 @@ const humanCharacterNamePrefixes = [
   "ハウ",
   "ヒカリ",
   "ヒビキ",
+  "ヒロシマ",
   "ビワ",
+  "フクオカ",
   "フトゥー",
   "プルメリ",
   "ペパー",
   "ボタン",
+  "ホップ",
   "マツバ",
   "マリィ",
   "ミモザ",
   "メロコ",
   "リーリエ",
+  "ロケット団",
+  "トウホク",
 ];
 const basicEnergyByType: Record<string, string> = {
   grass: "基本草エネルギー",
@@ -272,6 +320,7 @@ const knownPreEvolutionByFamilyName: Record<string, string> = {
   ニンフィア: "イーブイ",
 };
 let cardMasterPromise: Promise<Record<string, StaticCardDetail>> | null = null;
+let tournamentDeckPatternsPromise: Promise<TournamentDeckPattern[]> | null = null;
 
 export function isBasicEnergyName(name?: string): boolean {
   const normalized = (name || "").replace(/[ 　・\-－]/g, "").toLowerCase();
@@ -280,6 +329,7 @@ export function isBasicEnergyName(name?: string): boolean {
 
 export function maxCountForCard(card: Pick<DeckCard, "cardName">): number {
   if (isAceSpecName(card.cardName)) return 1;
+  if (isTwoPartStadiumName(card.cardName)) return 2;
   return isBasicEnergyName(card.cardName) ? 60 : 4;
 }
 
@@ -293,6 +343,11 @@ export function normalizeCardLimitName(name?: string): string {
 export function isAceSpecName(name?: string): boolean {
   const normalizedName = normalizeCardLimitName(name);
   return aceSpecCardNames.some((aceSpecName) => normalizeCardLimitName(aceSpecName) === normalizedName);
+}
+
+export function isTwoPartStadiumName(name?: string): boolean {
+  const normalizedName = normalizeCardLimitName(name);
+  return twoPartStadiumCardNames.some((cardName) => normalizeCardLimitName(cardName) === normalizedName);
 }
 
 export function countCardsWithSameName(cards: DeckCard[], card: Pick<DeckCard, "cardName">): number {
@@ -414,16 +469,23 @@ export async function generateDeck(body: {
   generationContext?: GenerateDeckContext;
 }): Promise<GenerateDeckResult> {
   try {
-    const generationContext = {
+    const baseGenerationContext = {
       ...body.generationContext,
       regenerationNonce: body.generationContext?.regenerationNonce || crypto.randomUUID(),
     };
+    const tournamentPatternHints = await selectTournamentDeckPatternHints(baseGenerationContext);
+    const generationContext = {
+      ...baseGenerationContext,
+      tournamentPatternHints,
+    };
+    const tournamentHintText = formatTournamentDeckPatternHintsForPrompt(tournamentPatternHints);
+    const theme = [body.theme, tournamentHintText].filter(Boolean).join("\n\n");
     const res = await authFetch(`${API_URL}/decks/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({
-        theme: body.theme,
+        theme,
         generationContext,
       }),
     });
@@ -646,6 +708,14 @@ async function normalizeGeneratedDeck(
     });
   }
 
+  const tournamentPattern = applyTournamentDeckPatternHints(cards, cardsByName, cardMaster, context);
+  if (tournamentPattern.addedNames.length > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `近い入賞レシピ傾向から採用候補を補いました: ${tournamentPattern.addedNames.slice(0, 5).join("、")}`,
+    });
+  }
+
   const typeSpecificPolicy = applyTypeSpecificCardPolicy(cards, cardMaster, context);
   if (typeSpecificPolicy.addedNames.length > 0) {
     warnings.push({
@@ -748,6 +818,20 @@ async function normalizeGeneratedDeck(
       message: `ポケモンサーチ調整後の不足分${pokemonSearchLimit.filledCount}枚を非サーチカードで補いました。`,
     });
   }
+  const lastCharacterThemeRemoval = removeIncompatibleCharacterThemeCards(cards, cardMaster, context);
+  if (lastCharacterThemeRemoval.removedCount > 0) {
+    warnings.push({
+      type: "deck_policy",
+      message: `最終確認でキャラクター専用テーマカードを除外しました: ${lastCharacterThemeRemoval.removedNames.slice(0, 5).join("、")}`,
+    });
+    const refilledCount = fillDeckWithStaples(cards, cardsByName, cardMaster, context);
+    if (refilledCount > 0) {
+      warnings.push({
+        type: "staple_fill",
+        message: `最終除外後の不足分${refilledCount}枚を汎用カードまたは基本エネルギーで補いました。`,
+      });
+    }
+  }
   const total = countDeckCards(cards);
   if (total !== targetDeckCardCount) {
     warnings.push({
@@ -776,6 +860,103 @@ async function loadCardMaster(): Promise<Record<string, StaticCardDetail>> {
       });
   }
   return cardMasterPromise;
+}
+
+async function loadTournamentDeckPatterns(): Promise<TournamentDeckPattern[]> {
+  if (!tournamentDeckPatternsPromise) {
+    tournamentDeckPatternsPromise = fetch("/tournament-deck-patterns.json", { cache: "force-cache" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("tournament-deck-patterns.json を取得できませんでした");
+        const data = (await res.json()) as TournamentDeckPatternPayload;
+        return Array.isArray(data.patterns) ? data.patterns : [];
+      })
+      .catch((error) => {
+        console.warn("Tournament deck patterns skipped", error);
+        return [];
+      });
+  }
+  return tournamentDeckPatternsPromise;
+}
+
+async function selectTournamentDeckPatternHints(context?: GenerateDeckContext): Promise<TournamentDeckPatternHint[]> {
+  const patterns = await loadTournamentDeckPatterns();
+  if (patterns.length === 0) return [];
+
+  return patterns
+    .map((pattern) => ({ pattern, result: scoreTournamentDeckPattern(pattern, context) }))
+    .filter(({ result }) => result.score >= 4)
+    .sort((a, b) => b.result.score - a.result.score || a.pattern.title.localeCompare(b.pattern.title))
+    .slice(0, 3)
+    .map(({ pattern, result }) => ({
+      id: pattern.id,
+      title: pattern.title,
+      score: result.score,
+      types: pattern.types || [],
+      coreCards: result.hasStrongMatch ? pattern.coreCards || [] : [],
+      supportCards: pattern.supportCards || [],
+      systemCards: pattern.systemCards || [],
+      energyCards: pattern.energyCards || [],
+      categoryCounts: pattern.categoryCounts,
+    }));
+}
+
+function scoreTournamentDeckPattern(pattern: TournamentDeckPattern, context?: GenerateDeckContext): TournamentDeckPatternScore {
+  const pokemonName = normalizeCardLimitName(context?.pokemonName);
+  const supplementalTheme = normalizeCardLimitName(context?.supplementalTheme);
+  const selectedPlan = normalizeCardLimitName(context?.selectedPlan);
+  const selectedType = String(context?.selectedType || "").trim();
+  const archetypeText = [
+    pattern.title,
+    ...(pattern.keywords || []),
+    ...(pattern.coreCards || []).map((card) => card.name),
+  ].map(normalizeCardLimitName);
+  const searchableText = [
+    ...archetypeText,
+    ...(pattern.supportCards || []).map((card) => card.name),
+    ...(pattern.systemCards || []),
+    ...(pattern.energyCards || []),
+  ].map(normalizeCardLimitName);
+
+  let score = 0;
+  if (selectedType && (pattern.types || []).includes(selectedType)) score += 4;
+  const hasPokemonNameMatch = Boolean(pokemonName && archetypeText.some((text) => text.includes(pokemonName) || pokemonName.includes(text)));
+  if (hasPokemonNameMatch) score += 8;
+  let hasSupplementalArchetypeMatch = false;
+  if (supplementalTheme) {
+    for (const text of searchableText) {
+      if (text && (supplementalTheme.includes(text) || text.includes(supplementalTheme))) score += 2;
+    }
+    hasSupplementalArchetypeMatch = archetypeText.some((text) => text && (supplementalTheme.includes(text) || text.includes(supplementalTheme)));
+  }
+  if (selectedPlan && searchableText.some((text) => text.includes(selectedPlan))) score += 1;
+  return {
+    score,
+    hasStrongMatch: hasPokemonNameMatch || hasSupplementalArchetypeMatch,
+  };
+}
+
+function formatTournamentDeckPatternHintsForPrompt(hints: TournamentDeckPatternHint[]) {
+  if (hints.length === 0) return "";
+  const lines = [
+    "【近い入賞レシピ傾向】",
+    "- 以下は固定テンプレートではなく、主軸・採用候補・枚数感の参考として扱うこと",
+    "- 近いパターンの専用カード、進化ライン、タイプ専用サーチ、エネルギー比率を優先的に検討すること",
+    "- ただし「カスミのコダック」「Nのゾロア」などの『〇〇のポケモン』は特別枠。ユーザーがそのカード名、または『〇〇のポケモン』『〇〇軸』『〇〇デッキ』を明示していない限り採用しないこと",
+  ];
+  for (const hint of hints) {
+    const coreCards = hint.coreCards.map(formatPatternCard).join("、");
+    const supportCards = hint.supportCards.slice(0, 10).map(formatPatternCard).join("、");
+    const systemCards = hint.systemCards.slice(0, 8).join("、");
+    const energyCards = hint.energyCards.slice(0, 6).join("、");
+    lines.push(`- ${hint.title}: 主軸=${coreCards || "なし"} / 補助=${supportCards || "なし"} / システム=${systemCards || "なし"} / エネルギー=${energyCards || "なし"}`);
+  }
+  return lines.join("\n");
+}
+
+function formatPatternCard(card: TournamentDeckPatternCard) {
+  if (card.min && card.max && card.min !== card.max) return `${card.name}${card.min}-${card.max}枚`;
+  const count = card.max || card.min;
+  return count ? `${card.name}${count}枚` : card.name;
 }
 
 function buildCardsByName(cardMaster: Record<string, StaticCardDetail>) {
@@ -1466,8 +1647,8 @@ function isCharacterThemeCardCompatible(
 ) {
   const ownerPrefix = getCharacterThemeOwnerPrefix(card);
   if (!ownerPrefix) return true;
-  if (card.cardKind === "pokemon") return contextMatchesTheme(context, ownerPrefix);
-  return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesTheme(context, ownerPrefix);
+  if (card.cardKind === "pokemon") return contextExplicitlyAllowsOwnerPokemon(context, ownerPrefix, card.name);
+  return hasThemePokemon(deckCards, cardMaster, ownerPrefix) || contextMatchesCharacterTheme(context, ownerPrefix, card.name);
 }
 
 function getCharacterThemeOwnerPrefix(card: StaticCardDetail) {
@@ -1522,6 +1703,46 @@ function contextMatchesTheme(context: GenerateDeckContext | undefined, ownerPref
     context?.selectedPlan,
   ].filter(Boolean).join(" ");
   return normalizeCardLimitName(contextText).includes(normalizedPrefix);
+}
+
+function contextMatchesCharacterTheme(context: GenerateDeckContext | undefined, ownerPrefix: string, cardName?: string) {
+  const normalizedOwner = normalizeCardLimitName(ownerPrefix.replace(/の$/, ""));
+  if (!normalizedOwner) return false;
+  const normalizedCardName = normalizeCardLimitName(cardName);
+  const contextText = [
+    context?.pokemonName,
+    context?.supplementalTheme,
+    context?.selectedPlan,
+  ].filter(Boolean).join(" ");
+  const normalizedContext = normalizeCardLimitName(contextText);
+  if (!normalizedContext) return false;
+  return Boolean(
+    (normalizedCardName && normalizedContext.includes(normalizedCardName)) ||
+    normalizedContext.includes(`${normalizedOwner}の`)
+  );
+}
+
+function contextExplicitlyAllowsOwnerPokemon(context: GenerateDeckContext | undefined, ownerPrefix: string, cardName?: string) {
+  const normalizedOwner = normalizeCardLimitName(ownerPrefix.replace(/の$/, ""));
+  const normalizedCardName = normalizeCardLimitName(cardName);
+  if (!normalizedOwner) return false;
+  const normalizedPokemonName = normalizeCardLimitName(context?.pokemonName);
+  const normalizedSupplementalTheme = normalizeCardLimitName(context?.supplementalTheme);
+  const normalizedSelectedPlan = normalizeCardLimitName(context?.selectedPlan);
+  const contextText = [normalizedPokemonName, normalizedSupplementalTheme, normalizedSelectedPlan].filter(Boolean).join(" ");
+  const normalizedContext = normalizeCardLimitName(contextText);
+  if (!normalizedContext) return false;
+  return Boolean(
+    (normalizedCardName && normalizedContext.includes(normalizedCardName)) ||
+    normalizedPokemonName.includes(`${normalizedOwner}の`) ||
+    normalizedSupplementalTheme.includes(`${normalizedOwner}のポケモン`) ||
+    normalizedSupplementalTheme.includes(`${normalizedOwner}軸`) ||
+    normalizedSupplementalTheme.includes(`${normalizedOwner}デッキ`) ||
+    normalizedSupplementalTheme.includes(`${normalizedOwner}のデッキ`) ||
+    normalizedSelectedPlan.includes(`${normalizedOwner}軸`) ||
+    normalizedSelectedPlan.includes(`${normalizedOwner}デッキ`) ||
+    normalizedSelectedPlan.includes(`${normalizedOwner}のデッキ`)
+  );
 }
 
 function canPokemonSearchCardFitDeck(
@@ -1720,7 +1941,6 @@ function isAllowedOffTypeSystemPokemon(
   context?: GenerateDeckContext
 ) {
   if (!isSystemPokemonCandidate(pokemon)) return false;
-  if (isRuleBoxPokemon(pokemon)) return false;
   if (hasConflictingDedicatedAbility(pokemon, cards, cardMaster, context)) return false;
 
   const roles = classifyAbilityRoles(pokemon);
@@ -1729,10 +1949,7 @@ function isAllowedOffTypeSystemPokemon(
   }
 
   return roles.has("ability_draw") ||
-    roles.has("ability_search") ||
-    roles.has("ability_stadium") ||
-    roles.has("ability_recovery") ||
-    roles.has("ability_switch");
+    roles.has("ability_search");
 }
 
 function addRequestedContextCards(
@@ -2609,6 +2826,83 @@ function getSelectedDeckPlan(context?: GenerateDeckContext): DeckPlan {
   return "unknown";
 }
 
+function applyTournamentDeckPatternHints(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const addedNames: string[] = [];
+  const hints = context?.tournamentPatternHints || [];
+  if (hints.length === 0) return { addedNames };
+
+  const protectedNames = [
+    ...getRequiredEvolutionLineNames(cards, cardMaster),
+    ...getRequestedContextCards(cardMaster, context).map((card) => card.name || "").filter(Boolean),
+  ];
+  const currentMainNames = getCurrentMainPokemonNames(cards, cardMaster, context);
+  const selectedType = String(context?.selectedType || "").trim();
+
+  for (const hint of hints) {
+    const isStrongMainMatch = hint.coreCards.some((card) => currentMainNames.has(normalizeCardLimitName(card.name)));
+    const isTypeMatch = selectedType && hint.types.includes(selectedType);
+    if (!isStrongMainMatch && !isTypeMatch && hint.score < 8) continue;
+
+    const coreCards = isStrongMainMatch || hint.score >= 8 ? hint.coreCards.slice(0, 8) : [];
+    const supportCards = hint.supportCards.slice(0, 8);
+    const systemCards = hint.systemCards.slice(0, 4).map((name) => ({ name, min: 1, max: 1 }));
+    for (const patternCard of [...coreCards, ...supportCards, ...systemCards]) {
+      if (addedNames.length >= 8) break;
+      addTournamentPatternCard(cards, cardsByName, cardMaster, patternCard, addedNames, protectedNames, context);
+    }
+  }
+
+  return {
+    addedNames: uniqueNames(addedNames),
+  };
+}
+
+function getCurrentMainPokemonNames(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const names = new Set<string>();
+  const requestedName = normalizeCardLimitName(context?.pokemonName);
+  if (requestedName) names.add(requestedName);
+  for (const card of cards) {
+    const masterCard = cardMaster[card.cardId];
+    if (masterCard?.cardKind !== "pokemon") continue;
+    if (masterCard.name) names.add(normalizeCardLimitName(masterCard.name));
+  }
+  return names;
+}
+
+function addTournamentPatternCard(
+  cards: DeckCard[],
+  cardsByName: CardsByName,
+  cardMaster: Record<string, StaticCardDetail>,
+  patternCard: TournamentDeckPatternCard,
+  addedNames: string[],
+  protectedNames: string[],
+  context?: GenerateDeckContext
+) {
+  const targetCount = Math.min(4, Math.max(1, patternCard.min || patternCard.max || 1));
+  const currentCount = countCardsWithSameName(cards, { cardName: patternCard.name });
+  if (currentCount >= targetCount) return;
+
+  const candidate = findAddablePolicyCard(cards, cardsByName, [patternCard.name], (card) => {
+    if (isAceSpecCard(card, { cardName: card.name })) return countAceSpecCards(cards) === 0;
+    return isPolicyCandidateCompatible(card, cards, cardMaster, context);
+  });
+  if (!candidate?.name) return;
+
+  while (countCardsWithSameName(cards, { cardName: candidate.name }) < targetCount) {
+    const addedCount = addSinglePolicyCard(cards, candidate, addedNames, protectedNames);
+    if (addedCount === 0) break;
+  }
+}
+
 function applyTypeSpecificCardPolicy(
   cards: DeckCard[],
   cardMaster: Record<string, StaticCardDetail>,
@@ -2861,7 +3155,8 @@ function addPokemonSearchGoodsToTargetCount(
     .filter((card): card is StaticCardDetail => {
       if (!card?.name || !isPokemonSearchGoodsCard(card)) return false;
       if (isAceSpecCard(card, { cardName: card.name })) return false;
-      return canPokemonSearchCardFitDeck(card, cards, cardMaster, context);
+      return canPokemonSearchCardFitDeck(card, cards, cardMaster, context) &&
+        isPolicyCandidateCompatible(card, cards, cardMaster, context);
     })
     .sort((a, b) => comparePokemonSearchGoodsPriority(a, b, cards, cardMaster, context));
 
@@ -3027,7 +3322,7 @@ function addSystemPokemonSupportCards(
   context?: GenerateDeckContext
 ) {
   const addedNames: string[] = [];
-  if (countSystemPokemon(cards, cardMaster) >= systemPokemonTargetCount) return addedNames;
+  if (countSystemPokemon(cards, cardMaster, context) >= systemPokemonTargetCount) return addedNames;
 
   const preferredRoles = getPreferredAbilityRoles(cards, cardMaster, context);
   const candidate = Object.values(cardMaster)
@@ -3073,9 +3368,14 @@ function addSupplementalAbilitySupportPokemon(
   return uniqueNames(addedNames);
 }
 
-function countSystemPokemon(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+function countSystemPokemon(
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
   return cards.reduce((sum, card) => {
     const masterCard = cardMaster[card.cardId];
+    if (masterCard?.name && contextMatchesTheme(context, masterCard.name)) return sum;
     return masterCard && isSystemPokemonCandidate(masterCard) ? sum + card.count : sum;
   }, 0);
 }
@@ -3088,7 +3388,9 @@ function canAddSystemPokemon(
 ) {
   if (!isSystemPokemonCandidate(card)) return false;
   if (!card.name || countCardsWithSameName(cards, { cardName: card.name }) > 0) return false;
+  if (!isRationalSystemPokemonForDeck(card, cards, cardMaster, context)) return false;
   if (contextMatchesTheme(context, card.name)) return true;
+  if (!isCharacterThemeCardCompatible(card, cards, cardMaster, context)) return false;
   if (hasConflictingDedicatedAbility(card, cards, cardMaster, context)) return false;
   if (!isPokemonTypeCompatibleWithDeck(card, cards, cardMaster, context)) return false;
   return true;
@@ -3096,8 +3398,6 @@ function canAddSystemPokemon(
 
 function isSystemPokemonCandidate(card: StaticCardDetail) {
   if (card.cardKind !== "pokemon" || !card.abilities?.length) return false;
-  if (!pokemonMatchesStage(card, "basic")) return false;
-  if (isRuleBoxPokemon(card)) return false;
   const roles = classifyAbilityRoles(card);
   return roles.has("ability_draw") ||
     roles.has("ability_search") ||
@@ -3112,6 +3412,9 @@ function compareSystemPokemonCandidatePriority(
   b: StaticCardDetail,
   context?: GenerateDeckContext
 ) {
+  const scoreDiff = scoreSystemPokemonCandidate(b, context) - scoreSystemPokemonCandidate(a, context);
+  if (scoreDiff !== 0) return scoreDiff;
+
   const aSameType = pokemonMatchesSelectedType(a, context) ? 0 : 1;
   const bSameType = pokemonMatchesSelectedType(b, context) ? 0 : 1;
   if (aSameType !== bSameType) return aSameType - bSameType;
@@ -3120,6 +3423,92 @@ function compareSystemPokemonCandidatePriority(
   if (Number.isFinite(cardIdDiff) && cardIdDiff !== 0) return cardIdDiff;
 
   return String(b.cardId).localeCompare(String(a.cardId));
+}
+
+function isRationalSystemPokemonForDeck(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  const ownerPrefix = getCharacterThemeOwnerPrefix(card);
+  if (ownerPrefix && !contextExplicitlyAllowsOwnerPokemon(context, ownerPrefix, card.name)) return false;
+
+  const roles = classifyAbilityRoles(card);
+  if (hasLowImpactSelfCyclingAbility(card)) return false;
+  if (!canSystemPokemonStageCostFitDeck(card, cards, cardMaster, context)) return false;
+
+  const explicitlyRequested = contextMatchesTheme(context, card.name || "");
+  if (isRuleBoxPokemon(card) && !explicitlyRequested && !hasHighImpactSystemRole(roles)) return false;
+
+  if (roles.has("ability_draw") || roles.has("ability_search") || roles.has("ability_energy")) return true;
+
+  const supplementalRoles = getSupplementalPreferredAbilityRoles(context);
+  if (supplementalRoles.length > 0 && supplementalRoles.some((role) => roles.has(role))) {
+    return contextMatchesSupplementalAbilityText(card, context);
+  }
+
+  if (roles.has("ability_stadium")) return deckHasStadiumDependency(cards, cardMaster);
+  return false;
+}
+
+function canSystemPokemonStageCostFitDeck(
+  card: StaticCardDetail,
+  cards: DeckCard[],
+  cardMaster: Record<string, StaticCardDetail>,
+  context?: GenerateDeckContext
+) {
+  if (pokemonMatchesStage(card, "basic")) return true;
+  if (contextMatchesTheme(context, card.name || "")) return true;
+
+  const familyName = normalizeFamilyName(card.familyId || card.name);
+  const evolvesFrom = normalizeCardLimitName(card.evolvesFrom);
+  const requiredBasic = findRequiredBasicEvolution(card, cardMaster);
+  const requiredBasicName = normalizeCardLimitName(requiredBasic?.name);
+
+  return cards.some((deckCard) => {
+    const masterCard = cardMaster[deckCard.cardId];
+    if (!masterCard || masterCard.cardKind !== "pokemon") return false;
+    if (familyName && normalizeFamilyName(masterCard.familyId || masterCard.name) === familyName) return true;
+    if (evolvesFrom && normalizeCardLimitName(masterCard.name) === evolvesFrom) return true;
+    return Boolean(requiredBasicName && normalizeCardLimitName(masterCard.name) === requiredBasicName);
+  });
+}
+
+function hasHighImpactSystemRole(roles: Set<AbilityRole>) {
+  return roles.has("ability_draw") || roles.has("ability_search") || roles.has("ability_energy");
+}
+
+function scoreSystemPokemonCandidate(card: StaticCardDetail, context?: GenerateDeckContext) {
+  const roles = classifyAbilityRoles(card);
+  let score = 0;
+  if (pokemonMatchesSelectedType(card, context)) score += 30;
+  if (pokemonMatchesStage(card, "basic")) score += 10;
+  if (pokemonMatchesStage(card, "evolution")) score -= 18;
+  if (isRuleBoxPokemon(card)) score -= 8;
+  if (roles.has("ability_draw")) score += 60;
+  if (roles.has("ability_search")) score += 55;
+  if (roles.has("ability_energy")) score += 45;
+  if (roles.has("ability_stadium")) score += 18;
+  if (roles.has("ability_recovery")) score += 6;
+  if (roles.has("ability_switch")) score += 4;
+  if (hasLowImpactSelfCyclingAbility(card)) score -= 80;
+  if (getCharacterThemeOwnerPrefix(card)) score -= 120;
+  score += Math.min(Number(card.hp || 0), 150) / 100;
+  return score;
+}
+
+function hasLowImpactSelfCyclingAbility(card: StaticCardDetail) {
+  const text = normalizeRuleText(getAbilitySearchableText(card));
+  return /山札を下から.*トラッシュ/.test(text) &&
+    /このポケモン.*山札の上にもどす/.test(text);
+}
+
+function deckHasStadiumDependency(cards: DeckCard[], cardMaster: Record<string, StaticCardDetail>) {
+  return cards.some((card) => {
+    const masterCard = cardMaster[card.cardId];
+    return masterCard?.cardKind === "trainer" && String(masterCard.subKind || "").includes("スタジアム");
+  });
 }
 
 function scoreSupplementalAbilityCandidate(
@@ -3546,7 +3935,10 @@ function fillDeckWithStaples(
   let filled = 0;
   for (const staple of stapleCards) {
     if (countDeckCards(cards) >= targetDeckCardCount) break;
-    const card = findFirstCardCandidate(cardsByName, staple.name, (candidate) => canPokemonSearchCardFitDeck(candidate, cards, cardMaster, context));
+    const card = findFirstCardCandidate(cardsByName, staple.name, (candidate) => (
+      canPokemonSearchCardFitDeck(candidate, cards, cardMaster, context) &&
+      isPolicyCandidateCompatible(candidate, cards, cardMaster, context)
+    ));
     if (!card?.name) continue;
     const currentCount = countCardsWithSameName(cards, { cardName: card.name });
     const wantedCount = Math.max(0, staple.targetCount - currentCount);

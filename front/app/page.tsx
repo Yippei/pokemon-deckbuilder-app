@@ -97,10 +97,8 @@ function formatDistance(km: number) {
   return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(km < 10 ? 1 : 0)}km`;
 }
 
-function buildMapsSearchUrl(location?: UserLocation | null) {
-  const query = location
-    ? `ポケモンカードジム ${location.lat.toFixed(5)},${location.lng.toFixed(5)}`
-    : "ポケモンカードジム";
+function buildMapsSearchUrl() {
+  const query = "ポケモンカード";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
@@ -114,6 +112,14 @@ function buildMapsDirectionsUrl(gym: CardGym, location?: UserLocation | null) {
     params.set("origin", `${location.lat},${location.lng}`);
   }
   return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+const newsRefreshIntervalMs = 30 * 60 * 1000;
+const newsCacheBustWindowMs = 5 * 60 * 1000;
+
+function buildPokemonCardNewsUrl() {
+  const cacheBustKey = Math.floor(Date.now() / newsCacheBustWindowMs);
+  return `/pokemon-card-news.json?v=${cacheBustKey}`;
 }
 
 export default function Home() {
@@ -184,7 +190,7 @@ export default function Home() {
     const loadNews = async () => {
       setCardNewsLoading(true);
       try {
-        const res = await fetch("/pokemon-card-news.json", { cache: "force-cache" });
+        const res = await fetch(buildPokemonCardNewsUrl(), { cache: "no-store" });
         if (!res.ok) throw new Error("pokemon-card-news.json を取得できませんでした");
         const data = (await res.json()) as PokemonCardNewsMaster;
         if (!cancelled) {
@@ -204,8 +210,17 @@ export default function Home() {
       }
     };
     loadNews();
+    const intervalId = window.setInterval(loadNews, newsRefreshIntervalMs);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadNews();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -416,7 +431,7 @@ export default function Home() {
               <button type="button" onClick={locateUser} className="home-mini-action home-mini-action--dark">
                 現在地を取得
               </button>
-              <a href={buildMapsSearchUrl(userLocation)} target="_blank" rel="noreferrer" className="home-mini-action">
+              <a href={buildMapsSearchUrl()} target="_blank" rel="noreferrer" className="home-mini-action">
                 Mapsで探す
               </a>
             </div>
@@ -447,14 +462,7 @@ export default function Home() {
                     </a>
                   </div>
                 ))
-              ) : (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-xs font-bold text-slate-800">店舗マスター未投入</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
-                    `card-gyms.json` に店舗の緯度経度を入れると、この場所に近い順で表示されます。
-                  </p>
-                </div>
-              )}
+              ) : null}
             </div>
           </aside>
         </section>

@@ -7,12 +7,18 @@
     "build": "next build",
     "build:aws": "next build --webpack",
     "card-index:build": "node ./scripts/build-card-generation-index.mjs",
+    "card-master:update-diff": "node ./scripts/update-card-master-diff.mjs",
+    "cap:sync:ios": "npm run build:aws && npx cap sync ios",
+    "cap:open:ios": "npx cap open ios",
     "deploy:aws": "bash ./scripts/deploy-aws.sh",
     "news:update": "node ./scripts/update-pokemon-card-news.mjs",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/cli": "^7.6.8",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/ios": "^7.6.8",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",

@@ -78,6 +78,13 @@ for (const card of cards) {
     for (const type of inferAttackEnergyTypes(card)) {
       addToIndex(pokemonByAttackEnergy, type, summary);
     }
+    const ownerTheme = inferCharacterThemeLock(card);
+    if (ownerTheme) {
+      addToIndex(characterThemeLockedCards, ownerTheme, {
+        ...summary,
+        roles: inferSystemPokemonRoles(card),
+      });
+    }
     continue;
   }
 

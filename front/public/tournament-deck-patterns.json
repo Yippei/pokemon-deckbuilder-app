@@ -1,0 +1,368 @@
+{
+  "generatedAt": "2026-07-20T00:00:00+09:00",
+  "source": {
+    "description": "ユーザー提供の入賞レシピ画像から起こした確認用パターン",
+    "reviewPath": "docs/tournament-recipes-ocr-review.md",
+    "note": "固定テンプレートではなく、近い主軸の採用候補・枚数感をAI生成時に参照するための軽量データ"
+  },
+  "patterns": [
+    {
+      "id": "dragapult_ex_blaziken",
+      "title": "ドラパルトex・バシャーモex",
+      "types": ["psychic", "fire", "dark"],
+      "keywords": ["ドラパルト", "ドラパルトex", "ドラメシヤ", "ドロンチ", "バシャーモ", "アチャモ"],
+      "categoryCounts": { "pokemon": [21, 24], "goods": [16, 19], "tool": [0, 0], "support": [9, 11], "stadium": [2, 2], "energy": [7, 8] },
+      "coreCards": [
+        { "name": "ドラメシヤ", "min": 4, "max": 4 },
+        { "name": "ドロンチ", "min": 4, "max": 4 },
+        { "name": "ドラパルトex", "min": 2, "max": 3 },
+        { "name": "アチャモ", "min": 2, "max": 2 },
+        { "name": "ワカシャモ", "min": 1, "max": 1 },
+        { "name": "バシャーモex", "min": 2, "max": 2 }
+      ],
+      "supportCards": [
+        { "name": "なかよしポフィン", "min": 4, "max": 4 },
+        { "name": "ハイパーボール", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 3, "max": 4 },
+        { "name": "ふしぎなアメ", "min": 2, "max": 4 },
+        { "name": "夜のタンカ", "min": 2, "max": 2 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "ボスの指令", "min": 2, "max": 3 },
+        { "name": "アカマツ", "min": 1, "max": 2 },
+        { "name": "ゼロの大空洞", "min": 1, "max": 2 }
+      ],
+      "systemCards": ["マシマシラ", "キチキギスex", "ニャースex", "スボミー", "シェイミ", "リーリエのピッピex"],
+      "energyCards": ["基本炎エネルギー", "基本超エネルギー", "基本悪エネルギー"]
+    },
+    {
+      "id": "n_zoroark_ex",
+      "title": "Nのゾロアークex",
+      "types": ["dark", "fire", "electric"],
+      "keywords": ["Nのゾロアーク", "Nのゾロアークex", "Nのゾロア", "Nのゼクロム", "Nのレシラム"],
+      "categoryCounts": { "pokemon": [17, 20], "goods": [14, 21], "tool": [2, 2], "support": [10, 13], "stadium": [2, 4], "energy": [7, 8] },
+      "coreCards": [
+        { "name": "Nのゾロア", "min": 4, "max": 4 },
+        { "name": "Nのゾロアークex", "min": 4, "max": 4 },
+        { "name": "Nのゼクロム", "min": 2, "max": 2 },
+        { "name": "Nのレシラム", "min": 1, "max": 1 },
+        { "name": "Nのポイントアップ", "min": 3, "max": 3 },
+        { "name": "Nの城", "min": 1, "max": 3 }
+      ],
+      "supportCards": [
+        { "name": "なかよしポフィン", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 2, "max": 4 },
+        { "name": "ハイパーボール", "min": 3, "max": 3 },
+        { "name": "変化の書", "min": 4, "max": 4 },
+        { "name": "夜のタンカ", "min": 1, "max": 2 },
+        { "name": "くさりもち", "min": 2, "max": 2 },
+        { "name": "シークレットボックス", "min": 1, "max": 1 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "ボスの指令", "min": 3, "max": 4 },
+        { "name": "シアノ", "min": 2, "max": 3 },
+        { "name": "からておうの稽古", "min": 1, "max": 1 },
+        { "name": "アンズの秘技", "min": 1, "max": 1 }
+      ],
+      "systemCards": ["マシマシラ", "キチキギスex", "モモワロウex", "イベルタル", "スボミー", "シェイミ", "シャリタツ", "ニャースex"],
+      "energyCards": ["基本悪エネルギー"]
+    },
+    {
+      "id": "cynthia_garchomp_ex",
+      "title": "シロナのガブリアスex",
+      "types": ["fighting"],
+      "keywords": ["シロナ", "シロナのガブリアス", "シロナのガブリアスex", "シロナのフカマル", "シロナのガバイト"],
+      "categoryCounts": { "pokemon": [19, 19], "goods": [18, 18], "tool": [3, 3], "support": [12, 12], "stadium": [1, 1], "energy": [7, 7] },
+      "coreCards": [
+        { "name": "シロナのフカマル", "min": 4, "max": 4 },
+        { "name": "シロナのガバイト", "min": 4, "max": 4 },
+        { "name": "シロナのガブリアスex", "min": 3, "max": 3 },
+        { "name": "シロナのロゼリア", "min": 3, "max": 3 },
+        { "name": "シロナのロズレイド", "min": 3, "max": 3 },
+        { "name": "シロナのパワーウエイト", "min": 3, "max": 3 }
+      ],
+      "supportCards": [
+        { "name": "なかよしポフィン", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "ファイトゴング", "min": 3, "max": 3 },
+        { "name": "パワープロテイン", "min": 2, "max": 2 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "ボスの指令", "min": 3, "max": 3 },
+        { "name": "トウコ", "min": 2, "max": 2 }
+      ],
+      "systemCards": ["シロナのミカルゲ", "スボミー"],
+      "energyCards": ["ロック闘エネルギー", "基本闘エネルギー"]
+    },
+    {
+      "id": "mega_lucario_ex",
+      "title": "メガルカリオex",
+      "types": ["fighting"],
+      "keywords": ["メガルカリオ", "メガルカリオex", "リオル", "ルカリオ"],
+      "categoryCounts": { "pokemon": [17, 19], "goods": [18, 19], "tool": [0, 2], "support": [10, 11], "stadium": [2, 2], "energy": [11, 11] },
+      "coreCards": [
+        { "name": "リオル", "min": 4, "max": 4 },
+        { "name": "メガルカリオex", "min": 3, "max": 3 },
+        { "name": "ルナトーン", "min": 2, "max": 2 },
+        { "name": "ソルロック", "min": 2, "max": 3 }
+      ],
+      "supportCards": [
+        { "name": "ファイトゴング", "min": 4, "max": 4 },
+        { "name": "パワープロテイン", "min": 4, "max": 4 },
+        { "name": "ハイパーボール", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "ボスの指令", "min": 2, "max": 4 },
+        { "name": "グラビティーマウンテン", "min": 2, "max": 2 }
+      ],
+      "systemCards": ["ノコッチ", "ノココッチ", "ノココッチex", "ニャースex", "キチキギスex"],
+      "energyCards": ["基本闘エネルギー", "ロック闘エネルギー"]
+    },
+    {
+      "id": "grass_ogerpon_engine",
+      "title": "草オーガポン系",
+      "types": ["grass", "psychic"],
+      "keywords": ["オーガポン", "オーガポン みどりのめんex", "草", "活力の森", "メガフシギバナ", "オリーヴァ", "メガニウム"],
+      "categoryCounts": { "pokemon": [18, 23], "goods": [13, 17], "tool": [0, 4], "support": [9, 12], "stadium": [3, 4], "energy": [6, 15] },
+      "coreCards": [
+        { "name": "オーガポン みどりのめんex", "min": 4, "max": 4 },
+        { "name": "むしとりセット", "min": 4, "max": 4 },
+        { "name": "活力の森", "min": 3, "max": 4 }
+      ],
+      "supportCards": [
+        { "name": "ハイパーボール", "min": 3, "max": 4 },
+        { "name": "ポケパッド", "min": 2, "max": 4 },
+        { "name": "夜のタンカ", "min": 1, "max": 2 },
+        { "name": "リーリエの決心", "min": 1, "max": 4 },
+        { "name": "ヒカリ", "min": 2, "max": 4 },
+        { "name": "ボスの指令", "min": 2, "max": 3 }
+      ],
+      "systemCards": ["キチキギスex", "ニャースex", "シェイミ", "スボミー", "リーリエのピッピex"],
+      "energyCards": ["基本草エネルギー", "グロウ草エネルギー", "プリズムエネルギー"]
+    },
+    {
+      "id": "mega_venusaur_grass",
+      "title": "メガフシギバナex・草進化",
+      "types": ["grass"],
+      "keywords": ["メガフシギバナ", "メガフシギバナex", "フシギダネ", "フシギソウ", "メガニウム"],
+      "categoryCounts": { "pokemon": [20, 20], "goods": [14, 14], "tool": [0, 0], "support": [12, 12], "stadium": [3, 3], "energy": [11, 11] },
+      "coreCards": [
+        { "name": "フシギダネ", "min": 2, "max": 2 },
+        { "name": "フシギソウ", "min": 2, "max": 2 },
+        { "name": "メガフシギバナex", "min": 2, "max": 2 },
+        { "name": "オーガポン みどりのめんex", "min": 4, "max": 4 },
+        { "name": "メガニウム", "min": 2, "max": 2 }
+      ],
+      "supportCards": [
+        { "name": "むしとりセット", "min": 4, "max": 4 },
+        { "name": "ハイパーボール", "min": 3, "max": 3 },
+        { "name": "ポケパッド", "min": 3, "max": 3 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "活力の森", "min": 3, "max": 3 }
+      ],
+      "systemCards": ["キチキギスex", "レジギガス", "ニャースex"],
+      "energyCards": ["基本草エネルギー"]
+    },
+    {
+      "id": "mega_greninja_ex",
+      "title": "メガゲッコウガex",
+      "types": ["water"],
+      "keywords": ["メガゲッコウガ", "メガゲッコウガex", "ゲッコウガ", "ケロマツ", "ゲコガシラ"],
+      "categoryCounts": { "pokemon": [19, 21], "goods": [15, 15], "tool": [1, 2], "support": [11, 11], "stadium": [2, 3], "energy": [10, 10] },
+      "coreCards": [
+        { "name": "ケロマツ", "min": 4, "max": 4 },
+        { "name": "ゲコガシラ", "min": 3, "max": 3 },
+        { "name": "メガゲッコウガex", "min": 2, "max": 2 },
+        { "name": "ゲッコウガex", "min": 2, "max": 2 }
+      ],
+      "supportCards": [
+        { "name": "なかよしポフィン", "min": 4, "max": 4 },
+        { "name": "ハイパーボール", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 3, "max": 3 },
+        { "name": "ふしぎなアメ", "min": 2, "max": 2 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "ボスの指令", "min": 2, "max": 2 }
+      ],
+      "systemCards": ["ヨマワル", "サマヨール", "ヨノワール", "スボミー", "キチキギスex", "ニャースex"],
+      "energyCards": ["基本水エネルギー", "イグニッションエネルギー", "バブル水エネルギー"]
+    },
+    {
+      "id": "steel_metagross",
+      "title": "メタグロス・鋼",
+      "types": ["steel", "water"],
+      "keywords": ["メタグロス", "メタング", "ダンバル", "メガドリュウズ", "ゲノセクト"],
+      "categoryCounts": { "pokemon": [18, 19], "goods": [12, 14], "tool": [1, 2], "support": [7, 10], "stadium": [1, 2], "energy": [12, 18] },
+      "coreCards": [
+        { "name": "ダンバル", "min": 4, "max": 4 },
+        { "name": "メタング", "min": 4, "max": 4 },
+        { "name": "メタグロス", "min": 2, "max": 2 },
+        { "name": "ゲノセクトex", "min": 2, "max": 2 },
+        { "name": "ダイゴのエアームド", "min": 1, "max": 1 }
+      ],
+      "supportCards": [
+        { "name": "ロケット団のレシーバー", "min": 3, "max": 4 },
+        { "name": "ハイパーボール", "min": 3, "max": 4 },
+        { "name": "夜のタンカ", "min": 2, "max": 2 },
+        { "name": "ポケギア3.0", "min": 2, "max": 3 },
+        { "name": "エネルギーリサイクル", "min": 1, "max": 2 },
+        { "name": "ブレイブバングル", "min": 1, "max": 1 },
+        { "name": "ロケット団のラムダ", "min": 4, "max": 4 },
+        { "name": "ボスの指令", "min": 2, "max": 3 },
+        { "name": "バトルコロシアム", "min": 1, "max": 1 },
+        { "name": "グラビティーマウンテン", "min": 1, "max": 1 }
+      ],
+      "systemCards": ["キチキギスex", "キュレム", "オーガポン いどのめんex", "ヒードラン", "シェイミ", "レジギガス"],
+      "energyCards": ["基本鋼エネルギー", "基本水エネルギー"]
+    },
+    {
+      "id": "rocket_mewtwo",
+      "title": "ロケット団のミュウツーex",
+      "types": ["grass", "psychic"],
+      "keywords": ["ロケット団", "ロケット団のミュウツーex", "ロケット団のワナイダー", "ロケット団のタマンチュラ"],
+      "categoryCounts": { "pokemon": [16, 16], "goods": [14, 14], "tool": [2, 2], "support": [13, 13], "stadium": [3, 3], "energy": [12, 12] },
+      "coreCards": [
+        { "name": "ロケット団のミュウツーex", "min": 2, "max": 2 },
+        { "name": "ロケット団のタマンチュラ", "min": 4, "max": 4 },
+        { "name": "ロケット団のワナイダー", "min": 4, "max": 4 },
+        { "name": "ロケット団のレシーバー", "min": 4, "max": 4 },
+        { "name": "ロケット団エネルギー", "min": 4, "max": 4 }
+      ],
+      "supportCards": [
+        { "name": "ハイパーボール", "min": 4, "max": 4 },
+        { "name": "ロケット団のアテナ", "min": 4, "max": 4 },
+        { "name": "ロケット団のランス", "min": 2, "max": 2 },
+        { "name": "ロケット団のサカキ", "min": 3, "max": 3 },
+        { "name": "ロケット団のファクトリー", "min": 2, "max": 2 }
+      ],
+      "systemCards": ["ロケット団のミミッキュ", "ロケット団のフリーザー", "ロケット団のニューラ", "リーリエのピッピex"],
+      "energyCards": ["ロケット団エネルギー", "基本草エネルギー", "基本超エネルギー"]
+    },
+    {
+      "id": "mega_starmie_froslass",
+      "title": "メガスターミーex・メガユキメノコex",
+      "types": ["water", "psychic", "dark"],
+      "keywords": ["メガスターミー", "メガスターミーex", "ヒトデマン", "メガユキメノコ", "メガユキメノコex", "ユキワラシ", "危ない廃墟"],
+      "categoryCounts": { "pokemon": [22, 22], "goods": [12, 12], "tool": [0, 0], "support": [12, 12], "stadium": [4, 4], "energy": [10, 10] },
+      "coreCards": [
+        { "name": "ヒトデマン", "min": 3, "max": 3 },
+        { "name": "メガスターミーex", "min": 2, "max": 2 },
+        { "name": "ユキワラシ", "min": 2, "max": 2 },
+        { "name": "メガユキメノコex", "min": 2, "max": 2 },
+        { "name": "危ない廃墟", "min": 4, "max": 4 }
+      ],
+      "supportCards": [
+        { "name": "なかよしポフィン", "min": 4, "max": 4 },
+        { "name": "ハイパーボール", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "アオキの手際", "min": 3, "max": 3 },
+        { "name": "トウコ", "min": 2, "max": 2 },
+        { "name": "ボスの指令", "min": 2, "max": 2 },
+        { "name": "アカマツ", "min": 1, "max": 1 }
+      ],
+      "systemCards": ["マシマシラ", "ヨマワル", "サマヨール", "ヨノワール", "ニャースex", "スボミー", "ガチグマ アカツキex", "シャリタツ"],
+      "energyCards": ["基本水エネルギー", "基本悪エネルギー", "イグニッションエネルギー", "レガシーエネルギー"]
+    },
+    {
+      "id": "mega_froslass_bronzong",
+      "title": "メガユキメノコex・ドータクン",
+      "types": ["water", "psychic", "dark", "steel"],
+      "keywords": ["メガユキメノコ", "メガユキメノコex", "ユキワラシ", "ユキメノコ", "ドーミラー", "ドータクン"],
+      "categoryCounts": { "pokemon": [18, 18], "goods": [14, 14], "tool": [2, 2], "support": [14, 14], "stadium": [2, 2], "energy": [10, 10] },
+      "coreCards": [
+        { "name": "ユキワラシ", "min": 4, "max": 4 },
+        { "name": "ユキメノコ", "min": 2, "max": 2 },
+        { "name": "メガユキメノコex", "min": 2, "max": 2 },
+        { "name": "ドーミラー", "min": 2, "max": 2 },
+        { "name": "ドータクン", "min": 2, "max": 2 }
+      ],
+      "supportCards": [
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "なかよしポフィン", "min": 3, "max": 3 },
+        { "name": "ハイパーボール", "min": 3, "max": 3 },
+        { "name": "夜のタンカ", "min": 2, "max": 2 },
+        { "name": "エネルギー転送", "min": 1, "max": 1 },
+        { "name": "シークレットボックス", "min": 1, "max": 1 },
+        { "name": "ふうせん", "min": 2, "max": 2 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "トウコ", "min": 3, "max": 3 },
+        { "name": "ジャッジマン", "min": 2, "max": 2 }
+      ],
+      "systemCards": ["マシマシラ", "スボミー", "ニャースex", "キチキギスex"],
+      "energyCards": ["基本超エネルギー", "基本悪エネルギー", "基本水エネルギー"]
+    },
+    {
+      "id": "fighting_solrock_lunatone_horudo",
+      "title": "闘ソルロック・ルナトーン・ホルード",
+      "types": ["fighting", "dark"],
+      "keywords": ["ソルロック", "ルナトーン", "ホルビー", "ホルード", "ファイトゴング", "ロケット団の監視塔"],
+      "categoryCounts": { "pokemon": [13, 13], "goods": [19, 19], "tool": [4, 4], "support": [12, 12], "stadium": [2, 2], "energy": [10, 10] },
+      "coreCards": [
+        { "name": "ホルビー", "min": 3, "max": 3 },
+        { "name": "ホルード", "min": 2, "max": 2 },
+        { "name": "ソルロック", "min": 2, "max": 2 },
+        { "name": "ルナトーン", "min": 2, "max": 2 }
+      ],
+      "supportCards": [
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "ファイトゴング", "min": 4, "max": 4 },
+        { "name": "夜のタンカ", "min": 3, "max": 3 },
+        { "name": "エネルギー回収", "min": 2, "max": 2 },
+        { "name": "エネルギーつけかえ", "min": 2, "max": 2 },
+        { "name": "ふうせん", "min": 2, "max": 2 },
+        { "name": "カウンターゲイン", "min": 2, "max": 2 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "アカマツ", "min": 2, "max": 2 },
+        { "name": "ロケット団の監視塔", "min": 2, "max": 2 }
+      ],
+      "systemCards": ["ガチグマ アカツキ", "マシマシラ"],
+      "energyCards": ["基本闘エネルギー", "基本悪エネルギー"]
+    },
+    {
+      "id": "alakazam_psychic_control",
+      "title": "フーディン・超コントロール",
+      "types": ["psychic"],
+      "keywords": ["ケーシィ", "ユンゲラー", "フーディン", "バトルコロシアム", "ワンダーパッチ", "テレパス超エネルギー"],
+      "categoryCounts": { "pokemon": [21, 21], "goods": [16, 16], "tool": [0, 0], "support": [12, 12], "stadium": [4, 4], "energy": [7, 7] },
+      "coreCards": [
+        { "name": "ケーシィ", "min": 4, "max": 4 },
+        { "name": "ユンゲラー", "min": 4, "max": 4 },
+        { "name": "フーディン", "min": 4, "max": 4 },
+        { "name": "ノコッチ", "min": 3, "max": 3 },
+        { "name": "ノココッチ", "min": 3, "max": 3 },
+        { "name": "バトルコロシアム", "min": 4, "max": 4 }
+      ],
+      "supportCards": [
+        { "name": "なかよしポフィン", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "ふしぎなアメ", "min": 3, "max": 3 },
+        { "name": "ワンダーパッチ", "min": 1, "max": 1 },
+        { "name": "改造ハンマー", "min": 2, "max": 2 },
+        { "name": "トウコ", "min": 4, "max": 4 },
+        { "name": "ヒカリ", "min": 3, "max": 3 },
+        { "name": "ボスの指令", "min": 3, "max": 3 }
+      ],
+      "systemCards": ["コダック", "シェイミ", "スボミー"],
+      "energyCards": ["テレパス超エネルギー", "基本超エネルギー", "リッチエネルギー"]
+    },
+    {
+      "id": "slowking_psychic",
+      "title": "ヤドキング・メガガルーラ",
+      "types": ["psychic", "water"],
+      "keywords": ["ヤドン", "ヤドキング", "メガヤドラン", "メガガルーラ", "夜のアカデミー"],
+      "categoryCounts": { "pokemon": [23, 23], "goods": [15, 17], "tool": [1, 1], "support": [7, 8], "stadium": [4, 4], "energy": [9, 9] },
+      "coreCards": [
+        { "name": "ヤドン", "min": 4, "max": 4 },
+        { "name": "ヤドキング", "min": 3, "max": 3 },
+        { "name": "メガガルーラex", "min": 4, "max": 4 },
+        { "name": "夜のアカデミー", "min": 4, "max": 4 }
+      ],
+      "supportCards": [
+        { "name": "ハイパーボール", "min": 4, "max": 4 },
+        { "name": "ポケパッド", "min": 4, "max": 4 },
+        { "name": "ワンダーパッチ", "min": 3, "max": 4 },
+        { "name": "リーリエの決心", "min": 4, "max": 4 },
+        { "name": "暗号マニアの解読", "min": 2, "max": 3 }
+      ],
+      "systemCards": ["キュレム", "メタグロス", "ラティアスex", "リーリエのピッピex", "キチキギスex", "ニャースex"],
+      "energyCards": ["テレパス超エネルギー", "基本超エネルギー", "ブーメランエネルギー"]
+    }
+  ]
+}

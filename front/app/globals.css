@@ -3024,10 +3024,21 @@ body {
 }
 
 .solo-card-face--trash {
-  width: 74px;
-  min-height: 104px;
+  width: 82px;
+  aspect-ratio: 63 / 88;
+  height: auto;
+  min-height: 0;
   border-radius: 12px;
   flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.solo-card-face--trash .solo-card-face__image {
+  object-fit: contain;
+  background: #ffffff;
 }
 
 .solo-card-face--candidate {
@@ -3219,6 +3230,244 @@ body {
   min-width: 0;
 }
 
+.solo-effect-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.solo-effect-modal__panel {
+  width: min(1040px, 100%);
+  max-height: min(86dvh, 900px);
+  overflow: auto;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(2, 44, 34, 0.96);
+  padding: 18px;
+  color: rgb(236, 253, 245);
+  box-shadow: 0 32px 90px rgba(2, 6, 23, 0.52);
+}
+
+.solo-effect-modal__card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 52dvh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.solo-effect-modal__choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  max-height: 58dvh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.solo-selection-panel--effect-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 120 !important;
+  width: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.solo-selection-panel--effect-modal > :not(.solo-effect-modal) {
+  display: none !important;
+}
+
+.play-lab-page--solo-fullscreen {
+  width: 100%;
+  max-width: none;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.play-lab-page--solo-fullscreen .play-lab-hero,
+.play-lab-page--solo-fullscreen .play-lab-mode-switcher,
+.play-lab-page--solo-fullscreen .play-lab-deck-section {
+  display: none;
+}
+
+.play-lab-page--solo-fullscreen > .space-y-6 {
+  min-height: 100dvh;
+}
+
+.play-lab-page--solo-fullscreen .play-lab-practice-section {
+  min-height: 100dvh;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.play-lab-page--solo-fullscreen .solo-playmat-shell {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  height: 100dvh;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  border-radius: 0;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.play-lab-page--solo-fullscreen .solo-playmat-shell__header {
+  min-height: 42px;
+  padding-left: 54px;
+}
+
+.play-lab-page--solo-fullscreen .solo-playmat {
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding-bottom: 78px;
+}
+
+.play-lab-page--solo-fullscreen .solo-playmat__board {
+  min-height: 0;
+  height: 100%;
+}
+
+.play-lab-page--solo-fullscreen .solo-playmat__hand-panel {
+  min-height: 0;
+}
+
+.play-lab-page--solo-fullscreen .solo-zone--hand {
+  min-height: 0;
+}
+
+.play-lab-page--solo-fullscreen .solo-zone__chips {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.play-lab-page--solo-fullscreen .solo-card-chip {
+  flex: 0 0 auto;
+}
+
+.solo-floating-menu-button {
+  position: fixed;
+  left: 14px;
+  top: 14px;
+  z-index: 90;
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.16);
+  color: #ecfdf5;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.24);
+  backdrop-filter: blur(14px);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.solo-floating-menu-button:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.solo-floating-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(2px);
+}
+
+.solo-floating-menu {
+  position: fixed;
+  left: 14px;
+  top: 64px;
+  z-index: 100;
+  width: min(360px, calc(100vw - 28px));
+  max-height: calc(100dvh - 78px);
+  overflow: auto;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 16px;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(18px);
+}
+
+.play-lab-page--solo-fullscreen .solo-selection-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  width: auto;
+  max-height: none;
+  overflow: auto;
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: rgba(15, 23, 42, 0.48);
+  padding: 18px;
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+}
+
+.play-lab-page--solo-fullscreen .solo-selection-panel > * {
+  width: min(1040px, 100%);
+}
+
+.play-lab-page--solo-fullscreen .solo-selection-panel > .flex:first-child,
+.play-lab-page--solo-fullscreen .solo-selection-panel > .rounded-\[18px\],
+.play-lab-page--solo-fullscreen .solo-selection-panel > p {
+  background: rgba(2, 44, 34, 0.96);
+}
+
+.play-lab-page--solo-fullscreen .solo-action-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  z-index: 55;
+  display: flex;
+  max-width: min(980px, calc(100vw - 28px));
+  transform: translateX(-50%);
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(6, 78, 59, 0.9);
+  padding: 8px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.26);
+  backdrop-filter: blur(18px);
+}
+
+.play-lab-page--solo-fullscreen .solo-action-bar button {
+  height: 38px;
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   .play-lab-page {
     padding: 12px;
@@ -3384,11 +3633,17 @@ body {
   .solo-board-stack,
   .solo-card-chip,
   .solo-card-face--board,
-  .solo-card-face--stadium,
-  .solo-card-face--trash {
+  .solo-card-face--stadium {
     width: 48px;
     min-height: 68px;
     border-radius: 9px;
+  }
+
+  .solo-card-face--trash {
+    width: 70px;
+    aspect-ratio: 63 / 88;
+    min-height: 0;
+    border-radius: 10px;
   }
 
   .solo-card-face--preview {
@@ -3525,6 +3780,70 @@ body {
     font-size: 12px;
   }
 
+  .play-lab-page--solo-fullscreen {
+    padding: 0;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-playmat-shell {
+    padding: 8px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-playmat {
+    padding-bottom: 88px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-playmat-shell__header {
+    min-height: 36px;
+    padding-left: 50px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-playmat-shell__header h2 {
+    font-size: 16px;
+  }
+
+  .solo-floating-menu-button {
+    left: 10px;
+    top: 10px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .solo-floating-menu {
+    left: 10px;
+    top: 54px;
+    width: min(340px, calc(100vw - 20px));
+    max-height: calc(100dvh - 64px);
+    border-radius: 18px;
+    padding: 12px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-selection-panel {
+    right: 8px;
+    bottom: 88px;
+    left: 8px;
+    width: auto;
+    max-height: 32dvh;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-action-bar {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-width: none;
+    transform: none;
+    border-radius: 18px;
+    gap: 6px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-action-bar button {
+    height: 36px;
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
   .solo-help-panel {
     display: none;
   }
@@ -3606,6 +3925,28 @@ body {
 
   .solo-action-bar {
     position: static;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .play-lab-page--solo-fullscreen .solo-playmat {
+    grid-template-columns: none;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: stretch;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-zone--hand {
+    max-height: none;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-zone__chips {
+    max-height: none;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-action-bar {
+    position: fixed;
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
@@ -5376,4 +5717,33 @@ body {
   .deck-studio-hero__panel-bottom {
     padding: 14px 18px 18px;
   }
+}
+
+.play-lab-page--solo-fullscreen .solo-selection-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147481000 !important;
+  display: grid !important;
+  align-content: center !important;
+  justify-items: center !important;
+  width: auto !important;
+  max-height: none !important;
+  overflow: auto !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: rgba(15, 23, 42, 0.48) !important;
+  padding: 18px !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.play-lab-page--solo-fullscreen .solo-selection-panel > * {
+  width: min(1040px, 100%) !important;
+}
+
+.play-lab-page--solo-fullscreen .solo-selection-panel > .flex:first-child,
+.play-lab-page--solo-fullscreen .solo-selection-panel > .rounded-\[18px\],
+.play-lab-page--solo-fullscreen .solo-selection-panel > p {
+  background: rgba(2, 44, 34, 0.96) !important;
 }
