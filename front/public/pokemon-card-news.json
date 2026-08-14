@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-08-07",
+  "updatedAt": "2026-08-14",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-14-www-pokemon-card-com-info-005605-html",
+      "category": "イベント",
+      "date": "2026.8.14",
+      "title": "「ポケモンWCS2026」カードゲーム部門のライブ配信を楽しもう！プレゼント企画も！",
+      "summary": "「ポケモンWCS2026」カードゲーム部門のライブ配信を楽しもう！プレゼント企画も！",
+      "url": "https://www.pokemon-card.com/info/005605.html"
+    },
+    {
+      "id": "official-2026-08-14-www-pokemon-card-com-info-005604-html",
+      "category": "イベント",
+      "date": "2026.8.14",
+      "title": "デッキそのままバトル、開催！",
+      "summary": "デッキそのままバトル、開催！",
+      "url": "https://www.pokemon-card.com/info/005604.html"
+    },
     {
       "id": "official-2026-08-07-www-pokemon-card-com-info-005563-html",
       "category": "イベント",
@@ -26,22 +42,6 @@
       "title": "チャンピオンシップポイント累計賞品の発送に伴う、情報登録・更新のお願い",
       "summary": "チャンピオンシップポイント累計賞品の発送に伴う、情報登録・更新のお願い",
       "url": "https://www.pokemon-card.com/info/005602.html"
-    },
-    {
-      "id": "official-2026-08-07-www-pokemon-card-com-info-005559-html",
-      "category": "イベント",
-      "date": "2026.8.7",
-      "title": "「ここからデビュー！はじめてポケカ体験会」開催！",
-      "summary": "「ここからデビュー！はじめてポケカ体験会」開催！",
-      "url": "https://www.pokemon-card.com/info/005559.html"
-    },
-    {
-      "id": "official-2026-08-03-www-pokemon-card-com-info-005596-html",
-      "category": "その他",
-      "date": "2026.8.3",
-      "title": "【重要】プレイヤーズクラブの本人認証システムの障害について",
-      "summary": "【重要】プレイヤーズクラブの本人認証システムの障害について",
-      "url": "https://www.pokemon-card.com/info/005596.html"
     }
   ]
 }
