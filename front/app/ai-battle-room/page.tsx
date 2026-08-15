@@ -6829,8 +6829,8 @@ export default function AIBattleRoomPage() {
                       onClick={() => toggleBattlePrizeSelection(index)}
                       className={`rounded-lg p-1 transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "bg-amber-200 outline outline-2 outline-amber-400" : "bg-slate-100 hover:bg-slate-200"}`}
                     >
-                      {renderBattleCardFace(card, "h-[82px] w-[58px]")}
-                      <span className="mt-1 block truncate text-[10px] font-bold text-slate-700">{card.cardName || "サイド"}</span>
+                      {renderBattleCardBack("h-[82px] w-[58px]")}
+                      <span className="mt-1 block text-[10px] font-bold text-slate-700">サイド{index + 1}</span>
                     </button>
                   );
                 })
