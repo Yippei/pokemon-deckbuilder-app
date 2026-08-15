@@ -3357,18 +3357,25 @@ export default function AIBattleRoomPage() {
     const prompt = battleEffectPrompt;
     if (!prompt || prompt.kind !== "search_deck") return;
     const state = prompt.playerId === "player" ? battlePlayer : battleOpponent;
-    if (prompt.selectedPileIndexes.length === 0) {
+    const visiblePileIndexes = prompt.visiblePileIndexes || state.pile.map((_, index) => index);
+    const availableCandidateIndexes = visiblePileIndexes.filter((pileIndex) => {
+      const card = state.pile[pileIndex];
+      return Boolean(card && matchesSearchActionTarget(card, prompt.action));
+    });
+    if (prompt.selectedPileIndexes.length === 0 && availableCandidateIndexes.length > 0) {
       setBattleNotice("山札から加えるカードを選んでください。");
       return;
     }
     const selectedIndexes = new Set(prompt.selectedPileIndexes);
     const selectedCards = prompt.selectedPileIndexes.map((index) => state.pile[index]).filter((card): card is SoloCard => Boolean(card));
-    const requirementError = validateSearchSelectionRequirements(selectedCards, prompt.action);
-    if (requirementError) {
-      setBattleNotice(requirementError);
-      return;
+    if (selectedCards.length > 0) {
+      const requirementError = validateSearchSelectionRequirements(selectedCards, prompt.action);
+      if (requirementError) {
+        setBattleNotice(requirementError);
+        return;
+      }
     }
-    const visibleIndexes = new Set(prompt.visiblePileIndexes || state.pile.map((_, index) => index));
+    const visibleIndexes = new Set(visiblePileIndexes);
     const unselectedVisibleCards = state.pile.filter((_, index) => visibleIndexes.has(index) && !selectedIndexes.has(index));
     const restPile = state.pile
       .map((card, pileIndex) => ({ card, pileIndex }))
@@ -3387,6 +3394,15 @@ export default function AIBattleRoomPage() {
       hand: prompt.sourceHandIndex !== null ? state.hand.filter((_, index) => index !== prompt.sourceHandIndex) : state.hand,
       selectedHandIndex: null,
     };
+
+    if (selectedCards.length === 0) {
+      setBattleState(prompt.playerId, () => nextState);
+      setBattleEffectPrompt(null);
+      const notice = `${prompt.sourceCard.cardName || "トレーナーズ"}を使いましたが、対象カードはありませんでした。`;
+      setBattleNotice(notice);
+      setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
+      return;
+    }
 
     const splitHandCount = prompt.action.splitDestination?.hand || 0;
     const splitAttachCount = prompt.action.splitDestination?.attachEnergy || 0;
@@ -3472,7 +3488,11 @@ export default function AIBattleRoomPage() {
     const prompt = battleEffectPrompt;
     if (!prompt || prompt.kind !== "recover_from_trash") return;
     const state = prompt.playerId === "player" ? battlePlayer : battleOpponent;
-    if (prompt.selectedDiscardIndexes.length === 0) {
+    const availableCandidateIndexes = state.discard
+      .map((card, discardIndex) => ({ card, discardIndex }))
+      .filter(({ card }) => matchesSearchTarget(card, prompt.action.target))
+      .map(({ discardIndex }) => discardIndex);
+    if (prompt.selectedDiscardIndexes.length === 0 && availableCandidateIndexes.length > 0) {
       setBattleNotice("トラッシュから加えるカードを選んでください。");
       return;
     }
@@ -3488,6 +3508,14 @@ export default function AIBattleRoomPage() {
       ],
       selectedHandIndex: null,
     };
+    if (selectedCards.length === 0) {
+      setBattleState(prompt.playerId, () => nextState);
+      setBattleEffectPrompt(null);
+      const notice = `${prompt.sourceCard.cardName || "トレーナーズ"}を使いましたが、トラッシュに対象カードはありませんでした。`;
+      setBattleNotice(notice);
+      setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
+      return;
+    }
     if (prompt.action.destination === "attach_energy") {
       setBattleState(prompt.playerId, () => nextState);
       setBattleEffectPrompt({
@@ -6466,7 +6494,7 @@ export default function AIBattleRoomPage() {
                   onClick={confirmBattleEffectSearchDeck}
                   className="mt-4 inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-4 text-xs font-bold text-white transition hover:bg-slate-800"
                 >
-                  選んだカードを処理
+                  {effectPileCandidates.length === 0 ? "効果を終了" : "選んだカードを処理"}
                 </button>
               </div>
             ) : prompt.kind === "recover_from_trash" ? (
@@ -6499,7 +6527,7 @@ export default function AIBattleRoomPage() {
                   onClick={confirmBattleEffectRecoverTrash}
                   className="mt-4 inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-4 text-xs font-bold text-white transition hover:bg-slate-800"
                 >
-                  選んだカードを処理
+                  {effectTrashCandidates.length === 0 ? "効果を終了" : "選んだカードを処理"}
                 </button>
               </div>
             ) : prompt.kind === "attach_energy_target" ? (
