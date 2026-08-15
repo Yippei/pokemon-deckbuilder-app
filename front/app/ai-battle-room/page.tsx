@@ -268,6 +268,13 @@ type BattleAttackPrompt = {
   selectedAttackIndex: number | null;
   selectedCopiedAttackKey: string | null;
 };
+type BattlePrizePrompt = {
+  playerId: BattlePlayerId;
+  maxCount: number;
+  selectedPrizeIndexes: number[];
+  knockedOutSummaries: Array<{ cardName: string; prizeCount: number }>;
+  pendingPromotionPlayerId: BattlePlayerId | null;
+};
 type BattleBoardSelection = {
   playerId: BattlePlayerId;
   location: "active" | "bench";
@@ -1294,6 +1301,61 @@ function applyBattleActiveKnockout(state: BattlePlayerState, activeDamage: numbe
   };
 }
 
+function applyBattleBenchKnockouts(state: BattlePlayerState, benchIndexes: number[]) {
+  if (benchIndexes.length === 0) {
+    return { nextState: state, knockedOutCards: [] as SoloCard[] };
+  }
+  const knockoutSet = new Set(benchIndexes);
+  const knockedOutCards = state.benchStacks.flatMap((stack, index) => {
+    if (!knockoutSet.has(index) || stack.length === 0) return [];
+    return [
+      ...stack,
+      ...(state.attachedTools.bench[index] ? [state.attachedTools.bench[index] as SoloCard] : []),
+      ...(state.attachedEnergies.bench[index] || []),
+    ];
+  });
+
+  return {
+    nextState: {
+      ...state,
+      benchStacks: state.benchStacks.map((stack, index) => (knockoutSet.has(index) ? [] : stack)),
+      attachedTools: {
+        ...state.attachedTools,
+        bench: state.attachedTools.bench.map((tool, index) => (knockoutSet.has(index) ? null : tool)),
+      },
+      attachedEnergies: {
+        ...state.attachedEnergies,
+        bench: state.attachedEnergies.bench.map((energies, index) => (knockoutSet.has(index) ? [] : energies)),
+      },
+      discard: [...state.discard, ...knockedOutCards],
+      damage: {
+        ...state.damage,
+        bench: state.damage.bench.map((damage, index) => (knockoutSet.has(index) ? 0 : damage)),
+      },
+    },
+    knockedOutCards,
+  };
+}
+
+function getBattlePrizeCountForKnockedOutPokemon(card?: SoloCard | null) {
+  if (!card) return 0;
+  const text = [card.cardName, card.name, card.ruleText, card.subKind, card.stage, ...(card.searchTokens || [])]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const isEx = text.includes("ex");
+  if (isEx && (text.includes("メガ") || text.includes("mega") || text.includes("m進化"))) return 3;
+  if (isEx) return 2;
+  return 1;
+}
+
+function getBattlePrizeSummariesForKnockouts(cards: SoloCard[]) {
+  return cards.map((card) => ({
+    cardName: card.cardName || card.name || "ポケモン",
+    prizeCount: getBattlePrizeCountForKnockedOutPokemon(card),
+  }));
+}
+
 function promoteBattleBenchToActive(state: BattlePlayerState, benchIndex: number) {
   const benchStack = state.benchStacks[benchIndex] || [];
   if (state.activeStack.length > 0 || benchStack.length === 0) return state;
@@ -1766,6 +1828,7 @@ export default function AIBattleRoomPage() {
   const [battleAiSuggestions, setBattleAiSuggestions] = useState<BattleAiSuggestion[]>([]);
   const [battleEffectPrompt, setBattleEffectPrompt] = useState<BattleEffectPrompt | null>(null);
   const [battleAttackPrompt, setBattleAttackPrompt] = useState<BattleAttackPrompt | null>(null);
+  const [battlePrizePrompt, setBattlePrizePrompt] = useState<BattlePrizePrompt | null>(null);
   const [battleTrashPlayerId, setBattleTrashPlayerId] = useState<BattlePlayerId | null>(null);
 
   const [cardMasterDetails, setCardMasterDetails] = useState<Record<string, StaticCardDetail>>({});
@@ -2039,6 +2102,7 @@ export default function AIBattleRoomPage() {
       setBattleAiSuggestions([]);
       setBattleEffectPrompt(null);
       setBattleAttackPrompt(null);
+      setBattlePrizePrompt(null);
       setBattleTrashPlayerId(null);
       setSoloOpeningRedrawCount(0);
       setSoloManualDrawTurn(null);
@@ -2116,6 +2180,7 @@ export default function AIBattleRoomPage() {
     setBattleAiSuggestions([]);
     setBattleEffectPrompt(null);
     setBattleAttackPrompt(null);
+    setBattlePrizePrompt(null);
     setBattleTrashPlayerId(null);
     setBattleStarted(true);
     setBattleSetupPhase("player_active");
@@ -3624,6 +3689,42 @@ export default function AIBattleRoomPage() {
     setBattleEffectPrompt(null);
   };
 
+  const toggleBattlePrizeSelection = (prizeIndex: number) => {
+    const prompt = battlePrizePrompt;
+    if (!prompt) return;
+    setBattlePrizePrompt({
+      ...prompt,
+      selectedPrizeIndexes: prompt.selectedPrizeIndexes.includes(prizeIndex)
+        ? prompt.selectedPrizeIndexes.filter((index) => index !== prizeIndex)
+        : prompt.selectedPrizeIndexes.length < prompt.maxCount
+          ? [...prompt.selectedPrizeIndexes, prizeIndex]
+          : prompt.selectedPrizeIndexes,
+    });
+  };
+
+  const confirmBattlePrizeSelection = () => {
+    const prompt = battlePrizePrompt;
+    if (!prompt || prompt.selectedPrizeIndexes.length === 0) return;
+    const selectedIndexSet = new Set(prompt.selectedPrizeIndexes);
+    setBattleState(prompt.playerId, (state) => {
+      const selectedCards = state.prizes.filter((_, index) => selectedIndexSet.has(index));
+      if (selectedCards.length === 0) return state;
+      const notice = `${state.label}はサイドを${selectedCards.length}枚取りました。`;
+      setBattleNotice(notice);
+      setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
+      return {
+        ...state,
+        prizes: state.prizes.filter((_, index) => !selectedIndexSet.has(index)),
+        hand: [...state.hand, ...selectedCards],
+        selectedHandIndex: null,
+      };
+    });
+    setBattlePrizePrompt(null);
+    if (prompt.pendingPromotionPlayerId) {
+      setBattleEffectPrompt({ kind: "promote_active", playerId: prompt.pendingPromotionPlayerId, selectedBenchIndex: null });
+    }
+  };
+
   const confirmBattleBoardPokemonEffect = (location: "active" | "bench", benchIndex?: number) => {
     const prompt = battleEffectPrompt;
     if (!prompt || prompt.kind !== "select_board_pokemon") return;
@@ -3926,14 +4027,39 @@ export default function AIBattleRoomPage() {
     const nextDamage = defender.damage.active + damage;
     const defendingHp = Number(defendingCard.hp || 0);
     const isDefendingActiveKnockedOut = defendingHp > 0 && nextDamage >= defendingHp;
-    const defenderPromotionBenchIndex = isDefendingActiveKnockedOut ? defender.benchStacks.findIndex((stack) => stack.length > 0) : -1;
+    const knockedOutBenchIndexes =
+      benchDamage > 0
+        ? defender.benchStacks
+            .map((stack, index) => {
+              const topCard = stack[stack.length - 1];
+              const hp = Number(topCard?.hp || 0);
+              const nextBenchDamage = (defender.damage.bench[index] || 0) + (stack.length > 0 ? benchDamage : 0);
+              return topCard && hp > 0 && nextBenchDamage >= hp ? index : -1;
+            })
+            .filter((index) => index >= 0)
+        : [];
+    const knockedOutBenchSet = new Set(knockedOutBenchIndexes);
+    const knockedOutBenchPokemon = knockedOutBenchIndexes
+      .map((index) => defender.benchStacks[index]?.[defender.benchStacks[index].length - 1])
+      .filter((card): card is SoloCard => Boolean(card));
+    const knockedOutPokemon = [...(isDefendingActiveKnockedOut ? [defendingCard] : []), ...knockedOutBenchPokemon];
+    const prizeSummaries = getBattlePrizeSummariesForKnockouts(knockedOutPokemon);
+    const totalPrizeCount = prizeSummaries.reduce((sum, summary) => sum + summary.prizeCount, 0);
+    const remainingDefenderBenchStacks = defender.benchStacks.map((stack, index) => (knockedOutBenchSet.has(index) ? [] : stack));
+    const defenderPromotionBenchIndex = isDefendingActiveKnockedOut ? remainingDefenderBenchStacks.findIndex((stack) => stack.length > 0) : -1;
     const needsDefenderPromotion = defenderPromotionBenchIndex >= 0;
-    const autoPromotedCard = defenderId === "opponent" && needsDefenderPromotion
-      ? defender.benchStacks[defenderPromotionBenchIndex]?.[defender.benchStacks[defenderPromotionBenchIndex].length - 1]
-      : null;
+    const autoPromotedCard =
+      defenderId === "opponent" && needsDefenderPromotion
+        ? remainingDefenderBenchStacks[defenderPromotionBenchIndex]?.[remainingDefenderBenchStacks[defenderPromotionBenchIndex].length - 1]
+        : null;
     const knockoutNote = isDefendingActiveKnockedOut
       ? ` ${defendingCard.cardName || "バトルポケモン"}はきぜつし、ついているカードごとトラッシュしました。`
       : "";
+    const benchKnockoutNote =
+      knockedOutBenchPokemon.length > 0
+        ? ` ベンチの${knockedOutBenchPokemon.map((card) => card.cardName || "ポケモン").join("、")}もきぜつし、ついているカードごとトラッシュしました。`
+        : "";
+    const prizeNote = totalPrizeCount > 0 ? ` ${attacker.label}はサイドを${Math.min(totalPrizeCount, attacker.prizes.length)}枚まで取れます。` : "";
     const copiedNote =
       resolvedAttack.copiedFromCard && resolvedAttack.copiedFromAttack
         ? `で、${resolvedAttack.copiedFromCard.cardName || "コピー元"}の「${resolvedAttack.copiedFromAttack.name || "ワザ"}」をこのワザとして使い`
@@ -3948,7 +4074,7 @@ export default function AIBattleRoomPage() {
         : ` ${defender.label}のベンチに出せるポケモンがいません。`
       : "";
     const unresolvedTextNote = getManualBattleAttackEffectNote(resolvedAttack.effectiveAttack);
-    const notice = `${attacker.label}の${attackingCard.cardName || "ポケモン"}が「${attack.name || "アタック"}」${copiedNote}、${defendingCard.cardName || "相手ポケモン"}に${damage}ダメージ。${knockoutNote}${promotionNote}${benchDamageNote}${discardEnergyNote}${unresolvedTextNote}`;
+    const notice = `${attacker.label}の${attackingCard.cardName || "ポケモン"}が「${attack.name || "アタック"}」${copiedNote}、${defendingCard.cardName || "相手ポケモン"}に${damage}ダメージ。${knockoutNote}${benchKnockoutNote}${promotionNote}${benchDamageNote}${discardEnergyNote}${unresolvedTextNote}${prizeNote}`;
     const turnEndNotice = `${attacker.label}はアタック後に番を終了しました。`;
     const nextPlayer: BattlePlayerId = prompt.playerId === "player" ? "opponent" : "player";
     const nextTurn = battleTurn + 1;
@@ -3963,10 +4089,11 @@ export default function AIBattleRoomPage() {
         },
       };
       const { nextState } = applyBattleActiveKnockout(damagedState, nextDamage);
+      const { nextState: stateAfterBenchKnockouts } = applyBattleBenchKnockouts(nextState, knockedOutBenchIndexes);
       const promotedState =
         defenderId === "opponent" && needsDefenderPromotion
-          ? promoteBattleBenchToActive(nextState, defenderPromotionBenchIndex)
-          : nextState;
+          ? promoteBattleBenchToActive(stateAfterBenchKnockouts, defenderPromotionBenchIndex)
+          : stateAfterBenchKnockouts;
       return { ...promotedState, selectedHandIndex: null };
     });
     setBattleState(prompt.playerId, (state) => ({
@@ -3979,9 +4106,18 @@ export default function AIBattleRoomPage() {
       selectedHandIndex: null,
     }));
     setBattleAttackPrompt(null);
-    setBattleEffectPrompt(
-      defenderId === "player" && needsDefenderPromotion
-        ? { kind: "promote_active", playerId: defenderId, selectedBenchIndex: null }
+    const maxPrizeCount = Math.min(totalPrizeCount, attacker.prizes.length);
+    const pendingPromotionPlayerId = defenderId === "player" && needsDefenderPromotion ? defenderId : null;
+    setBattleEffectPrompt(maxPrizeCount === 0 && pendingPromotionPlayerId ? { kind: "promote_active", playerId: pendingPromotionPlayerId, selectedBenchIndex: null } : null);
+    setBattlePrizePrompt(
+      maxPrizeCount > 0
+        ? {
+            playerId: prompt.playerId,
+            maxCount: maxPrizeCount,
+            selectedPrizeIndexes: [],
+            knockedOutSummaries: prizeSummaries,
+            pendingPromotionPlayerId,
+          }
         : null
     );
     setBattleBoardSelection(null);
@@ -6659,6 +6795,61 @@ export default function AIBattleRoomPage() {
     );
   };
 
+  const renderBattlePrizePrompt = () => {
+    const prompt = battlePrizePrompt;
+    if (!prompt) return null;
+    const state = prompt.playerId === "player" ? battlePlayer : battleOpponent;
+
+    return (
+      <div className="fixed inset-0 z-[128] flex items-center justify-center bg-slate-950/55 p-4">
+        <div className="max-h-[86dvh] w-full max-w-4xl overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <div className="text-[10px] font-black tracking-[0.16em] text-amber-700">サイドを取る</div>
+            <h3 className="mt-1 text-base font-black text-slate-950">{state.label}のサイド</h3>
+            <p className="mt-1 text-xs font-bold text-slate-600">
+              {prompt.knockedOutSummaries.map((summary) => `${summary.cardName}: ${summary.prizeCount}枚`).join(" / ")}
+            </p>
+          </div>
+          <div className="max-h-[calc(86dvh-74px)] overflow-auto p-4">
+            <p className="text-sm font-bold text-slate-800">
+              サイドを{prompt.maxCount}枚まで選んでください。選択中 {prompt.selectedPrizeIndexes.length}/{prompt.maxCount}
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9">
+              {state.prizes.length === 0 ? (
+                <p className="col-span-full text-sm text-slate-600">サイドがありません。</p>
+              ) : (
+                state.prizes.map((card, index) => {
+                  const selected = prompt.selectedPrizeIndexes.includes(index);
+                  const disabled = !selected && prompt.selectedPrizeIndexes.length >= prompt.maxCount;
+                  return (
+                    <button
+                      key={`${card.soloInstanceId || card.cardId}-battle-prize-${index}`}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => toggleBattlePrizeSelection(index)}
+                      className={`rounded-lg p-1 transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "bg-amber-200 outline outline-2 outline-amber-400" : "bg-slate-100 hover:bg-slate-200"}`}
+                    >
+                      {renderBattleCardFace(card, "h-[82px] w-[58px]")}
+                      <span className="mt-1 block truncate text-[10px] font-bold text-slate-700">{card.cardName || "サイド"}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={confirmBattlePrizeSelection}
+              disabled={prompt.selectedPrizeIndexes.length === 0}
+              className="mt-4 inline-flex h-9 items-center justify-center rounded-full bg-slate-950 px-4 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              選んだサイドを取る
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderBattleAttackPrompt = () => {
     const prompt = battleAttackPrompt;
     if (!prompt) return null;
@@ -7233,6 +7424,7 @@ export default function AIBattleRoomPage() {
                     {renderBattlePlayerBoard(battlePlayer, "bottom")}
                   </div>
                   {renderBattleEffectPrompt()}
+                  {renderBattlePrizePrompt()}
                   {renderBattleAttackPrompt()}
                   {battleTrashState ? (
                     <div
