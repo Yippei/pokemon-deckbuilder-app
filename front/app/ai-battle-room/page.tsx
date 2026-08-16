@@ -2490,6 +2490,16 @@ export default function AIBattleRoomPage() {
       return;
     }
 
+    if (battleOpponent.pile.length > 0 && battleOpponent.manualDrawTurn !== battleTurn) {
+      applyBattleAiSuggestion({
+        id: "auto-draw-card",
+        label: "1枚ドロー",
+        detail: "AIの番開始時に通常ドローします。",
+        action: "draw",
+      });
+      return;
+    }
+
     const [suggestion] = buildBattleAiSuggestions(battleOpponent);
     if (!suggestion) {
       setBattleNotice("AIが実行できる行動がありません。");
