@@ -241,6 +241,11 @@ type SoloSnapshot = {
 };
 type BattlePlayerId = "player" | "opponent";
 type BattleSetupPhase = "idle" | "player_active" | "player_bench" | "ready";
+type BattleResult = {
+  outcome: "win" | "loss";
+  reason: string;
+  message: string;
+};
 type BattlePlayerState = {
   id: BattlePlayerId;
   label: string;
@@ -1820,6 +1825,7 @@ export default function AIBattleRoomPage() {
   const [battleTurn, setBattleTurn] = useState(1);
   const [battleStarted, setBattleStarted] = useState(false);
   const [battleSetupPhase, setBattleSetupPhase] = useState<BattleSetupPhase>("idle");
+  const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
   const [aiGoingFirst, setAiGoingFirst] = useState(false);
   const [battleCurrentPlayer, setBattleCurrentPlayer] = useState<BattlePlayerId>("player");
   const [battlePlayer, setBattlePlayer] = useState<BattlePlayerState>(() => createEmptyBattlePlayer("player", "自分"));
@@ -2094,6 +2100,7 @@ export default function AIBattleRoomPage() {
       setBattleTurn(1);
       setBattleStarted(false);
       setBattleSetupPhase("idle");
+      setBattleResult(null);
       setAiGoingFirst(false);
       setBattleCurrentPlayer("player");
       setBattlePlayer(createEmptyBattlePlayer("player", "自分"));
@@ -2134,18 +2141,41 @@ export default function AIBattleRoomPage() {
   };
   const getBattlePlayerLabel = (playerId: BattlePlayerId) => (playerId === "player" ? "自分" : "相手");
   const currentBattleLabel = getBattlePlayerLabel(battleCurrentPlayer);
-  const isBattleSetupActive = battleStarted && battleSetupPhase !== "ready";
+  const isBattleFinished = Boolean(battleResult);
+  const isBattleInProgress = battleStarted && !isBattleFinished;
+  const isBattleSetupActive = isBattleInProgress && battleSetupPhase !== "ready";
+  const battleStatusLabel = battleResult
+    ? battleResult.outcome === "win"
+      ? "勝利"
+      : "敗北"
+    : isBattleSetupActive
+      ? "開始準備中"
+      : battleStarted
+        ? `${currentBattleLabel}の番`
+        : "開始前";
   const canEndBattleTurn =
-    battleStarted && battleSetupPhase === "ready" && (battleCurrentPlayer !== "player" || battlePlayer.manualDrawTurn === battleTurn);
+    isBattleInProgress && battleSetupPhase === "ready" && (battleCurrentPlayer !== "player" || battlePlayer.manualDrawTurn === battleTurn);
   const isBattleFirstTurnPlayer = (playerId: BattlePlayerId) =>
-    battleStarted && battleSetupPhase === "ready" && battleTurn === 1 && playerId === (aiGoingFirst ? "opponent" : "player");
+    isBattleInProgress && battleSetupPhase === "ready" && battleTurn === 1 && playerId === (aiGoingFirst ? "opponent" : "player");
   const hasBattleDrawnForTurn = (state: BattlePlayerState) =>
-    !battleStarted || isBattleSetupActive || battleSetupPhase !== "ready" || state.manualDrawTurn === battleTurn;
+    !isBattleInProgress || isBattleSetupActive || battleSetupPhase !== "ready" || state.manualDrawTurn === battleTurn;
   const requireBattleDrawBeforeHandAction = (playerId: BattlePlayerId) => {
     const state = playerId === "player" ? battlePlayer : battleOpponent;
     if (hasBattleDrawnForTurn(state)) return false;
     setBattleNotice("このターンのドローをしてから手札を操作してください。");
     return true;
+  };
+
+  const finishBattle = (outcome: BattleResult["outcome"], reason: string, prefixNotice?: string) => {
+    const message = `${outcome === "win" ? "勝利" : "敗北"}: ${reason}`;
+    setBattleResult({ outcome, reason, message });
+    setBattleNotice(prefixNotice ? `${prefixNotice} ${message}` : message);
+    setBattleAiSuggestions([]);
+    setBattleEffectPrompt(null);
+    setBattleAttackPrompt(null);
+    setBattlePrizePrompt(null);
+    setBattleBoardSelection(null);
+    setBattleLog((prev) => [...prev, `T${battleTurn}: ${message}`]);
   };
 
   const startBattle = () => {
@@ -2173,6 +2203,7 @@ export default function AIBattleRoomPage() {
         : null;
     setBattlePlayer(nextPlayer);
     setBattleOpponent(nextOpponent);
+    setBattleResult(null);
     setBattleCurrentPlayer("player");
     setBattleBoardSelection(null);
     setBattleStadiumCard(null);
@@ -2409,6 +2440,10 @@ export default function AIBattleRoomPage() {
 
   const askNextAiMove = () => {
     if (!selectedDeck || !selectedAiDeck) return;
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (!battleStarted) {
       startBattle();
       return;
@@ -2540,6 +2575,10 @@ export default function AIBattleRoomPage() {
 
   const runSemiAutoAiTurn = () => {
     if (!selectedDeck || !selectedAiDeck) return;
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (!battleStarted) {
       startBattle();
       return;
@@ -2596,6 +2635,7 @@ export default function AIBattleRoomPage() {
     setBattleStarted(false);
     setBattleTurn(1);
     setBattleSetupPhase("idle");
+    setBattleResult(null);
     setBattleLog([]);
     setAiGoingFirst(false);
     setBattleCurrentPlayer("player");
@@ -2611,6 +2651,10 @@ export default function AIBattleRoomPage() {
   };
 
   const applyBattleAiSuggestion = (suggestion: BattleAiSuggestion) => {
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (isBattleSetupActive) {
       setBattleNotice("開始準備中はAI候補を採用できません。");
       return;
@@ -3003,6 +3047,10 @@ export default function AIBattleRoomPage() {
   };
 
   const drawBattleCard = (playerId: BattlePlayerId) => {
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (!battleStarted || battleCurrentPlayer !== playerId) {
       setBattleNotice("現在の番のプレイヤーだけドローできます。");
       return;
@@ -3050,6 +3098,10 @@ export default function AIBattleRoomPage() {
   };
 
   const playSelectedBattleTrainerCard = (playerId: BattlePlayerId, forcedHandIndex?: number) => {
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (!battleStarted || battleCurrentPlayer !== playerId) {
       setBattleNotice("現在の番のプレイヤーだけ使えます。");
       return;
@@ -3778,21 +3830,26 @@ export default function AIBattleRoomPage() {
   const confirmBattlePrizeSelection = () => {
     const prompt = battlePrizePrompt;
     if (!prompt || prompt.selectedPrizeIndexes.length === 0) return;
+    if (battleResult) return;
+    const state = prompt.playerId === "player" ? battlePlayer : battleOpponent;
     const selectedIndexSet = new Set(prompt.selectedPrizeIndexes);
-    setBattleState(prompt.playerId, (state) => {
-      const selectedCards = state.prizes.filter((_, index) => selectedIndexSet.has(index));
-      if (selectedCards.length === 0) return state;
-      const notice = `${state.label}はサイドを${selectedCards.length}枚取りました。`;
-      setBattleNotice(notice);
-      setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
-      return {
-        ...state,
-        prizes: state.prizes.filter((_, index) => !selectedIndexSet.has(index)),
-        hand: [...state.hand, ...selectedCards],
-        selectedHandIndex: null,
-      };
-    });
+    const selectedCards = state.prizes.filter((_, index) => selectedIndexSet.has(index));
+    if (selectedCards.length === 0) return;
+    const nextPrizes = state.prizes.filter((_, index) => !selectedIndexSet.has(index));
+    const notice = `${state.label}はサイドを${selectedCards.length}枚取りました。`;
+    setBattleState(prompt.playerId, () => ({
+      ...state,
+      prizes: nextPrizes,
+      hand: [...state.hand, ...selectedCards],
+      selectedHandIndex: null,
+    }));
     setBattlePrizePrompt(null);
+    setBattleNotice(notice);
+    setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
+    if (nextPrizes.length === 0) {
+      finishBattle(prompt.playerId === "player" ? "win" : "loss", prompt.playerId === "player" ? "自分のサイドを取り切りました。" : "AI側がサイドを取り切りました。", notice);
+      return;
+    }
     if (prompt.pendingPromotionPlayerId) {
       setBattleEffectPrompt({ kind: "promote_active", playerId: prompt.pendingPromotionPlayerId, selectedBenchIndex: null });
     }
@@ -4042,6 +4099,10 @@ export default function AIBattleRoomPage() {
   };
 
   const executeBattleAttack = (playerId: BattlePlayerId, selectedAttackIndex: number, selectedCopiedAttackKey: string | null) => {
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (!battleStarted || battleCurrentPlayer !== playerId) {
       setBattleNotice("現在の番のプレイヤーだけアタックできます。");
       return;
@@ -4119,6 +4180,7 @@ export default function AIBattleRoomPage() {
     const remainingDefenderBenchStacks = defender.benchStacks.map((stack, index) => (knockedOutBenchSet.has(index) ? [] : stack));
     const defenderPromotionBenchIndex = isDefendingActiveKnockedOut ? remainingDefenderBenchStacks.findIndex((stack) => stack.length > 0) : -1;
     const needsDefenderPromotion = defenderPromotionBenchIndex >= 0;
+    const defenderHasNoPokemonAfterAttack = isDefendingActiveKnockedOut && remainingDefenderBenchStacks.every((stack) => stack.length === 0);
     const autoPromotedCard =
       defenderId === "opponent" && needsDefenderPromotion
         ? remainingDefenderBenchStacks[defenderPromotionBenchIndex]?.[remainingDefenderBenchStacks[defenderPromotionBenchIndex].length - 1]
@@ -4177,6 +4239,15 @@ export default function AIBattleRoomPage() {
       selectedHandIndex: null,
     }));
     setBattleAttackPrompt(null);
+    if (defenderHasNoPokemonAfterAttack) {
+      setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
+      finishBattle(
+        playerId === "player" ? "win" : "loss",
+        defenderId === "opponent" ? "AI側のポケモンが全て倒されました。" : "ユーザー側のポケモンが全て倒されました。",
+        notice
+      );
+      return;
+    }
     const maxPrizeCount = Math.min(totalPrizeCount, attacker.prizes.length);
     const pendingPromotionPlayerId = defenderId === "player" && needsDefenderPromotion ? defenderId : null;
     setBattleEffectPrompt(maxPrizeCount === 0 && pendingPromotionPlayerId ? { kind: "promote_active", playerId: pendingPromotionPlayerId, selectedBenchIndex: null } : null);
@@ -4206,6 +4277,10 @@ export default function AIBattleRoomPage() {
   };
 
   const endBattleTurn = () => {
+    if (battleResult) {
+      setBattleNotice(battleResult.message);
+      return;
+    }
     if (!battleStarted) return;
     if (isBattleSetupActive) {
       setBattleNotice("開始準備中は番終了できません。自分のたねポケモンをバトル場に出してゲームを開始してください。");
@@ -6234,7 +6309,7 @@ export default function AIBattleRoomPage() {
   };
 
   const renderBattlePlayerBoard = (state: BattlePlayerState, position: "top" | "bottom") => {
-    const isCurrent = battleStarted && battleCurrentPlayer === state.id;
+    const isCurrent = isBattleInProgress && battleCurrentPlayer === state.id;
     const selectedCard = state.selectedHandIndex !== null ? state.hand[state.selectedHandIndex] || null : null;
     const selectedBoardCard =
       battleBoardSelection?.playerId === state.id
@@ -7295,16 +7370,16 @@ export default function AIBattleRoomPage() {
                         <div className="text-[10px] font-black tracking-[0.16em] text-slate-500">AI BATTLE</div>
                         <h2 className="text-base font-black leading-tight text-slate-950">AI対戦練習</h2>
                       </div>
-                      <span className="rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-bold text-white">
-                        {isBattleSetupActive ? "準備" : `T${battleTurn}`}
-                      </span>
+	                      <span className="rounded-full bg-slate-950 px-2.5 py-1 text-[10px] font-bold text-white">
+	                        {battleResult ? battleStatusLabel : isBattleSetupActive ? "準備" : `T${battleTurn}`}
+	                      </span>
                     </div>
 
                     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                       <div className="text-[9px] font-black tracking-[0.12em] text-slate-500">現在</div>
-                      <div className="mt-1 text-xs font-black text-sky-700">
-                        {isBattleSetupActive ? "開始準備中" : battleStarted ? `${currentBattleLabel}の番` : "開始前"}
-                      </div>
+	                      <div className="mt-1 text-xs font-black text-sky-700">
+	                        {battleStatusLabel}
+	                      </div>
                     </div>
 
                     <div className="mt-3 grid gap-2">
@@ -7390,8 +7465,8 @@ export default function AIBattleRoomPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={runSemiAutoAiTurn}
-                        disabled={!battleStarted || battleCurrentPlayer !== "opponent"}
+	                        onClick={runSemiAutoAiTurn}
+	                        disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
                         className="inline-flex h-9 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
                         AI実行
@@ -7443,7 +7518,7 @@ export default function AIBattleRoomPage() {
                         <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-2 text-center">
                           <div className="text-[9px] font-black tracking-[0.14em] text-slate-500">TURN</div>
                           <div className="text-2xl font-black leading-tight text-slate-950">{isBattleSetupActive ? "-" : battleTurn}</div>
-                          <div className="text-xs font-bold text-sky-700">{isBattleSetupActive ? "開始準備中" : battleStarted ? `${currentBattleLabel}の番` : "開始前"}</div>
+	                          <div className="text-xs font-bold text-sky-700">{battleStatusLabel}</div>
                         </div>
                         <div className="grid min-h-0 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                           <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-2">
@@ -7457,8 +7532,8 @@ export default function AIBattleRoomPage() {
                               <div className="text-[9px] font-black tracking-[0.12em] text-slate-500">LOG</div>
                               <button
                                 type="button"
-                                onClick={askNextAiMove}
-                                disabled={!battleStarted || battleCurrentPlayer !== "opponent"}
+	                                onClick={askNextAiMove}
+	                                disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
                                 className="inline-flex h-6 items-center justify-center rounded-full border border-slate-300 bg-white px-2 text-[10px] font-bold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 AI候補
