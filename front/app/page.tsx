@@ -324,7 +324,21 @@ export default function Home() {
             <div className="home-kicker">POKEMON CARD WORKSHOP</div>
             <h1 className="home-command-title">ポケカ総合センター</h1>
           </div>
-          <AuthStatus compact />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Link
+              href="/about"
+              className="inline-flex h-9 items-center justify-center rounded-full border border-white/70 bg-white/80 px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-white"
+            >
+              About
+            </Link>
+            <Link
+              href="/feedback"
+              className="inline-flex h-9 items-center justify-center rounded-full border border-white/70 bg-white/80 px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-white"
+            >
+              不具合報告
+            </Link>
+            <AuthStatus compact />
+          </div>
         </header>
 
         <section className="home-command-hero">
