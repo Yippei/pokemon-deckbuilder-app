@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import AuthGate from "@/components/AuthGate";
@@ -1827,6 +1827,7 @@ export default function AIBattleRoomPage() {
   const [battleSetupPhase, setBattleSetupPhase] = useState<BattleSetupPhase>("idle");
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
   const [aiGoingFirst, setAiGoingFirst] = useState(false);
+  const [autoBattleAiEnabled, setAutoBattleAiEnabled] = useState(true);
   const [battleCurrentPlayer, setBattleCurrentPlayer] = useState<BattlePlayerId>("player");
   const [battlePlayer, setBattlePlayer] = useState<BattlePlayerState>(() => createEmptyBattlePlayer("player", "自分"));
   const [battleOpponent, setBattleOpponent] = useState<BattlePlayerState>(() => createEmptyBattlePlayer("opponent", "相手"));
@@ -1838,6 +1839,7 @@ export default function AIBattleRoomPage() {
   const [battleAttackPrompt, setBattleAttackPrompt] = useState<BattleAttackPrompt | null>(null);
   const [battlePrizePrompt, setBattlePrizePrompt] = useState<BattlePrizePrompt | null>(null);
   const [battleTrashPlayerId, setBattleTrashPlayerId] = useState<BattlePlayerId | null>(null);
+  const runSemiAutoAiTurnRef = useRef<() => void>(() => {});
 
   const [cardMasterDetails, setCardMasterDetails] = useState<Record<string, StaticCardDetail>>({});
   const [cardMasterLoading, setCardMasterLoading] = useState(false);
@@ -2227,6 +2229,18 @@ export default function AIBattleRoomPage() {
     ]);
   };
 
+  const canAutoRunBattleTrainer = (card: SoloCard | undefined, state: BattlePlayerState) => {
+    if (!card) return false;
+    const placement = getCardPlacementType(card);
+    if (placement !== "item" && placement !== "supporter" && placement !== "trainer") return false;
+    if (placement === "supporter" && (state.supporterUsedTurn === battleTurn || isBattleFirstTurnPlayer(state.id))) return false;
+    const profile = getEffectProfile(card);
+    const action = profile?.actions[0];
+    if (!action) return true;
+    if ((profile.costs || []).length > 0) return false;
+    return action.type === "resolve_effect" || action.type === "draw_cards" || action.type === "draw_until_board_count";
+  };
+
   const buildBattleAiSuggestions = (state: BattlePlayerState): BattleAiSuggestion[] => {
     const suggestions: BattleAiSuggestion[] = [];
     const defender = state.id === "player" ? battleOpponent : battlePlayer;
@@ -2243,20 +2257,7 @@ export default function AIBattleRoomPage() {
     );
     const energyHandIndex = state.hand.findIndex((card) => getCardPlacementType(card) === "energy");
     const trainerHandIndex = state.hand.findIndex((card) => {
-      const placement = getCardPlacementType(card);
-      if (placement !== "item" && placement !== "supporter" && placement !== "trainer") return false;
-      if (placement === "supporter" && (state.supporterUsedTurn === battleTurn || isBattleFirstTurnPlayer(state.id))) return false;
-      const action = getEffectProfile(card)?.actions[0];
-      return Boolean(
-        !action ||
-          action.type === "resolve_effect" ||
-          action.type === "draw_cards" ||
-          action.type === "draw_until_board_count" ||
-          action.type === "search_deck" ||
-          action.type === "recover_from_trash" ||
-          action.type === "switch_active" ||
-          action.type === "discard_stadium"
-      );
+      return canAutoRunBattleTrainer(card, state);
     });
     const activeEvolutionHandIndex = state.hand.findIndex((card) =>
       getCardPlacementType(card) === "pokemon" && canEvolveBattleStack(state.activeStack, card, battleTurn)
@@ -2468,111 +2469,6 @@ export default function AIBattleRoomPage() {
     ]);
   };
 
-  const applyBattleAiSuggestionToState = (state: BattlePlayerState, suggestion: BattleAiSuggestion) => {
-    if (suggestion.action === "draw") {
-      if (state.pile.length === 0 || state.manualDrawTurn === battleTurn) return state;
-      const draw = takeRandomCards(state.pile, 1);
-      return { ...state, pile: draw.rest, hand: [...state.hand, ...draw.drawn], selectedHandIndex: null, manualDrawTurn: battleTurn };
-    }
-
-    if (suggestion.action === "place_active") {
-      const selected = state.hand[suggestion.handIndex];
-      if (!selected || state.activeStack.length > 0 || getCardPlacementType(selected) !== "pokemon" || getStageOrder(selected) !== 0) {
-        return state;
-      }
-      return {
-        ...state,
-        hand: state.hand.filter((_, index) => index !== suggestion.handIndex),
-        activeStack: [{ ...selected, playedTurn: battleTurn }],
-        damage: { ...state.damage, active: 0 },
-        selectedHandIndex: null,
-      };
-    }
-
-    if (suggestion.action === "place_bench") {
-      const selected = state.hand[suggestion.handIndex];
-      if (
-        !selected ||
-        state.benchStacks[suggestion.benchIndex]?.length ||
-        getCardPlacementType(selected) !== "pokemon" ||
-        getStageOrder(selected) !== 0
-      ) {
-        return state;
-      }
-      return {
-        ...state,
-        hand: state.hand.filter((_, index) => index !== suggestion.handIndex),
-        benchStacks: state.benchStacks.map((stack, index) =>
-          index === suggestion.benchIndex ? [{ ...selected, playedTurn: battleTurn }] : stack
-        ),
-        damage: {
-          ...state.damage,
-          bench: state.damage.bench.map((damage, index) => (index === suggestion.benchIndex ? 0 : damage)),
-        },
-        selectedHandIndex: null,
-      };
-    }
-
-    if (suggestion.action === "evolve_active") {
-      const selected = state.hand[suggestion.handIndex];
-      if (!selected || !canEvolveBattleStack(state.activeStack, selected, battleTurn)) {
-        return state;
-      }
-      return {
-        ...state,
-        hand: state.hand.filter((_, index) => index !== suggestion.handIndex),
-        activeStack: [...state.activeStack, { ...selected, playedTurn: battleTurn }],
-        selectedHandIndex: null,
-      };
-    }
-
-    if (suggestion.action === "evolve_bench") {
-      const selected = state.hand[suggestion.handIndex];
-      const targetStack = state.benchStacks[suggestion.benchIndex] || [];
-      if (!selected || !canEvolveBattleStack(targetStack, selected, battleTurn)) {
-        return state;
-      }
-      return {
-        ...state,
-        hand: state.hand.filter((_, index) => index !== suggestion.handIndex),
-        benchStacks: state.benchStacks.map((stack, index) =>
-          index === suggestion.benchIndex ? [...stack, { ...selected, playedTurn: battleTurn }] : stack
-        ),
-        selectedHandIndex: null,
-      };
-    }
-
-    if (suggestion.action === "attach_energy") {
-      const selected = state.hand[suggestion.handIndex];
-      if (!selected || getCardPlacementType(selected) !== "energy" || state.energyAttachedTurn === battleTurn) {
-        return state;
-      }
-      const hasTarget =
-        suggestion.target === "active"
-          ? state.activeStack.length > 0
-          : Boolean(state.benchStacks[suggestion.benchIndex ?? 0]?.length);
-      if (!hasTarget) return state;
-      const nextEnergies =
-        suggestion.target === "active"
-          ? { ...state.attachedEnergies, active: [...state.attachedEnergies.active, selected] }
-          : {
-              ...state.attachedEnergies,
-              bench: state.attachedEnergies.bench.map((energies, index) =>
-                index === (suggestion.benchIndex ?? 0) ? [...energies, selected] : energies
-              ),
-            };
-      return {
-        ...state,
-        hand: state.hand.filter((_, index) => index !== suggestion.handIndex),
-        attachedEnergies: nextEnergies,
-        selectedHandIndex: null,
-        energyAttachedTurn: battleTurn,
-      };
-    }
-
-    return state;
-  };
-
   const runSemiAutoAiTurn = () => {
     if (!selectedDeck || !selectedAiDeck) return;
     if (battleResult) {
@@ -2594,41 +2490,12 @@ export default function AIBattleRoomPage() {
       return;
     }
 
-    let nextOpponent = battleOpponent;
-    const actionLines: string[] = [];
-
-    for (let step = 0; step < 10; step += 1) {
-      const [suggestion] = buildBattleAiSuggestions(nextOpponent);
-      if (!suggestion || suggestion.action === "end_turn") {
-        break;
-      }
-      const applied = applyBattleAiSuggestionToState(nextOpponent, suggestion);
-      if (applied === nextOpponent) {
-        break;
-      }
-      nextOpponent = applied;
-      actionLines.push(`T${battleTurn}: 半自動AI - ${suggestion.label}`);
+    const [suggestion] = buildBattleAiSuggestions(battleOpponent);
+    if (!suggestion) {
+      setBattleNotice("AIが実行できる行動がありません。");
+      return;
     }
-
-    const nextTurn = battleTurn + 1;
-    setBattleOpponent(nextOpponent);
-    setBattleCurrentPlayer("player");
-    setBattleTurn(nextTurn);
-    setBattleAiSuggestions([]);
-    setBattleBoardSelection(null);
-    setBattlePlayer((state) => ({ ...state, selectedHandIndex: null }));
-    setBattleNotice(
-      actionLines.length > 0
-        ? `半自動AIが${actionLines.length}件実行し、自分の番になりました。`
-        : "半自動AIで実行できる行動がなかったため、自分の番になりました。"
-    );
-    setBattleLog((prev) => [
-      ...prev,
-      ...actionLines,
-      `T${battleTurn}: 半自動AIが番を終了`,
-      `T${nextTurn}: 自分の番`,
-      `T${battleTurn}: ${buildAiAdvice(selectedAiDeck, aiStyle, battleTurn)}`,
-    ]);
+    applyBattleAiSuggestion(suggestion);
   };
 
   const resetBattle = () => {
@@ -2790,6 +2657,45 @@ export default function AIBattleRoomPage() {
     setBattleAiSuggestions([]);
     setBattleBoardSelection(null);
   };
+
+  useEffect(() => {
+    runSemiAutoAiTurnRef.current = runSemiAutoAiTurn;
+  });
+
+  useEffect(() => {
+    if (
+      mode !== "ai" ||
+      !autoBattleAiEnabled ||
+      !isBattleInProgress ||
+      battleSetupPhase !== "ready" ||
+      battleCurrentPlayer !== "opponent" ||
+      battleResult ||
+      battleEffectPrompt ||
+      battleAttackPrompt ||
+      battlePrizePrompt
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      runSemiAutoAiTurnRef.current();
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    autoBattleAiEnabled,
+    battleAttackPrompt,
+    battleCurrentPlayer,
+    battleEffectPrompt,
+    battleOpponent,
+    battlePlayer,
+    battlePrizePrompt,
+    battleResult,
+    battleSetupPhase,
+    battleTurn,
+    isBattleInProgress,
+    mode,
+  ]);
 
   const selectBattleHandCard = (playerId: BattlePlayerId, handIndex: number) => {
     if (!battleStarted || battleCurrentPlayer !== playerId) {
@@ -7445,6 +7351,15 @@ export default function AIBattleRoomPage() {
                       />
                       相手先攻
                     </label>
+                    <label className="mt-2 flex h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-[10px] font-bold text-emerald-900">
+                      <input
+                        type="checkbox"
+                        checked={autoBattleAiEnabled}
+                        onChange={(e) => setAutoBattleAiEnabled(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-emerald-300"
+                      />
+                      AIの番に自動実行
+                    </label>
 
                     <div className="mt-3 grid gap-1.5">
                       <button
@@ -7465,8 +7380,8 @@ export default function AIBattleRoomPage() {
                       </button>
                       <button
                         type="button"
-	                        onClick={runSemiAutoAiTurn}
-	                        disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
+                        onClick={runSemiAutoAiTurn}
+                        disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
                         className="inline-flex h-9 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
                         AI実行
@@ -7518,7 +7433,7 @@ export default function AIBattleRoomPage() {
                         <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-2 text-center">
                           <div className="text-[9px] font-black tracking-[0.14em] text-slate-500">TURN</div>
                           <div className="text-2xl font-black leading-tight text-slate-950">{isBattleSetupActive ? "-" : battleTurn}</div>
-	                          <div className="text-xs font-bold text-sky-700">{battleStatusLabel}</div>
+                          <div className="text-xs font-bold text-sky-700">{battleStatusLabel}</div>
                         </div>
                         <div className="grid min-h-0 gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                           <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-2">
@@ -7532,8 +7447,8 @@ export default function AIBattleRoomPage() {
                               <div className="text-[9px] font-black tracking-[0.12em] text-slate-500">LOG</div>
                               <button
                                 type="button"
-	                                onClick={askNextAiMove}
-	                                disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
+                                onClick={askNextAiMove}
+                                disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
                                 className="inline-flex h-6 items-center justify-center rounded-full border border-slate-300 bg-white px-2 text-[10px] font-bold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 AI候補
