@@ -287,6 +287,8 @@ type BattleAiSuggestion =
   | { id: string; label: string; detail: string; action: "evolve_active"; handIndex: number }
   | { id: string; label: string; detail: string; action: "evolve_bench"; handIndex: number; benchIndex: number }
   | { id: string; label: string; detail: string; action: "attach_energy"; handIndex: number; target: "active" | "bench"; benchIndex?: number }
+  | { id: string; label: string; detail: string; action: "use_trainer"; handIndex: number }
+  | { id: string; label: string; detail: string; action: "attack"; attackIndex: number; copiedAttackKey: string | null }
   | { id: string; label: string; detail: string; action: "end_turn" };
 type BattleEffectPrompt =
   | {
@@ -2196,6 +2198,7 @@ export default function AIBattleRoomPage() {
 
   const buildBattleAiSuggestions = (state: BattlePlayerState): BattleAiSuggestion[] => {
     const suggestions: BattleAiSuggestion[] = [];
+    const defender = state.id === "player" ? battleOpponent : battlePlayer;
     const emptyBenchIndex = state.benchStacks.findIndex((stack) => stack.length === 0);
     const firstBoardPokemon =
       state.activeStack.length > 0
@@ -2208,9 +2211,39 @@ export default function AIBattleRoomPage() {
       index !== basicPokemonHandIndex && getCardPlacementType(card) === "pokemon" && getStageOrder(card) === 0
     );
     const energyHandIndex = state.hand.findIndex((card) => getCardPlacementType(card) === "energy");
+    const trainerHandIndex = state.hand.findIndex((card) => {
+      const placement = getCardPlacementType(card);
+      if (placement !== "item" && placement !== "supporter" && placement !== "trainer") return false;
+      if (placement === "supporter" && (state.supporterUsedTurn === battleTurn || isBattleFirstTurnPlayer(state.id))) return false;
+      const action = getEffectProfile(card)?.actions[0];
+      return Boolean(
+        !action ||
+          action.type === "resolve_effect" ||
+          action.type === "draw_cards" ||
+          action.type === "draw_until_board_count" ||
+          action.type === "search_deck" ||
+          action.type === "recover_from_trash" ||
+          action.type === "switch_active" ||
+          action.type === "discard_stadium"
+      );
+    });
     const activeEvolutionHandIndex = state.hand.findIndex((card) =>
       getCardPlacementType(card) === "pokemon" && canEvolveBattleStack(state.activeStack, card, battleTurn)
     );
+    const activeBattlePokemon = state.activeStack[state.activeStack.length - 1];
+    const playableAttack =
+      !isBattleFirstTurnPlayer(state.id) && activeBattlePokemon && defender.activeStack.length > 0
+        ? (activeBattlePokemon.attacks || [])
+            .map((attack, attackIndex) => {
+              const energyStatus = getBattleAttackEnergyStatus(attack, state.attachedEnergies.active);
+              const copyCandidates = getBattleAttackCopyCandidates(attack, state, defender);
+              const copiedAttackKey = copyCandidates.length > 0 ? copyCandidates[0].key : null;
+              const resolvedAttack = resolveBattleAttack(attack, state, defender, copiedAttackKey);
+              return { attack, attackIndex, energyStatus, copiedAttackKey, resolvedAttack };
+            })
+            .filter(({ energyStatus, resolvedAttack }) => energyStatus.usable && Boolean(resolvedAttack))
+            .sort((a, b) => getBattleAttackDamageValue(b.resolvedAttack!.effectiveAttack, state, defender) - getBattleAttackDamageValue(a.resolvedAttack!.effectiveAttack, state, defender))[0]
+        : null;
     const benchEvolutionCandidate = state.hand
       .map((card, handIndex) => ({ card, handIndex }))
       .flatMap(({ card, handIndex }) =>
@@ -2279,6 +2312,28 @@ export default function AIBattleRoomPage() {
       });
     }
 
+    if (trainerHandIndex >= 0) {
+      const card = state.hand[trainerHandIndex];
+      suggestions.push({
+        id: `use-trainer-${card.soloInstanceId || card.cardId}-${trainerHandIndex}`,
+        label: `${card.cardName || "トレーナーズ"}を使う`,
+        detail: "手札を増やす、山札を探すなどの効果を優先して使います。",
+        action: "use_trainer",
+        handIndex: trainerHandIndex,
+      });
+    }
+
+    if (playableAttack) {
+      suggestions.push({
+        id: `attack-${playableAttack.attack.name || "attack"}-${playableAttack.attackIndex}`,
+        label: `「${playableAttack.attack.name || "ワザ"}」で攻撃`,
+        detail: `${defender.label}のバトルポケモンにダメージを与えて番を終えます。`,
+        action: "attack",
+        attackIndex: playableAttack.attackIndex,
+        copiedAttackKey: playableAttack.copiedAttackKey,
+      });
+    }
+
     if (state.pile.length > 0 && state.manualDrawTurn !== battleTurn) {
       suggestions.push({
         id: "draw-card",
@@ -2303,9 +2358,11 @@ export default function AIBattleRoomPage() {
             evolve_active: 1,
             evolve_bench: 2,
             attach_energy: 3,
-            place_bench: 4,
-            draw: 5,
-            end_turn: 6,
+            use_trainer: 4,
+            place_bench: 5,
+            draw: 6,
+            attack: 7,
+            end_turn: 8,
           };
           return order[a.action] - order[b.action];
         })
@@ -2316,12 +2373,14 @@ export default function AIBattleRoomPage() {
         .sort((a, b) => {
           const order: Record<BattleAiSuggestion["action"], number> = {
             draw: 0,
-            place_active: 1,
-            place_bench: 2,
-            evolve_active: 3,
-            evolve_bench: 4,
-            attach_energy: 5,
-            end_turn: 6,
+            use_trainer: 1,
+            place_active: 2,
+            place_bench: 3,
+            evolve_active: 4,
+            evolve_bench: 5,
+            attach_energy: 6,
+            attack: 7,
+            end_turn: 8,
           };
           return order[a.action] - order[b.action];
         })
@@ -2337,9 +2396,11 @@ export default function AIBattleRoomPage() {
           evolve_active: 1,
           evolve_bench: 2,
           place_bench: 3,
-          draw: 4,
-          attach_energy: 5,
-          end_turn: 6,
+          use_trainer: 4,
+          draw: 5,
+          attach_energy: 6,
+          attack: 7,
+          end_turn: 8,
         };
         return order[a.action] - order[b.action];
       })
@@ -2563,6 +2624,18 @@ export default function AIBattleRoomPage() {
       setBattleAiSuggestions([]);
       setBattleLog((prev) => [...prev, `T${battleTurn}: AI候補を採用 - ${suggestion.label}`]);
       endBattleTurn();
+      return;
+    }
+
+    if (suggestion.action === "use_trainer") {
+      playSelectedBattleTrainerCard("opponent", suggestion.handIndex);
+      setBattleAiSuggestions([]);
+      setBattleBoardSelection(null);
+      return;
+    }
+
+    if (suggestion.action === "attack") {
+      executeBattleAttack("opponent", suggestion.attackIndex, suggestion.copiedAttackKey);
       return;
     }
 
@@ -2976,7 +3049,7 @@ export default function AIBattleRoomPage() {
     });
   };
 
-  const playSelectedBattleTrainerCard = (playerId: BattlePlayerId) => {
+  const playSelectedBattleTrainerCard = (playerId: BattlePlayerId, forcedHandIndex?: number) => {
     if (!battleStarted || battleCurrentPlayer !== playerId) {
       setBattleNotice("現在の番のプレイヤーだけ使えます。");
       return;
@@ -2988,7 +3061,7 @@ export default function AIBattleRoomPage() {
     if (requireBattleDrawBeforeHandAction(playerId)) return;
     setBattleAiSuggestions([]);
     setBattleState(playerId, (state) => {
-      const handIndex = state.selectedHandIndex;
+      const handIndex = forcedHandIndex ?? state.selectedHandIndex;
       const selected = handIndex !== null ? state.hand[handIndex] : null;
       if (!selected) {
         setBattleNotice("使うカードを選択してください。");
@@ -3968,10 +4041,8 @@ export default function AIBattleRoomPage() {
     setBattleAttackPrompt({ playerId, selectedAttackIndex: null, selectedCopiedAttackKey: null });
   };
 
-  const confirmBattleAttack = () => {
-    const prompt = battleAttackPrompt;
-    if (!prompt || prompt.selectedAttackIndex === null) return;
-    if (!battleStarted || battleCurrentPlayer !== prompt.playerId) {
+  const executeBattleAttack = (playerId: BattlePlayerId, selectedAttackIndex: number, selectedCopiedAttackKey: string | null) => {
+    if (!battleStarted || battleCurrentPlayer !== playerId) {
       setBattleNotice("現在の番のプレイヤーだけアタックできます。");
       return;
     }
@@ -3979,20 +4050,20 @@ export default function AIBattleRoomPage() {
       setBattleNotice("開始準備中はアタックできません。");
       return;
     }
-    if (isBattleFirstTurnPlayer(prompt.playerId)) {
+    if (isBattleFirstTurnPlayer(playerId)) {
       setBattleNotice("先攻最初の番はアタックできません。");
       return;
     }
-    if (prompt.playerId === "player" && battlePlayer.manualDrawTurn !== battleTurn) {
+    if (playerId === "player" && battlePlayer.manualDrawTurn !== battleTurn) {
       setBattleNotice("アタックする前に1枚ドローしてください。");
       return;
     }
-    const attacker = prompt.playerId === "player" ? battlePlayer : battleOpponent;
-    const defenderId: BattlePlayerId = prompt.playerId === "player" ? "opponent" : "player";
+    const attacker = playerId === "player" ? battlePlayer : battleOpponent;
+    const defenderId: BattlePlayerId = playerId === "player" ? "opponent" : "player";
     const defender = defenderId === "player" ? battlePlayer : battleOpponent;
     const attackingCard = attacker.activeStack[attacker.activeStack.length - 1];
     const defendingCard = defender.activeStack[defender.activeStack.length - 1];
-    const attack = attackingCard?.attacks?.[prompt.selectedAttackIndex];
+    const attack = attackingCard?.attacks?.[selectedAttackIndex];
 
     if (!attackingCard || !attack) {
       setBattleNotice("使うアタックが見つかりません。");
@@ -4002,7 +4073,7 @@ export default function AIBattleRoomPage() {
       setBattleNotice("相手のバトル場にポケモンがいません。");
       return;
     }
-    const resolvedAttack = resolveBattleAttack(attack, attacker, defender, prompt.selectedCopiedAttackKey);
+    const resolvedAttack = resolveBattleAttack(attack, attacker, defender, selectedCopiedAttackKey);
     if (!resolvedAttack) {
       setBattleNotice("このワザで使うコピー先のワザを選んでください。");
       return;
@@ -4076,7 +4147,7 @@ export default function AIBattleRoomPage() {
     const unresolvedTextNote = getManualBattleAttackEffectNote(resolvedAttack.effectiveAttack);
     const notice = `${attacker.label}の${attackingCard.cardName || "ポケモン"}が「${attack.name || "アタック"}」${copiedNote}、${defendingCard.cardName || "相手ポケモン"}に${damage}ダメージ。${knockoutNote}${benchKnockoutNote}${promotionNote}${benchDamageNote}${discardEnergyNote}${unresolvedTextNote}${prizeNote}`;
     const turnEndNotice = `${attacker.label}はアタック後に番を終了しました。`;
-    const nextPlayer: BattlePlayerId = prompt.playerId === "player" ? "opponent" : "player";
+    const nextPlayer: BattlePlayerId = playerId === "player" ? "opponent" : "player";
     const nextTurn = battleTurn + 1;
 
     setBattleState(defenderId, (state) => {
@@ -4096,7 +4167,7 @@ export default function AIBattleRoomPage() {
           : stateAfterBenchKnockouts;
       return { ...promotedState, selectedHandIndex: null };
     });
-    setBattleState(prompt.playerId, (state) => ({
+    setBattleState(playerId, (state) => ({
       ...state,
       discard: discardedActiveEnergies.length > 0 ? [...state.discard, ...discardedActiveEnergies] : state.discard,
       attachedEnergies:
@@ -4112,7 +4183,7 @@ export default function AIBattleRoomPage() {
     setBattlePrizePrompt(
       maxPrizeCount > 0
         ? {
-            playerId: prompt.playerId,
+            playerId,
             maxCount: maxPrizeCount,
             selectedPrizeIndexes: [],
             knockedOutSummaries: prizeSummaries,
@@ -4126,6 +4197,12 @@ export default function AIBattleRoomPage() {
     setBattleTurn(nextTurn);
     setBattleNotice(`${notice} ${turnEndNotice} ${getBattlePlayerLabel(nextPlayer)}の番です。`);
     setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`, `T${battleTurn}: ${turnEndNotice}`, `T${nextTurn}: ${getBattlePlayerLabel(nextPlayer)}の番`]);
+  };
+
+  const confirmBattleAttack = () => {
+    const prompt = battleAttackPrompt;
+    if (!prompt || prompt.selectedAttackIndex === null) return;
+    executeBattleAttack(prompt.playerId, prompt.selectedAttackIndex, prompt.selectedCopiedAttackKey);
   };
 
   const endBattleTurn = () => {
