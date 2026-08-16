@@ -7380,14 +7380,6 @@ export default function AIBattleRoomPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={runSemiAutoAiTurn}
-                        disabled={!isBattleInProgress || battleCurrentPlayer !== "opponent"}
-                        className="inline-flex h-9 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                      >
-                        AI実行
-                      </button>
-                      <button
-                        type="button"
                         onClick={resetBattle}
                         className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
                       >
