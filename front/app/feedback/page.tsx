@@ -3,8 +3,6 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-const issueBaseUrl = "https://github.com/Yippei/pokemon-deckbuilder-app/issues/new";
-
 function buildReportBody(values: {
   category: string;
   title: string;
@@ -65,14 +63,6 @@ export default function FeedbackPage() {
     [actual, category, environment, expected, note, pageUrl, steps, title]
   );
 
-  const issueUrl = useMemo(() => {
-    const params = new URLSearchParams({
-      title: title ? `[${category}] ${title}` : `[${category}] 報告`,
-      body: reportBody,
-    });
-    return `${issueBaseUrl}?${params.toString()}`;
-  }, [category, reportBody, title]);
-
   const copyReport = async () => {
     try {
       await navigator.clipboard.writeText(`タイトル: ${title || `[${category}] 報告`}\n\n${reportBody}`);
@@ -99,7 +89,7 @@ export default function FeedbackPage() {
             </Link>
           </div>
           <p className="mt-4 text-sm leading-7 text-slate-700">
-            入力内容はこの画面内でGitHub Issue用の本文に変換されます。サーバーには保存されません。
+            入力内容はこの画面内で報告用の本文に変換されます。サーバーには保存されません。
           </p>
         </header>
 
@@ -200,25 +190,17 @@ export default function FeedbackPage() {
             {reportBody}
           </pre>
           <div className="mt-4 flex flex-wrap gap-2">
-            <a
-              href={issueUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
-            >
-              GitHub Issueで報告
-            </a>
             <button
               type="button"
               onClick={copyReport}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
             >
               本文をコピー
             </button>
           </div>
           {copyStatus ? <p className="mt-3 text-sm font-bold text-emerald-700">{copyStatus}</p> : null}
           <p className="mt-3 text-xs leading-5 text-slate-500">
-            GitHubにログインしていない場合は、Issue画面でログインを求められることがあります。
+            コピーした内容を開発者への連絡時に貼り付けてください。
           </p>
         </section>
       </div>

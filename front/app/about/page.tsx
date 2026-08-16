@@ -93,14 +93,6 @@ export default function AboutPage() {
             >
               不具合報告フォーム
             </Link>
-            <a
-              href="https://github.com/Yippei/pokemon-deckbuilder-app"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-            >
-              GitHub
-            </a>
           </div>
         </section>
       </div>
