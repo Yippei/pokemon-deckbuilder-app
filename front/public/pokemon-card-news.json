@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-14",
+  "updatedAt": "2026-08-17",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-17-www-pokemon-card-com-info-005612-html",
+      "category": "イベント",
+      "date": "2026.8.17",
+      "title": "「チャンピオンズリーグ2027 横浜」エントリー期間および抽選結果発表日の延長について",
+      "summary": "「チャンピオンズリーグ2027 横浜」エントリー期間および抽選結果発表日の延長について",
+      "url": "https://www.pokemon-card.com/info/005612.html"
+    },
     {
       "id": "official-2026-08-14-www-pokemon-card-com-info-005605-html",
       "category": "イベント",
@@ -34,14 +42,6 @@
       "title": "ポケモンカードゲーム チャンピオンシップシリーズ2027について",
       "summary": "ポケモンカードゲーム チャンピオンシップシリーズ2027について",
       "url": "https://www.pokemon-card.com/info/005597.html"
-    },
-    {
-      "id": "official-2026-08-07-www-pokemon-card-com-info-005602-html",
-      "category": "イベント",
-      "date": "2026.8.7",
-      "title": "チャンピオンシップポイント累計賞品の発送に伴う、情報登録・更新のお願い",
-      "summary": "チャンピオンシップポイント累計賞品の発送に伴う、情報登録・更新のお願い",
-      "url": "https://www.pokemon-card.com/info/005602.html"
     }
   ]
 }
