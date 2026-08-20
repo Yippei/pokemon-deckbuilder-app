@@ -84,15 +84,17 @@ export default function AboutPage() {
         <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-black">不具合・要望</h2>
           <p className="mt-2 text-sm leading-7 text-slate-700">
-            不具合、カード情報の誤り、改善要望があれば報告フォームから送信内容を作成できます。
+            不具合、カード情報の誤り、改善要望があればGoogleフォームから報告できます。
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link
-              href="/feedback"
+            <a
+              href="https://docs.google.com/forms/d/e/1FAIpQLScqz0Lkdw1x02kiSQOL3UYU14k1MKM7BbOWFtXpTfIETwe8Yg/viewform?usp=header"
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex h-10 items-center justify-center rounded-xl bg-slate-950 px-4 text-sm font-bold text-white transition hover:bg-slate-800"
             >
               不具合報告フォーム
-            </Link>
+            </a>
           </div>
         </section>
       </div>

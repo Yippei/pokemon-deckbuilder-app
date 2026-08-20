@@ -331,12 +331,14 @@ export default function Home() {
             >
               About
             </Link>
-            <Link
-              href="/feedback"
+            <a
+              href="https://docs.google.com/forms/d/e/1FAIpQLScqz0Lkdw1x02kiSQOL3UYU14k1MKM7BbOWFtXpTfIETwe8Yg/viewform?usp=header"
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex h-9 items-center justify-center rounded-full border border-white/70 bg-white/80 px-3 text-xs font-black text-slate-700 shadow-sm transition hover:bg-white"
             >
               不具合報告
-            </Link>
+            </a>
             <AuthStatus compact />
           </div>
         </header>
