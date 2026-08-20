@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-08-17",
+  "updatedAt": "2026-08-20",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-20-www-pokemon-card-com-info-005610-html",
+      "category": "商品",
+      "date": "2026.8.20",
+      "title": "みずべのポケモンたちのカードイラストがフィギュアになって登場！",
+      "summary": "みずべのポケモンたちのカードイラストがフィギュアになって登場！",
+      "url": "https://www.pokemon-card.com/info/005610.html"
+    },
     {
       "id": "official-2026-08-17-www-pokemon-card-com-info-005612-html",
       "category": "イベント",
@@ -34,14 +42,6 @@
       "title": "「チャンピオンズリーグ2027 横浜」 2026年9月20日（日）～22日（火・祝）開催！",
       "summary": "「チャンピオンズリーグ2027 横浜」 2026年9月20日（日）～22日（火・祝）開催！",
       "url": "https://www.pokemon-card.com/info/005563.html"
-    },
-    {
-      "id": "official-2026-08-07-www-pokemon-card-com-info-005597-html",
-      "category": "イベント",
-      "date": "2026.8.7",
-      "title": "ポケモンカードゲーム チャンピオンシップシリーズ2027について",
-      "summary": "ポケモンカードゲーム チャンピオンシップシリーズ2027について",
-      "url": "https://www.pokemon-card.com/info/005597.html"
     }
   ]
 }
