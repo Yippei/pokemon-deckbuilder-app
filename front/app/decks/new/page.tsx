@@ -297,7 +297,7 @@ export default function NewDeckPage() {
                 )}
                 {generating && (
                   <p className="deck-builder-message deck-builder-message--loading">
-                    生成しています。入力した条件から新しい構成を作ります。
+                    生成しています。完了まで1〜2分かかる場合があります。
                   </p>
                 )}
               </section>

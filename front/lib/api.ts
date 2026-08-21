@@ -167,6 +167,19 @@ const GenerateDeckResultSchema = z.object({
   warnings: z.array(GenerateDeckWarningSchema).optional(),
 });
 
+const GenerateDeckJobStartSchema = z.object({
+  jobId: z.string().min(1),
+  status: z.string().min(1),
+});
+
+const GenerateDeckJobSchema = z.object({
+  jobId: z.string().min(1),
+  status: z.enum(["queued", "running", "completed", "failed"]),
+  cards: z.array(DeckCardSchema).optional(),
+  warnings: z.array(GenerateDeckWarningSchema).optional(),
+  error: z.string().optional(),
+});
+
 const targetDeckCardCount = 60;
 const maxPokemonSearchCardCount = 12;
 const stapleCards = [
@@ -486,20 +499,72 @@ export async function generateDeck(body: {
       cache: "no-store",
       body: JSON.stringify({
         theme,
+        existingDeck: body.existingDeck,
         generationContext,
       }),
     });
     if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成に失敗しました"));
     const data = await res.json();
-    const parsed = GenerateDeckResultSchema.safeParse(data);
-    if (!parsed.success) {
-      console.warn("Invalid generated deck response", parsed.error.flatten());
-      throw new Error("AIの生成結果の形式が正しくありません。もう一度生成してください。");
+    const start = GenerateDeckJobStartSchema.safeParse(data);
+    if (start.success) {
+      const completed = await waitForGeneratedDeckJob(start.data.jobId);
+      return await normalizeGeneratedDeck(completed, generationContext);
     }
-    return await normalizeGeneratedDeck(parsed.data, generationContext);
+
+    const parsed = GenerateDeckResultSchema.safeParse(data);
+    if (parsed.success) {
+      return await normalizeGeneratedDeck(parsed.data, generationContext);
+    }
+
+    console.warn("Invalid generated deck response", start.error.flatten(), parsed.error.flatten());
+    throw new Error("AIの生成結果の形式が正しくありません。もう一度生成してください。");
   } catch (error) {
     throw new Error(toJapaneseFetchError(error, "デッキの生成に失敗しました"));
   }
+}
+
+async function waitForGeneratedDeckJob(jobId: string): Promise<GenerateDeckResult> {
+  const startedAt = Date.now();
+  const timeoutMs = 150000;
+  const intervalMs = 3000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await sleep(intervalMs);
+    const res = await authFetch(`${API_URL}/decks/generate/${encodeURIComponent(jobId)}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(await getAPIErrorMessage(res, "デッキの生成状態を取得できませんでした"));
+    const data = await res.json();
+    const parsed = GenerateDeckJobSchema.safeParse(data);
+    if (!parsed.success) {
+      console.warn("Invalid generated deck job response", parsed.error.flatten());
+      throw new Error("AIの生成状態の形式が正しくありません。もう一度生成してください。");
+    }
+
+    if (parsed.data.status === "failed") {
+      throw new Error(parsed.data.error || "デッキの生成に失敗しました");
+    }
+    if (parsed.data.status === "completed") {
+      const completed = GenerateDeckResultSchema.safeParse({
+        cards: parsed.data.cards,
+        warnings: parsed.data.warnings,
+      });
+      if (!completed.success) {
+        console.warn("Invalid completed generated deck response", completed.error.flatten());
+        throw new Error("AIの生成結果の形式が正しくありません。もう一度生成してください。");
+      }
+      return completed.data;
+    }
+  }
+
+  throw new Error("AI生成に時間がかかっています。少し待ってからもう一度実行してください。");
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {

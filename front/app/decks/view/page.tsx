@@ -263,7 +263,7 @@ export default function DeckPage() {
           )}
           {generating && (
             <p className="text-blue-500 text-xs mt-2 animate-pulse">
-              AIがデッキを再生成しています...しばらくお待ちください
+              AIがデッキを再生成しています...完了まで1〜2分かかる場合があります
             </p>
           )}
         </div>
