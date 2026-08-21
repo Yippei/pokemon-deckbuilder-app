@@ -679,7 +679,7 @@ func buildDeckGenerationPrompt(theme string, existing []DeckCard) string {
 func (a *App) generateDeckWithGroq(ctx context.Context, prompt string) ([]suggestedCard, error) {
 	// Groq API を呼び出す（OpenAI互換フォーマット）
 	reqBody := map[string]any{
-		"model": "openai/gpt-oss-20b",
+		"model": "openai/gpt-oss-120b",
 		"messages": []map[string]any{
 			{"role": "system", "content": "あなたはポケモンカードゲームの専門家です。指示に厳密に従い、必ずJSON配列形式のみで返答してください。説明文・コメント・コードブロックは一切不要です。"},
 			{"role": "user", "content": prompt},
