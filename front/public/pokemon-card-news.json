@@ -1,47 +1,47 @@
 {
-  "updatedAt": "2026-08-20",
+  "updatedAt": "2026-08-21",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
     {
-      "id": "official-2026-08-20-www-pokemon-card-com-info-005610-html",
-      "category": "商品",
-      "date": "2026.8.20",
-      "title": "みずべのポケモンたちのカードイラストがフィギュアになって登場！",
-      "summary": "みずべのポケモンたちのカードイラストがフィギュアになって登場！",
-      "url": "https://www.pokemon-card.com/info/005610.html"
+      "id": "official-2026-08-21-www-pokemon-card-com-info-005606-html",
+      "category": "その他",
+      "date": "2026.8.21",
+      "title": "本人認証に使用するアプリの切り替えについて",
+      "summary": "本人認証に使用するアプリの切り替えについて",
+      "url": "https://www.pokemon-card.com/info/005606.html"
     },
     {
-      "id": "official-2026-08-17-www-pokemon-card-com-info-005612-html",
+      "id": "official-2026-08-21-www-pokemon-card-com-info-005608-html",
       "category": "イベント",
-      "date": "2026.8.17",
-      "title": "「チャンピオンズリーグ2027 横浜」エントリー期間および抽選結果発表日の延長について",
-      "summary": "「チャンピオンズリーグ2027 横浜」エントリー期間および抽選結果発表日の延長について",
-      "url": "https://www.pokemon-card.com/info/005612.html"
+      "date": "2026.8.21",
+      "title": "「シティリーグ2027 シーズン1」がポケモンカードジムでスタート！",
+      "summary": "「シティリーグ2027 シーズン1」がポケモンカードジムでスタート！",
+      "url": "https://www.pokemon-card.com/info/005608.html"
     },
     {
-      "id": "official-2026-08-14-www-pokemon-card-com-info-005605-html",
+      "id": "official-2026-08-21-www-pokemon-card-com-info-005614-html",
       "category": "イベント",
-      "date": "2026.8.14",
-      "title": "「ポケモンWCS2026」カードゲーム部門のライブ配信を楽しもう！プレゼント企画も！",
-      "summary": "「ポケモンWCS2026」カードゲーム部門のライブ配信を楽しもう！プレゼント企画も！",
-      "url": "https://www.pokemon-card.com/info/005605.html"
+      "date": "2026.8.21",
+      "title": "ポケカジムエントリーキャンペーン2026年後期、9月1日スタート！",
+      "summary": "ポケカジムエントリーキャンペーン2026年後期、9月1日スタート！",
+      "url": "https://www.pokemon-card.com/info/005614.html"
     },
     {
-      "id": "official-2026-08-14-www-pokemon-card-com-info-005604-html",
-      "category": "イベント",
-      "date": "2026.8.14",
-      "title": "デッキそのままバトル、開催！",
-      "summary": "デッキそのままバトル、開催！",
-      "url": "https://www.pokemon-card.com/info/005604.html"
+      "id": "official-2026-08-21-www-pokemon-card-com-event-topplayers",
+      "category": "コラム",
+      "date": "2026.8.21",
+      "title": "CL2026 愛知 May のプレイヤー名鑑が更新されました",
+      "summary": "CL2026 愛知 May のプレイヤー名鑑が更新されました",
+      "url": "https://www.pokemon-card.com/event/topplayers/"
     },
     {
-      "id": "official-2026-08-07-www-pokemon-card-com-info-005563-html",
-      "category": "イベント",
-      "date": "2026.8.7",
-      "title": "「チャンピオンズリーグ2027 横浜」 2026年9月20日（日）～22日（火・祝）開催！",
-      "summary": "「チャンピオンズリーグ2027 横浜」 2026年9月20日（日）～22日（火・祝）開催！",
-      "url": "https://www.pokemon-card.com/info/005563.html"
+      "id": "official-2026-08-21-www-pokemon-card-com-event-topplayers",
+      "category": "コラム",
+      "date": "2026.8.21",
+      "title": "PJCS2026 のプレイヤー名鑑が更新されました",
+      "summary": "PJCS2026 のプレイヤー名鑑が更新されました",
+      "url": "https://www.pokemon-card.com/event/topplayers/"
     }
   ]
 }
