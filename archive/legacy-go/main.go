@@ -685,7 +685,7 @@ func (a *App) generateDeckWithGroq(ctx context.Context, prompt string) ([]sugges
 			{"role": "user", "content": prompt},
 		},
 		"response_format": map[string]any{"type": "json_object"},
-		"max_tokens":      2048,
+		"max_tokens":      4096,
 		"temperature":     0.3,
 	}
 	reqJSON, err := json.Marshal(reqBody)
