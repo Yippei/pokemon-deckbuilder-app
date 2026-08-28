@@ -1,8 +1,32 @@
 {
-  "updatedAt": "2026-08-21",
+  "updatedAt": "2026-08-28",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-28-www-pokemon-card-com-info-005626-html",
+      "category": "イベント",
+      "date": "2026.8.28",
+      "title": "「チャンピオンズリーグ2027 横浜」のデッキ登録について",
+      "summary": "「チャンピオンズリーグ2027 横浜」のデッキ登録について",
+      "url": "https://www.pokemon-card.com/info/005626.html"
+    },
+    {
+      "id": "official-2026-08-28-www-pokemon-card-com-info-005624-html",
+      "category": "イベント",
+      "date": "2026.8.28",
+      "title": "「チャンピオンズリーグ2027 横浜」同伴保護者の事前登録について",
+      "summary": "「チャンピオンズリーグ2027 横浜」同伴保護者の事前登録について",
+      "url": "https://www.pokemon-card.com/info/005624.html"
+    },
+    {
+      "id": "official-2026-08-28-www-pokemon-card-com-info-005507-html",
+      "category": "イベント",
+      "date": "2026.8.28",
+      "title": "メガエルレイドexSARゲットバトル、10月分エントリー開催！",
+      "summary": "メガエルレイドexSARゲットバトル、10月分エントリー開催！",
+      "url": "https://www.pokemon-card.com/info/005507.html"
+    },
     {
       "id": "official-2026-08-21-www-pokemon-card-com-info-005606-html",
       "category": "その他",
@@ -18,30 +42,6 @@
       "title": "「シティリーグ2027 シーズン1」がポケモンカードジムでスタート！",
       "summary": "「シティリーグ2027 シーズン1」がポケモンカードジムでスタート！",
       "url": "https://www.pokemon-card.com/info/005608.html"
-    },
-    {
-      "id": "official-2026-08-21-www-pokemon-card-com-info-005614-html",
-      "category": "イベント",
-      "date": "2026.8.21",
-      "title": "ポケカジムエントリーキャンペーン2026年後期、9月1日スタート！",
-      "summary": "ポケカジムエントリーキャンペーン2026年後期、9月1日スタート！",
-      "url": "https://www.pokemon-card.com/info/005614.html"
-    },
-    {
-      "id": "official-2026-08-21-www-pokemon-card-com-event-topplayers",
-      "category": "コラム",
-      "date": "2026.8.21",
-      "title": "CL2026 愛知 May のプレイヤー名鑑が更新されました",
-      "summary": "CL2026 愛知 May のプレイヤー名鑑が更新されました",
-      "url": "https://www.pokemon-card.com/event/topplayers/"
-    },
-    {
-      "id": "official-2026-08-21-www-pokemon-card-com-event-topplayers",
-      "category": "コラム",
-      "date": "2026.8.21",
-      "title": "PJCS2026 のプレイヤー名鑑が更新されました",
-      "summary": "PJCS2026 のプレイヤー名鑑が更新されました",
-      "url": "https://www.pokemon-card.com/event/topplayers/"
     }
   ]
 }
