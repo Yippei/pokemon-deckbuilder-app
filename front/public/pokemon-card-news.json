@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-08-28",
+  "updatedAt": "2026-08-31",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-08-31-www-pokemon-card-com-info-005613-html",
+      "category": "その他",
+      "date": "2026.8.31",
+      "title": "「ex★（イーエックススター）」と描かれた、新シリーズのロゴが公開！",
+      "summary": "「ex★（イーエックススター）」と描かれた、新シリーズのロゴが公開！",
+      "url": "https://www.pokemon-card.com/info/005613.html"
+    },
+    {
+      "id": "official-2026-08-31-www-pokemon-card-com-info-005629-html",
+      "category": "その他",
+      "date": "2026.8.31",
+      "title": "「シティリーグ2027 シーズン1」事前抽選のエントリー期間延長のお知らせ",
+      "summary": "「シティリーグ2027 シーズン1」事前抽選のエントリー期間延長のお知らせ",
+      "url": "https://www.pokemon-card.com/info/005629.html"
+    },
     {
       "id": "official-2026-08-28-www-pokemon-card-com-info-005626-html",
       "category": "イベント",
@@ -26,22 +42,6 @@
       "title": "メガエルレイドexSARゲットバトル、10月分エントリー開催！",
       "summary": "メガエルレイドexSARゲットバトル、10月分エントリー開催！",
       "url": "https://www.pokemon-card.com/info/005507.html"
-    },
-    {
-      "id": "official-2026-08-21-www-pokemon-card-com-info-005606-html",
-      "category": "その他",
-      "date": "2026.8.21",
-      "title": "本人認証に使用するアプリの切り替えについて",
-      "summary": "本人認証に使用するアプリの切り替えについて",
-      "url": "https://www.pokemon-card.com/info/005606.html"
-    },
-    {
-      "id": "official-2026-08-21-www-pokemon-card-com-info-005608-html",
-      "category": "イベント",
-      "date": "2026.8.21",
-      "title": "「シティリーグ2027 シーズン1」がポケモンカードジムでスタート！",
-      "summary": "「シティリーグ2027 シーズン1」がポケモンカードジムでスタート！",
-      "url": "https://www.pokemon-card.com/info/005608.html"
     }
   ]
 }
