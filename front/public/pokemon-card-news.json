@@ -1,47 +1,47 @@
 {
-  "updatedAt": "2026-08-31",
+  "updatedAt": "2026-09-04",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
     {
-      "id": "official-2026-08-31-www-pokemon-card-com-info-005613-html",
+      "id": "official-2026-09-04-www-30th-pokemon-card-com-event-30thevent",
+      "category": "イベント",
+      "date": "2026.9.4",
+      "title": "「ポケモンカードゲーム 30th CELEBRATION EVENT」の最新情報を公開！",
+      "summary": "「ポケモンカードゲーム 30th CELEBRATION EVENT」の最新情報を公開！",
+      "url": "https://www.30th.pokemon-card.com/event/30thevent/"
+    },
+    {
+      "id": "official-2026-09-04-www-pokemon-card-com-info-005627-html",
+      "category": "イベント",
+      "date": "2026.9.4",
+      "title": "「チャンピオンズリーグ2027 横浜」ジュニアリーグの追加エントリーについて",
+      "summary": "「チャンピオンズリーグ2027 横浜」ジュニアリーグの追加エントリーについて",
+      "url": "https://www.pokemon-card.com/info/005627.html"
+    },
+    {
+      "id": "official-2026-09-04-www-pokemon-card-com-info-005622-html",
+      "category": "イベント",
+      "date": "2026.9.4",
+      "title": "「チャンピオンズリーグ2027 横浜」サイドイベントについて",
+      "summary": "「チャンピオンズリーグ2027 横浜」サイドイベントについて",
+      "url": "https://www.pokemon-card.com/info/005622.html"
+    },
+    {
+      "id": "official-2026-09-04-www-pokemon-card-com-info-005559-html",
+      "category": "イベント",
+      "date": "2026.9.4",
+      "title": "「ここからデビュー！はじめてポケカ体験会」開催！",
+      "summary": "「ここからデビュー！はじめてポケカ体験会」開催！",
+      "url": "https://www.pokemon-card.com/info/005559.html"
+    },
+    {
+      "id": "official-2026-09-04-www-pokemon-card-com-info-005630-html",
       "category": "その他",
-      "date": "2026.8.31",
-      "title": "「ex★（イーエックススター）」と描かれた、新シリーズのロゴが公開！",
-      "summary": "「ex★（イーエックススター）」と描かれた、新シリーズのロゴが公開！",
-      "url": "https://www.pokemon-card.com/info/005613.html"
-    },
-    {
-      "id": "official-2026-08-31-www-pokemon-card-com-info-005629-html",
-      "category": "その他",
-      "date": "2026.8.31",
-      "title": "「シティリーグ2027 シーズン1」事前抽選のエントリー期間延長のお知らせ",
-      "summary": "「シティリーグ2027 シーズン1」事前抽選のエントリー期間延長のお知らせ",
-      "url": "https://www.pokemon-card.com/info/005629.html"
-    },
-    {
-      "id": "official-2026-08-28-www-pokemon-card-com-info-005626-html",
-      "category": "イベント",
-      "date": "2026.8.28",
-      "title": "「チャンピオンズリーグ2027 横浜」のデッキ登録について",
-      "summary": "「チャンピオンズリーグ2027 横浜」のデッキ登録について",
-      "url": "https://www.pokemon-card.com/info/005626.html"
-    },
-    {
-      "id": "official-2026-08-28-www-pokemon-card-com-info-005624-html",
-      "category": "イベント",
-      "date": "2026.8.28",
-      "title": "「チャンピオンズリーグ2027 横浜」同伴保護者の事前登録について",
-      "summary": "「チャンピオンズリーグ2027 横浜」同伴保護者の事前登録について",
-      "url": "https://www.pokemon-card.com/info/005624.html"
-    },
-    {
-      "id": "official-2026-08-28-www-pokemon-card-com-info-005507-html",
-      "category": "イベント",
-      "date": "2026.8.28",
-      "title": "メガエルレイドexSARゲットバトル、10月分エントリー開催！",
-      "summary": "メガエルレイドexSARゲットバトル、10月分エントリー開催！",
-      "url": "https://www.pokemon-card.com/info/005507.html"
+      "date": "2026.9.4",
+      "title": "競技向けルール「ペナルティガイドライン」「裁定事例集」の更新のお知らせ",
+      "summary": "競技向けルール「ペナルティガイドライン」「裁定事例集」の更新のお知らせ",
+      "url": "https://www.pokemon-card.com/info/005630.html"
     }
   ]
 }
