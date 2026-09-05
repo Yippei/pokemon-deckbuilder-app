@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-04",
+  "updatedAt": "2026-09-06",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-09-06-www-30th-pokemon-card-com-event-30thevent-entry",
+      "category": "イベント",
+      "date": "2026.9.6",
+      "title": "「ポケどこポケカ部 みんなで進化合宿！」の参加者募集を開始！",
+      "summary": "「ポケどこポケカ部 みんなで進化合宿！」の参加者募集を開始！",
+      "url": "https://www.30th.pokemon-card.com/event/30thevent/entry"
+    },
     {
       "id": "official-2026-09-04-www-30th-pokemon-card-com-event-30thevent",
       "category": "イベント",
@@ -34,14 +42,6 @@
       "title": "「ここからデビュー！はじめてポケカ体験会」開催！",
       "summary": "「ここからデビュー！はじめてポケカ体験会」開催！",
       "url": "https://www.pokemon-card.com/info/005559.html"
-    },
-    {
-      "id": "official-2026-09-04-www-pokemon-card-com-info-005630-html",
-      "category": "その他",
-      "date": "2026.9.4",
-      "title": "競技向けルール「ペナルティガイドライン」「裁定事例集」の更新のお知らせ",
-      "summary": "競技向けルール「ペナルティガイドライン」「裁定事例集」の更新のお知らせ",
-      "url": "https://www.pokemon-card.com/info/005630.html"
     }
   ]
 }
