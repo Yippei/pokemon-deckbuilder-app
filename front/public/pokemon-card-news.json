@@ -1,47 +1,47 @@
 {
-  "updatedAt": "2026-09-06",
+  "updatedAt": "2026-09-09",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
     {
-      "id": "official-2026-09-06-www-30th-pokemon-card-com-event-30thevent-entry",
-      "category": "イベント",
-      "date": "2026.9.6",
-      "title": "「ポケどこポケカ部 みんなで進化合宿！」の参加者募集を開始！",
-      "summary": "「ポケどこポケカ部 みんなで進化合宿！」の参加者募集を開始！",
-      "url": "https://www.30th.pokemon-card.com/event/30thevent/entry"
+      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-m6a",
+      "category": "商品",
+      "date": "2026.9.9",
+      "title": "拡張パック「30th CELEBRATION」の収録カード公開！",
+      "summary": "拡張パック「30th CELEBRATION」の収録カード公開！",
+      "url": "https://www.30th.pokemon-card.com/product/m6a"
     },
     {
-      "id": "official-2026-09-04-www-30th-pokemon-card-com-event-30thevent",
-      "category": "イベント",
-      "date": "2026.9.4",
-      "title": "「ポケモンカードゲーム 30th CELEBRATION EVENT」の最新情報を公開！",
-      "summary": "「ポケモンカードゲーム 30th CELEBRATION EVENT」の最新情報を公開！",
-      "url": "https://www.30th.pokemon-card.com/event/30thevent/"
+      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-mf",
+      "category": "商品",
+      "date": "2026.9.9",
+      "title": "30th CELEBRATION プレミアムデッキセット エーフィ・ブラッキーの収録カード公開！",
+      "summary": "30th CELEBRATION プレミアムデッキセット エーフィ・ブラッキーの収録カード公開！",
+      "url": "https://www.30th.pokemon-card.com/product/mf"
     },
     {
-      "id": "official-2026-09-04-www-pokemon-card-com-info-005627-html",
-      "category": "イベント",
-      "date": "2026.9.4",
-      "title": "「チャンピオンズリーグ2027 横浜」ジュニアリーグの追加エントリーについて",
-      "summary": "「チャンピオンズリーグ2027 横浜」ジュニアリーグの追加エントリーについて",
-      "url": "https://www.pokemon-card.com/info/005627.html"
+      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-goods-01",
+      "category": "商品",
+      "date": "2026.9.9",
+      "title": "9月16日（水）に発売のデッキシールドを一挙紹介！",
+      "summary": "9月16日（水）に発売のデッキシールドを一挙紹介！",
+      "url": "https://www.30th.pokemon-card.com/product/goods-01"
     },
     {
-      "id": "official-2026-09-04-www-pokemon-card-com-info-005622-html",
-      "category": "イベント",
-      "date": "2026.9.4",
-      "title": "「チャンピオンズリーグ2027 横浜」サイドイベントについて",
-      "summary": "「チャンピオンズリーグ2027 横浜」サイドイベントについて",
-      "url": "https://www.pokemon-card.com/info/005622.html"
+      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-goods-02",
+      "category": "商品",
+      "date": "2026.9.9",
+      "title": "9月16日（水）に発売のデッキケースを一挙紹介！",
+      "summary": "9月16日（水）に発売のデッキケースを一挙紹介！",
+      "url": "https://www.30th.pokemon-card.com/product/goods-02"
     },
     {
-      "id": "official-2026-09-04-www-pokemon-card-com-info-005559-html",
-      "category": "イベント",
-      "date": "2026.9.4",
-      "title": "「ここからデビュー！はじめてポケカ体験会」開催！",
-      "summary": "「ここからデビュー！はじめてポケカ体験会」開催！",
-      "url": "https://www.pokemon-card.com/info/005559.html"
+      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-goods-03",
+      "category": "商品",
+      "date": "2026.9.9",
+      "title": "9月16日（水）に発売のプレイマットを一挙紹介！",
+      "summary": "9月16日（水）に発売のプレイマットを一挙紹介！",
+      "url": "https://www.30th.pokemon-card.com/product/goods-03"
     }
   ]
 }
