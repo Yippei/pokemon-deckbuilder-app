@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-09-09",
+  "updatedAt": "2026-09-11",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-09-11-www-pokemon-card-com-info-005663-html",
+      "category": "イベント",
+      "date": "2026.9.11",
+      "title": "「チャンピオンズリーグ2027 横浜」のライブ配信が決定！",
+      "summary": "「チャンピオンズリーグ2027 横浜」のライブ配信が決定！",
+      "url": "https://www.pokemon-card.com/info/005663.html"
+    },
+    {
+      "id": "official-2026-09-11-www-pokemon-card-com-info-005452-html",
+      "category": "イベント",
+      "date": "2026.9.11",
+      "title": "9月から日本各地の大学で「ポケモンカードゲーム学園祭2026」を開催！",
+      "summary": "9月から日本各地の大学で「ポケモンカードゲーム学園祭2026」を開催！",
+      "url": "https://www.pokemon-card.com/info/005452.html"
+    },
     {
       "id": "official-2026-09-09-www-30th-pokemon-card-com-product-m6a",
       "category": "商品",
@@ -26,22 +42,6 @@
       "title": "9月16日（水）に発売のデッキシールドを一挙紹介！",
       "summary": "9月16日（水）に発売のデッキシールドを一挙紹介！",
       "url": "https://www.30th.pokemon-card.com/product/goods-01"
-    },
-    {
-      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-goods-02",
-      "category": "商品",
-      "date": "2026.9.9",
-      "title": "9月16日（水）に発売のデッキケースを一挙紹介！",
-      "summary": "9月16日（水）に発売のデッキケースを一挙紹介！",
-      "url": "https://www.30th.pokemon-card.com/product/goods-02"
-    },
-    {
-      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-goods-03",
-      "category": "商品",
-      "date": "2026.9.9",
-      "title": "9月16日（水）に発売のプレイマットを一挙紹介！",
-      "summary": "9月16日（水）に発売のプレイマットを一挙紹介！",
-      "url": "https://www.30th.pokemon-card.com/product/goods-03"
     }
   ]
 }
