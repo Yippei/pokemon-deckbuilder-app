@@ -1,8 +1,40 @@
 {
-  "updatedAt": "2026-09-11",
+  "updatedAt": "2026-09-18",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-09-18-www-pokemon-card-com-info-005677-html",
+      "category": "イベント",
+      "date": "2026.9.18",
+      "title": "【重要】台風25号接近に伴う「チャンピオンズリーグ2027 横浜」開催判断について",
+      "summary": "【重要】台風25号接近に伴う「チャンピオンズリーグ2027 横浜」開催判断について",
+      "url": "https://www.pokemon-card.com/info/005677.html"
+    },
+    {
+      "id": "official-2026-09-18-www-pokemon-card-com-info-005675-html",
+      "category": "イベント",
+      "date": "2026.9.18",
+      "title": "「チャンピオンズリーグ2027」における「ポケモンワールドチャンピオンシップス2027」出場権の獲得条件変更について",
+      "summary": "「チャンピオンズリーグ2027」における「ポケモンワールドチャンピオンシップス2027」出場権の獲得条件変更について",
+      "url": "https://www.pokemon-card.com/info/005675.html"
+    },
+    {
+      "id": "official-2026-09-18-shibuyatsutaya-tsite-jp-article-2638-html",
+      "category": "イベント",
+      "date": "2026.9.18",
+      "title": "POKÉMON CARD LOUNGEで「チャンピオンズリーグ2027 横浜」を観戦しよう！",
+      "summary": "POKÉMON CARD LOUNGEで「チャンピオンズリーグ2027 横浜」を観戦しよう！",
+      "url": "https://shibuyatsutaya.tsite.jp/article/2638.html"
+    },
+    {
+      "id": "official-2026-09-18-www-pokemon-card-com-info-005676-html",
+      "category": "イベント",
+      "date": "2026.9.18",
+      "title": "ポケカチャンネル10周年記念イベント開催！",
+      "summary": "ポケカチャンネル10周年記念イベント開催！",
+      "url": "https://www.pokemon-card.com/info/005676.html"
+    },
     {
       "id": "official-2026-09-11-www-pokemon-card-com-info-005663-html",
       "category": "イベント",
@@ -10,38 +42,6 @@
       "title": "「チャンピオンズリーグ2027 横浜」のライブ配信が決定！",
       "summary": "「チャンピオンズリーグ2027 横浜」のライブ配信が決定！",
       "url": "https://www.pokemon-card.com/info/005663.html"
-    },
-    {
-      "id": "official-2026-09-11-www-pokemon-card-com-info-005452-html",
-      "category": "イベント",
-      "date": "2026.9.11",
-      "title": "9月から日本各地の大学で「ポケモンカードゲーム学園祭2026」を開催！",
-      "summary": "9月から日本各地の大学で「ポケモンカードゲーム学園祭2026」を開催！",
-      "url": "https://www.pokemon-card.com/info/005452.html"
-    },
-    {
-      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-m6a",
-      "category": "商品",
-      "date": "2026.9.9",
-      "title": "拡張パック「30th CELEBRATION」の収録カード公開！",
-      "summary": "拡張パック「30th CELEBRATION」の収録カード公開！",
-      "url": "https://www.30th.pokemon-card.com/product/m6a"
-    },
-    {
-      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-mf",
-      "category": "商品",
-      "date": "2026.9.9",
-      "title": "30th CELEBRATION プレミアムデッキセット エーフィ・ブラッキーの収録カード公開！",
-      "summary": "30th CELEBRATION プレミアムデッキセット エーフィ・ブラッキーの収録カード公開！",
-      "url": "https://www.30th.pokemon-card.com/product/mf"
-    },
-    {
-      "id": "official-2026-09-09-www-30th-pokemon-card-com-product-goods-01",
-      "category": "商品",
-      "date": "2026.9.9",
-      "title": "9月16日（水）に発売のデッキシールドを一挙紹介！",
-      "summary": "9月16日（水）に発売のデッキシールドを一挙紹介！",
-      "url": "https://www.30th.pokemon-card.com/product/goods-01"
     }
   ]
 }
