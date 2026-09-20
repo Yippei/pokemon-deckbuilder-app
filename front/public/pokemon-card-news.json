@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-19",
+  "updatedAt": "2026-09-20",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-09-20-www-pokemon-card-com-info-005687-html",
+      "category": "イベント",
+      "date": "2026.9.20",
+      "title": "【重要】9月20日12時更新「チャンピオンズリーグ2027 横浜」開催状況について",
+      "summary": "【重要】9月20日12時更新「チャンピオンズリーグ2027 横浜」開催状況について",
+      "url": "https://www.pokemon-card.com/info/005687.html"
+    },
     {
       "id": "official-2026-09-19-www-pokemon-card-com-info-005686-html",
       "category": "イベント",
@@ -34,14 +42,6 @@
       "title": "POKÉMON CARD LOUNGEで「チャンピオンズリーグ2027 横浜」を観戦しよう！",
       "summary": "POKÉMON CARD LOUNGEで「チャンピオンズリーグ2027 横浜」を観戦しよう！",
       "url": "https://shibuyatsutaya.tsite.jp/article/2638.html"
-    },
-    {
-      "id": "official-2026-09-18-www-pokemon-card-com-info-005676-html",
-      "category": "イベント",
-      "date": "2026.9.18",
-      "title": "ポケカチャンネル10周年記念イベント開催！",
-      "summary": "ポケカチャンネル10周年記念イベント開催！",
-      "url": "https://www.pokemon-card.com/info/005676.html"
     }
   ]
 }
