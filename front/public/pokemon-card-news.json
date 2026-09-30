@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-28",
+  "updatedAt": "2026-09-29",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-09-29-www-pokemoncenter-online-com-news-id-20260929",
+      "category": "その他",
+      "date": "2026.9.29",
+      "title": "ポケモンセンターオンラインでの商品の抽選受け付けについて (外部リンク)",
+      "summary": "ポケモンセンターオンラインでの商品の抽選受け付けについて (外部リンク)",
+      "url": "https://www.pokemoncenter-online.com/news/?id=20260929 "
+    },
     {
       "id": "official-2026-09-28-www-pokemon-card-com-info-005678-html",
       "category": "イベント",
@@ -34,14 +42,6 @@
       "title": "「チャンピオンズリーグ2027 横浜」優勝者インタビュー",
       "summary": "「チャンピオンズリーグ2027 横浜」優勝者インタビュー",
       "url": "https://www.pokemon-card.com/info/005690.html"
-    },
-    {
-      "id": "official-2026-09-21-www-pokemon-card-com-info-005688-html",
-      "category": "イベント",
-      "date": "2026.9.21",
-      "title": "【重要】9月21日13時台更新「チャンピオンズリーグ2027 横浜」開催状況について",
-      "summary": "【重要】9月21日13時台更新「チャンピオンズリーグ2027 横浜」開催状況について",
-      "url": "https://www.pokemon-card.com/info/005688.html"
     }
   ]
 }
