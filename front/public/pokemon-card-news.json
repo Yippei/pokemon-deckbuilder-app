@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-10-02",
+  "updatedAt": "2026-10-04",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-10-04-www-pokemon-card-com-ex-houkago",
+      "category": "イベント",
+      "date": "2026.10.4",
+      "title": "「ポケどこポケカ部 放課後ポケっす！教室」へようこそ！",
+      "summary": "「ポケどこポケカ部 放課後ポケっす！教室」へようこそ！",
+      "url": "https://www.pokemon-card.com/ex/houkago/"
+    },
     {
       "id": "official-2026-10-02-www-pokemon-card-com-info-005559-html",
       "category": "イベント",
@@ -34,14 +42,6 @@
       "title": "「30thプロモカードパック」紹介記事のカード画像誤りについて",
       "summary": "「30thプロモカードパック」紹介記事のカード画像誤りについて",
       "url": "https://www.pokemon-card.com/info/005692.html"
-    },
-    {
-      "id": "official-2026-09-25-www-pokemon-card-com-info-005452-html",
-      "category": "イベント",
-      "date": "2026.9.25",
-      "title": "「ポケモンカードゲーム学園祭2026」の開催情報を更新！",
-      "summary": "「ポケモンカードゲーム学園祭2026」の開催情報を更新！",
-      "url": "https://www.pokemon-card.com/info/005452.html"
     }
   ]
 }
