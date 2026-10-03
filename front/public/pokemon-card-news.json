@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-09-29",
+  "updatedAt": "2026-10-02",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-10-02-www-pokemon-card-com-info-005559-html",
+      "category": "イベント",
+      "date": "2026.10.2",
+      "title": "「ここからデビュー！はじめてポケカ体験会」開催！",
+      "summary": "「ここからデビュー！はじめてポケカ体験会」開催！",
+      "url": "https://www.pokemon-card.com/info/005559.html"
+    },
     {
       "id": "official-2026-09-29-www-pokemoncenter-online-com-news-id-20260929",
       "category": "その他",
@@ -34,14 +42,6 @@
       "title": "「ポケモンカードゲーム学園祭2026」の開催情報を更新！",
       "summary": "「ポケモンカードゲーム学園祭2026」の開催情報を更新！",
       "url": "https://www.pokemon-card.com/info/005452.html"
-    },
-    {
-      "id": "official-2026-09-25-www-pokemon-card-com-info-005690-html",
-      "category": "イベント",
-      "date": "2026.9.25",
-      "title": "「チャンピオンズリーグ2027 横浜」優勝者インタビュー",
-      "summary": "「チャンピオンズリーグ2027 横浜」優勝者インタビュー",
-      "url": "https://www.pokemon-card.com/info/005690.html"
     }
   ]
 }
