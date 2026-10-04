@@ -73,10 +73,16 @@ function buildEffectProfile(card) {
 
   const drawMatch = effectText.match(/山札を(\d+)枚引/);
   if (drawMatch) {
-    const discardRemainingHand = /手札をすべてトラッシュ|手札をすべて山札にもど/.test(effectText);
+    const discardRemainingHand = /手札をすべてトラッシュ/.test(effectText);
+    const shuffleRemainingHandIntoDeck = /手札をすべて山札にもど/.test(effectText);
     return {
       label: buildActionLabel(ruleText, `山札を${drawMatch[1]}枚引く`),
-      actions: [{ type: "draw_cards", count: Number(drawMatch[1]), discardRemainingHand }],
+      actions: [{
+        type: "draw_cards",
+        count: Number(drawMatch[1]),
+        discardRemainingHand,
+        shuffleRemainingHandIntoDeck,
+      }],
     };
   }
 
@@ -160,6 +166,7 @@ function buildEffectProfile(card) {
 function autoResolvedProfile(note) {
   return {
     label: note,
+    manualResolutionRequired: true,
     actions: [{ type: "resolve_effect", note }],
   };
 }
@@ -173,10 +180,10 @@ function buildAutoResolvedNote(card) {
   const subKind = String(card.subKind || card.stage || "トレーナーズ");
   const ruleText = stripRuleBoilerplate(card.ruleText);
   if (!ruleText) {
-    return `${subKind}の効果を自動解決済みにする`;
+    return `${subKind}の効果は手動で解決してください`;
   }
   const clipped = ruleText.length > 64 ? `${ruleText.slice(0, 64)}...` : ruleText;
-  return clipped || `${subKind}の効果を自動解決済みにする`;
+  return clipped || `${subKind}の効果は手動で解決してください`;
 }
 
 function extractCountBefore(text, suffix) {

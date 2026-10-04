@@ -119,6 +119,7 @@ type EffectAction =
   | { type: "resolve_effect"; note: string };
 type EffectProfile = {
   label: string;
+  manualResolutionRequired?: boolean;
   costs?: Array<{ type: "discard_from_hand"; count: number; target?: SearchTarget; cardName?: string }>;
   actions: EffectAction[];
 };
@@ -495,12 +496,25 @@ function getHandDiscardCostFromText(text?: string): EffectProfile["costs"] {
 
 function augmentEffectProfileFromRuleText(card?: SoloCard | null, profile?: EffectProfile | null): EffectProfile | null {
   if (!profile) return null;
+  const firstAction = profile.actions[0];
+  const ruleText = card?.ruleText || "";
+  const returnsHandToDeck = /手札をすべて山札にもど/.test(ruleText);
+  const normalizedProfile = firstAction?.type === "draw_cards" && returnsHandToDeck
+    ? {
+        ...profile,
+        actions: [{
+          ...firstAction,
+          discardRemainingHand: false,
+          shuffleRemainingHandIntoDeck: true,
+        }, ...profile.actions.slice(1)],
+      }
+    : profile;
   const textCost = getHandDiscardCostFromText(card?.ruleText);
-  if (!textCost?.length) return profile;
-  const currentCost = profile.costs?.[0];
+  if (!textCost?.length) return normalizedProfile;
+  const currentCost = normalizedProfile.costs?.[0];
   if (currentCost?.type === "discard_from_hand") {
     return {
-      ...profile,
+      ...normalizedProfile,
       costs: [{
         ...currentCost,
         target: currentCost.target || textCost[0].target,
@@ -508,7 +522,7 @@ function augmentEffectProfileFromRuleText(card?: SoloCard | null, profile?: Effe
       }],
     };
   }
-  return { ...profile, costs: textCost };
+  return { ...normalizedProfile, costs: textCost };
 }
 
 function shouldPreferFallbackEffectProfile(card?: SoloCard | null) {
@@ -2238,7 +2252,7 @@ export default function AIBattleRoomPage() {
     const action = profile?.actions[0];
     if (!action) return true;
     if ((profile.costs || []).length > 0) return false;
-    return action.type === "resolve_effect" || action.type === "draw_cards" || action.type === "draw_until_board_count";
+    return action.type === "draw_cards" || action.type === "draw_until_board_count";
   };
 
   const buildBattleAiSuggestions = (state: BattlePlayerState): BattleAiSuggestion[] => {
@@ -3058,7 +3072,7 @@ export default function AIBattleRoomPage() {
 
       if (!profile || !firstAction) {
         const nextHand = state.hand.filter((_, index) => index !== handIndex);
-        const notice = `${state.label}が${selected.cardName || "トレーナーズ"}を使ってトラッシュしました。効果は手動で解決してください。`;
+        const notice = `${state.label}が${selected.cardName || "トレーナーズ"}を使ってトラッシュしました。この効果は未対応のため、手動で解決してください。`;
         setBattleNotice(notice);
         setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
         return { ...markSupporterUsedState, hand: nextHand, discard: [...state.discard, selected], selectedHandIndex: null };
@@ -3066,7 +3080,7 @@ export default function AIBattleRoomPage() {
 
       if (firstAction.type === "resolve_effect") {
         const nextHand = state.hand.filter((_, index) => index !== handIndex);
-        const notice = `${state.label}が${selected.cardName || "トレーナーズ"}を使ってトラッシュしました。${firstAction.note}`;
+        const notice = `${state.label}が${selected.cardName || "トレーナーズ"}を使ってトラッシュしました。この効果は未対応のため、手動で解決してください。${firstAction.note}`;
         setBattleNotice(notice);
         setBattleLog((prev) => [...prev, `T${battleTurn}: ${notice}`]);
         return { ...markSupporterUsedState, hand: nextHand, discard: [...state.discard, selected], selectedHandIndex: null };
@@ -5356,19 +5370,21 @@ export default function AIBattleRoomPage() {
     if (!profile || !firstAction) {
       pushSoloHistory();
       markSupporterUsed();
-      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。効果を自動解決済みにしました。`, false);
+      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。この効果は未対応のため、手動で解決してください。`, false);
       return;
     }
 
     if (firstAction.type === "resolve_effect") {
       pushSoloHistory();
       markSupporterUsed();
-      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。${firstAction.note}`, false);
+      discardSelectedHandCard(`${sourceCard.cardName || "トレーナーズ"}を使ってトラッシュしました。この効果は未対応のため、手動で解決してください。${firstAction.note}`, false);
       return;
     }
 
     if (firstCost?.type === "discard_from_hand") {
-      const availableCostCards = soloHand.filter((_, index) => index !== sourceHandIndex).length;
+      const availableCostCards = soloHand.filter((card, index) =>
+        index !== sourceHandIndex && matchesHandDiscardCost(card, firstCost.target, firstCost.cardName)
+      ).length;
       if (availableCostCards < firstCost.count) {
         setSoloNotice(`手札コストが足りません。${sourceCard.cardName || "このカード"}以外に${firstCost.count}枚必要です。`);
         return;
@@ -5524,7 +5540,7 @@ export default function AIBattleRoomPage() {
     }
     if (soloEffectPrompt.nextAction.type === "resolve_effect") {
       setSoloEffectPrompt(null);
-      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果を自動解決済みにしました。${soloEffectPrompt.nextAction.note}`);
+      setSoloNotice(`${soloEffectPrompt.sourceCard.cardName || "トレーナーズ"}の効果は未対応のため、手動で解決してください。${soloEffectPrompt.nextAction.note}`);
       return;
     }
     if (soloEffectPrompt.nextAction.type === "draw_cards") {

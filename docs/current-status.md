@@ -1,9 +1,16 @@
 # Current Status
 
-更新日: 2026-06-27
+更新日: 2026-09-28
 
-このメモは、現時点のリポジトリ構成をそのまま整理したスナップショットです。  
-現行の本番系は AWS サーバーレス構成です。退役した実装や移行記録は別保管に分離してあり、通常開発では読まない前提です。
+このメモは、現時点のリポジトリ構成と実装状況を整理したスナップショットです。
+現行の本番系は AWS サーバーレス構成です。AWS バックエンドは別リポジトリ管理のため、この文書ではフロントエンドから確認できる接続仕様を中心に記載します。
+
+## Git の状態
+
+- 作業ブランチ: `機能開発`
+- 更新前の最新コミット: `a8c09a4 Update Pokemon Card official news`
+- 上記時点で `main` / `origin/main` と同一
+- 公式ニュース JSON は GitHub Actions で日次更新
 
 ## アーキテクチャ
 
@@ -79,6 +86,8 @@ Browser
 
 ### `aws-backend-terraform/`
 
+> このディレクトリは別管理の AWS バックエンドリポジトリにあり、本リポジトリには含まれません。
+
 - `lambda_src/`  
   Lambda 本体。デッキ生成、DB操作、学習ログ保存を担当。
 - `main.tf`  
@@ -128,8 +137,8 @@ Browser
 ### 現行 AWS DynamoDB モデル
 
 対象ファイル:
-- [aws-backend-terraform/lambda_src/index.mjs](/Users/ippei/aws-backend-terraform/lambda_src/index.mjs)
-- [aws-backend-terraform/main.tf](/Users/ippei/aws-backend-terraform/main.tf)
+- `aws-backend-terraform/lambda_src/index.mjs`（別リポジトリ）
+- `aws-backend-terraform/main.tf`（別リポジトリ）
 
 テーブル:
 
@@ -160,8 +169,8 @@ Browser
 ### カードマスター用モデル
 
 対象ファイル:
-- [aws-backend-terraform/card_master.tf](/Users/ippei/aws-backend-terraform/card_master.tf)
-- [aws-backend-terraform/scripts/card-master-sync.mjs](/Users/ippei/aws-backend-terraform/scripts/card-master-sync.mjs)
+- `aws-backend-terraform/card_master.tf`（別リポジトリ）
+- `aws-backend-terraform/scripts/card-master-sync.mjs`（別リポジトリ）
 
 テーブル:
 
@@ -207,19 +216,21 @@ Browser
 ### 現行 AWS 本番 API
 
 対象ファイル:
-- [aws-backend-terraform/lambda_src/index.mjs](/Users/ippei/aws-backend-terraform/lambda_src/index.mjs)
-- [front/lib/api.ts](/Users/ippei/Desktop/pokemon-deckbuilder-app/front/lib/api.ts)
+- `aws-backend-terraform/lambda_src/index.mjs`（別リポジトリ）
+- [`front/lib/api.ts`](../front/lib/api.ts)
 
 | Method | Path | 概要 |
 | --- | --- | --- |
 | GET | `/health` | ヘルスチェック |
 | GET | `/cards?name=&pg=` | カード検索 |
+| GET | `/cards/{cardId}` | カード詳細取得 |
 | GET | `/decks` | ログインユーザーのデッキ一覧 |
 | POST | `/decks` | デッキ作成 |
 | GET | `/decks/{deckId}` | デッキ取得 |
 | PUT | `/decks/{deckId}` | デッキ更新 |
 | DELETE | `/decks/{deckId}` | デッキ削除 |
 | POST | `/decks/generate` | AIデッキ生成 |
+| GET | `/decks/generate/{jobId}` | 非同期生成ジョブの状態取得 |
 | OPTIONS | `/{proxy+}` | CORS 用 |
 
 認証:
@@ -230,11 +241,11 @@ Browser
 ### フロントエンドルート
 
 対象ファイル:
-- [front/app/page.tsx](/Users/ippei/Desktop/pokemon-deckbuilder-app/front/app/page.tsx)
-- [front/app/decks/new/page.tsx](/Users/ippei/Desktop/pokemon-deckbuilder-app/front/app/decks/new/page.tsx)
-- [front/app/decks/view/page.tsx](/Users/ippei/Desktop/pokemon-deckbuilder-app/front/app/decks/view/page.tsx)
-- [front/app/auth/callback/page.tsx](/Users/ippei/Desktop/pokemon-deckbuilder-app/front/app/auth/callback/page.tsx)
-- [front/app/ai-battle-room/page.tsx](/Users/ippei/Desktop/pokemon-deckbuilder-app/front/app/ai-battle-room/page.tsx)
+- [`front/app/page.tsx`](../front/app/page.tsx)
+- [`front/app/decks/new/page.tsx`](../front/app/decks/new/page.tsx)
+- [`front/app/decks/view/page.tsx`](../front/app/decks/view/page.tsx)
+- [`front/app/auth/callback/page.tsx`](../front/app/auth/callback/page.tsx)
+- [`front/app/ai-battle-room/page.tsx`](../front/app/ai-battle-room/page.tsx)
 
 | Route | 概要 |
 | --- | --- |
@@ -242,56 +253,63 @@ Browser
 | `/decks/new` | デッキ作成 |
 | `/decks/view?id=...` | デッキ閲覧・編集 |
 | `/auth/callback` | Cognito コールバック |
-| `/ai-battle-room` | プレイラボ（AI対戦練習 / 一人回し） |
+| `/ai-battle-room?mode=solo` | 一人回し |
+| `/ai-battle-room?mode=ai` | AI対戦練習 |
+| `/mobile` | スマートフォン向け画面 |
+| `/about` | アプリについて |
+| `/feedback` | Google Forms へのフィードバック導線 |
 
-## 技術的負債
+## 2026-06-27 以降の主な進捗
 
-1. ドキュメントが古い
-   - Render 前提のメモ、AWS 準備メモ、現行 AWS 実装が混在しています。
-   - 同じ操作でも説明が食い違う箇所があります。
+- PWA / Capacitor iOS 対応とスマートフォン向け画面を追加しました。
+- 一人回しのモバイル UI、Undo、ヒント、カード効果処理を拡充しました。
+- AI 対戦の自動ターン、通常ドロー、攻撃、サイド取得、勝敗判定を追加しました。
+- デッキ生成の進化ライン、エネルギー要件、ACE SPEC、カード役割の検証・補正を強化しました。
+- デッキ生成 API の非同期ジョブに対応しました。
+- ホーム画面を再設計し、公式ニュース、ポケカジム情報、About、フィードバック導線を追加しました。
+- 公式ニュースの日次自動更新 workflow を追加しました。
 
-2. `front/out` が成果物として残っている
-   - 静的 export を同期するために必要ですが、差分が大きくなりやすいです。
-   - ビルド結果の追跡がコードレビューを汚しやすいです。
+## 主な残タスク・技術的負債
 
-3. カード検索が外部サイト依存
+1. スマートフォン向け画面の編集・保存機能を拡充する。
+
+2. 一人回しのカード効果対応範囲を広げ、ログの保存・再生を追加する。
+
+3. AI 対戦の行動評価、行動理由、コンボ・勝ち筋判定を強化する。
+
+4. デッキ診断、採用理由、入れ替え候補の提示を追加する。
+
+5. カード検索の外部サイト依存を減らす
    - `pokemon-card.com` の HTML / API 仕様変更で壊れやすいです。
    - レート制限や一時障害の影響を受けます。
 
-4. デッキ生成ロジックがヒューリスティック中心
+6. デッキ生成ロジックがヒューリスティック中心
    - 候補カードプール、名前正規化、進化ライン補完などを個別ルールで補っています。
    - ルールが増えるほど挙動を追いにくくなります。
 
-5. 候補カードの解決が脆い
+7. 候補カードの解決が脆い
    - ポケモン名の表記ゆれ、進化前後、メガ / ex / V 系の扱いで補正ロジックが多いです。
    - 以前の不具合もこの周辺で発生しています。
 
-6. カードマスターの本体移行はまだ途中
+8. カードマスターの本体移行はまだ途中
    - 取り込み基盤は追加済みですが、既存の検索・判定ロジックはまだ外部サイト依存が残っています。
    - 次段階で runtime をカードマスター参照へ寄せる必要があります。
 
-6. 監視が弱い
+9. 監視が弱い
    - CloudWatch アラームはデフォルト無効です。
    - ログはあるが、継続監視の仕組みは薄いです。
 
-7. 認証・環境変数の依存が強い
+10. 認証・環境変数の依存が強い
    - Cognito の callback/logout URL、API URL、CloudFront URL などを手で揃える必要があります。
    - 環境差分がそのまま不具合になりやすいです。
 
-8. GitHub Actions の環境変数管理が必要
+11. GitHub Actions の環境変数管理が必要
    - AWS 認証情報、S3 バケット名、CloudFront distribution id を GitHub Secrets で持つ必要があります。
    - secrets 未設定だと自動同期が失敗します。
-
-9. プレイラボは拡張中
-   - `/ai-battle-room` で AI対戦練習 と 一人回し を利用できます。
-   - 対戦ロジックの本体化や記録機能は未実装です。
-   - ポケカジム表示は未実装です。
-   - 検索機能は未実装です。
-   - 初心用ルールは未実装です。
-   - 汎用ルールは未実装です。
 
 ## まとめ
 
 - 現行本番は AWS サーバーレス構成です。
 - 退役保管庫は完全に参照不要として切り離しています。
 - データモデル、認証、配信経路は AWS 系に一本化しています。
+- フロントエンドではデッキ構築、一人回し、AI 対戦、PWA / iOS 対応を継続的に拡張しています。
