@@ -7136,7 +7136,7 @@ export default function AIBattleRoomPage() {
           ))}
         </div>
 
-        <div className="fixed right-3 top-3 z-[125] flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg backdrop-blur-xl">
+        <div className="play-lab-account-controls fixed right-3 top-3 z-[125] flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg backdrop-blur-xl">
           <AuthStatus compact />
           <Link
             href="/"
