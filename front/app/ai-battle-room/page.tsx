@@ -8617,11 +8617,6 @@ export default function AIBattleRoomPage() {
                   </div>
                   ) : null}
 
-                  {!isSoloSelectionPanelVisible && soloNotice ? (
-                    <p className="mt-3 rounded-2xl border border-emerald-900/15 bg-emerald-950/70 px-4 py-3 text-sm leading-6 text-emerald-50 shadow-sm">
-                      {soloNotice}
-                    </p>
-                  ) : null}
                   </div>
 
                   <div className="solo-action-bar mt-4 flex flex-wrap gap-3">
