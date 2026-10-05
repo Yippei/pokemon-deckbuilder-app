@@ -5755,6 +5755,7 @@ body {
 
 .play-lab-page--solo-fullscreen .solo-playmat {
   gap: clamp(6px, 1vw, 14px);
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -5770,6 +5771,14 @@ body {
   gap: clamp(6px, 1vw, 14px);
   height: auto;
   min-height: min-content;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.play-lab-page--solo-fullscreen .solo-playmat__hand-panel {
+  position: relative;
+  z-index: 1;
+  margin-top: 0;
 }
 
 .play-lab-page--solo-fullscreen .solo-playmat__column,
@@ -5872,20 +5881,56 @@ body {
     min-height: 34px;
   }
 
+  .play-lab-page--solo-fullscreen .solo-playmat {
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-playmat__board,
+  .play-lab-page--solo-fullscreen .solo-playmat__column,
+  .play-lab-page--solo-fullscreen .solo-bench-row {
+    gap: 5px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-zone {
+    gap: 4px;
+    padding: 6px;
+  }
+
   .play-lab-page--solo-fullscreen .solo-active-slot,
   .play-lab-page--solo-fullscreen .solo-bench-slot {
-    min-height: 76px;
+    min-height: 58px;
   }
 
   .play-lab-page--solo-fullscreen .solo-zone--prize,
   .play-lab-page--solo-fullscreen .solo-zone--deck,
   .play-lab-page--solo-fullscreen .solo-zone--trash,
   .play-lab-page--solo-fullscreen .solo-zone--stadium {
-    min-height: 88px;
+    min-height: 74px;
   }
 
   .play-lab-page--solo-fullscreen .solo-zone--active,
   .play-lab-page--solo-fullscreen .solo-zone--bench {
-    min-height: 92px;
+    min-height: 78px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-stadium-slot {
+    min-height: 54px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-zone--hand {
+    padding: 6px 10px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-zone__chips {
+    min-height: 68px;
+    padding-bottom: 4px;
+  }
+
+  .play-lab-page--solo-fullscreen .solo-card-chip,
+  .play-lab-page--solo-fullscreen .solo-card-face--board,
+  .play-lab-page--solo-fullscreen .solo-card-face--stadium {
+    width: 48px;
+    min-height: 68px;
   }
 }
