@@ -2032,8 +2032,9 @@ export default function AIBattleRoomPage() {
     const fetchDecks = async () => {
       try {
         setDecks(await listDecks());
-      } catch {
-        setError("デッキ一覧を取得できませんでした。");
+        setError("");
+      } catch (fetchError) {
+        setError(fetchError instanceof Error ? fetchError.message : "デッキ一覧を取得できませんでした。");
       } finally {
         setLoading(false);
       }
@@ -2195,7 +2196,10 @@ export default function AIBattleRoomPage() {
   };
 
   const startBattle = () => {
-    if (!selectedDeck || !selectedAiDeck) return;
+    if (!selectedDeck || !selectedAiDeck) {
+      setBattleNotice(error || "対戦に使うデッキを選択してください。");
+      return;
+    }
     const playerSetup = setupBattleAiPlayerWithOpeningRedraw("player", "自分", selectedDeck, cardMasterDetails);
     const nextPlayer = playerSetup.player;
     const aiSetup = setupBattleAiPlayerWithOpeningRedraw("opponent", "相手", selectedAiDeck, cardMasterDetails);
@@ -4231,7 +4235,10 @@ export default function AIBattleRoomPage() {
   };
 
   const startSolo = () => {
-    if (!selectedDeck) return;
+    if (!selectedDeck) {
+      setSoloNotice(error || "一人回しに使うデッキを選択してください。");
+      return;
+    }
     pushSoloHistory();
     const pile = expandDeck(selectedDeck.cards, cardMasterDetails);
     const handDraw = takeRandomCards(pile, 7);
@@ -7129,6 +7136,16 @@ export default function AIBattleRoomPage() {
           ))}
         </div>
 
+        <div className="fixed right-3 top-3 z-[125] flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg backdrop-blur-xl">
+          <AuthStatus compact />
+          <Link
+            href="/"
+            className="inline-flex h-9 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+          >
+            ホーム
+          </Link>
+        </div>
+
         <div className={`play-lab-page mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 ${mode === "solo" || mode === "ai" ? "play-lab-page--solo-fullscreen" : ""}`}>
           <header className="play-lab-hero mb-6 flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white/78 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-xl lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -7315,6 +7332,11 @@ export default function AIBattleRoomPage() {
                     </div>
 
                     <div className="mt-3 grid gap-2">
+                      {error ? (
+                        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-5 text-amber-800">
+                          {error}
+                        </p>
+                      ) : null}
                       <label className="min-w-0">
                         <span className="mb-1 block text-[10px] font-black tracking-[0.12em] text-slate-500">自分デッキ</span>
                         <select
@@ -7391,7 +7413,7 @@ export default function AIBattleRoomPage() {
                       <button
                         type="button"
                         onClick={startBattle}
-                        disabled={battleStarted}
+                        disabled={battleStarted || loading || !selectedDeck || !selectedAiDeck}
                         className="inline-flex h-9 items-center justify-center rounded-xl bg-slate-950 px-3 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                       >
                         対戦開始
@@ -7595,6 +7617,12 @@ export default function AIBattleRoomPage() {
                             閉じる
                           </button>
                         </div>
+
+                        {error ? (
+                          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+                            {error}
+                          </p>
+                        ) : null}
 
                         <label className="mt-4 block">
                           <span className="mb-2 block text-xs font-black tracking-[0.12em] text-slate-500">利用デッキ</span>
@@ -8601,7 +8629,7 @@ export default function AIBattleRoomPage() {
                       <button
                         type="button"
                         onClick={startSolo}
-                        disabled={cardMasterLoading}
+                        disabled={cardMasterLoading || loading || !selectedDeck}
                         className="inline-flex h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                       >
                         7枚引いて開始
