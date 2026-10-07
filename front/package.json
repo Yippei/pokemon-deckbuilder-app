@@ -13,13 +13,14 @@
     "deploy:aws": "bash ./scripts/deploy-aws.sh",
     "news:update": "node ./scripts/update-pokemon-card-news.mjs",
     "start": "next start",
+    "test": "tsx --test tests/*.test.ts",
     "lint": "eslint"
   },
   "dependencies": {
-    "@capacitor/cli": "^7.6.8",
-    "@capacitor/core": "^7.6.8",
-    "@capacitor/ios": "^7.6.8",
-    "next": "16.1.6",
+    "@capacitor/cli": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/ios": "^7.6.9",
+    "next": "^16.4.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "^4.4.3"
@@ -30,8 +31,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "^16.4.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
