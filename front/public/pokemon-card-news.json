@@ -1,8 +1,24 @@
 {
-  "updatedAt": "2026-10-04",
+  "updatedAt": "2026-10-09",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-10-09-www-pokemon-card-com-info-005666-html",
+      "category": "イベント",
+      "date": "2026.10.9",
+      "title": "「チャンピオンズリーグ2027 千葉」 2026年11月22日（日）～23日（月・祝）開催！",
+      "summary": "「チャンピオンズリーグ2027 千葉」 2026年11月22日（日）～23日（月・祝）開催！",
+      "url": "https://www.pokemon-card.com/info/005666.html"
+    },
+    {
+      "id": "official-2026-10-09-www-30th-pokemon-card-com-event-30thevent-entry",
+      "category": "イベント",
+      "date": "2026.10.9",
+      "title": "「30th CELEBRATION スクランブルバトル」パスの追加応募受付開始！",
+      "summary": "「30th CELEBRATION スクランブルバトル」パスの追加応募受付開始！",
+      "url": "https://www.30th.pokemon-card.com/event/30thevent/entry"
+    },
     {
       "id": "official-2026-10-04-www-pokemon-card-com-ex-houkago",
       "category": "イベント",
@@ -26,22 +42,6 @@
       "title": "ポケモンセンターオンラインでの商品の抽選受け付けについて (外部リンク)",
       "summary": "ポケモンセンターオンラインでの商品の抽選受け付けについて (外部リンク)",
       "url": "https://www.pokemoncenter-online.com/news/?id=20260929 "
-    },
-    {
-      "id": "official-2026-09-28-www-pokemon-card-com-info-005678-html",
-      "category": "イベント",
-      "date": "2026.9.28",
-      "title": "「Pokémon Team Masters」の開催が決定！",
-      "summary": "「Pokémon Team Masters」の開催が決定！",
-      "url": "https://www.pokemon-card.com/info/005678.html"
-    },
-    {
-      "id": "official-2026-09-28-www-pokemon-card-com-info-005692-html",
-      "category": "その他",
-      "date": "2026.9.28",
-      "title": "「30thプロモカードパック」紹介記事のカード画像誤りについて",
-      "summary": "「30thプロモカードパック」紹介記事のカード画像誤りについて",
-      "url": "https://www.pokemon-card.com/info/005692.html"
     }
   ]
 }
