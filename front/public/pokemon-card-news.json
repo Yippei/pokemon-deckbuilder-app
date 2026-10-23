@@ -1,8 +1,32 @@
 {
-  "updatedAt": "2026-10-16",
+  "updatedAt": "2026-10-23",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-10-23-www-pokemon-card-com-ex-m7",
+      "category": "商品",
+      "date": "2026.10.23",
+      "title": "拡張パック「ハドウシーカー」が、11月27日（金）に発売！",
+      "summary": "拡張パック「ハドウシーカー」が、11月27日（金）に発売！",
+      "url": "https://www.pokemon-card.com/ex/m7/"
+    },
+    {
+      "id": "official-2026-10-23-www-pokemon-card-com-info-005728-html",
+      "category": "イベント",
+      "date": "2026.10.23",
+      "title": "「チャンピオンズリーグ2027 千葉」同伴保護者の事前登録について",
+      "summary": "「チャンピオンズリーグ2027 千葉」同伴保護者の事前登録について",
+      "url": "https://www.pokemon-card.com/info/005728.html"
+    },
+    {
+      "id": "official-2026-10-23-www-pokemon-card-com-info-005452-html",
+      "category": "イベント",
+      "date": "2026.10.23",
+      "title": "「ポケモンカードゲーム学園祭2026」開催情報を更新！",
+      "summary": "「ポケモンカードゲーム学園祭2026」開催情報を更新！",
+      "url": "https://www.pokemon-card.com/info/005452.html"
+    },
     {
       "id": "official-2026-10-16-www-pokemon-team-masters-com-pages-news-news-detail-news-detail-id-7",
       "category": "イベント",
@@ -18,30 +42,6 @@
       "title": "「スペシャルデッキセットMEGA メガオーダイル・メガカイリュー・メガゲンガー」が11月13日（金）に発売！",
       "summary": "「スペシャルデッキセットMEGA メガオーダイル・メガカイリュー・メガゲンガー」が11月13日（金）に発売！",
       "url": "https://www.pokemon-card.com/products/mega/mg.html"
-    },
-    {
-      "id": "official-2026-10-16-www-pokemon-card-com-info-005701-html",
-      "category": "その他",
-      "date": "2026.10.16",
-      "title": "【公式】ポケモンカードチャンネルでポケモンカードゲーム 30周年記念映像を配信！",
-      "summary": "【公式】ポケモンカードチャンネルでポケモンカードゲーム 30周年記念映像を配信！",
-      "url": "https://www.pokemon-card.com/info/005701.html"
-    },
-    {
-      "id": "official-2026-10-16-www-30tharchive-pokemon-card-com",
-      "category": "イベント",
-      "date": "2026.10.16",
-      "title": "「みんなのポケモンカードユニバース」公開！",
-      "summary": "「みんなのポケモンカードユニバース」公開！",
-      "url": "https://www.30tharchive.pokemon-card.com"
-    },
-    {
-      "id": "official-2026-10-16-www-pokemon-card-com-info-005705-html",
-      "category": "イベント",
-      "date": "2026.10.16",
-      "title": "プロモカードパック第6弾、公開！",
-      "summary": "プロモカードパック第6弾、公開！",
-      "url": "https://www.pokemon-card.com/info/005705.html"
     }
   ]
 }
