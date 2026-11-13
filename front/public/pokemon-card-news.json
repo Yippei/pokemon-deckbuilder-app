@@ -1,8 +1,16 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-12",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-11-12-www-pokemon-card-com-info-005604-html",
+      "category": "イベント",
+      "date": "2026.11.12",
+      "title": "スペシャルデッキセットMEGAでデッキそのままバトルに参加しよう！",
+      "summary": "スペシャルデッキセットMEGAでデッキそのままバトルに参加しよう！",
+      "url": "https://www.pokemon-card.com/info/005604.html"
+    },
     {
       "id": "official-2026-11-06-www-pokemon-card-com-ex-m7",
       "category": "商品",
@@ -34,14 +42,6 @@
       "title": "2026年度ポケモンカードゲーム資格試験の実施について",
       "summary": "2026年度ポケモンカードゲーム資格試験の実施について",
       "url": "https://www.pokemon-card.com/info/005753.html"
-    },
-    {
-      "id": "official-2026-11-06-www-pokemon-card-com-info-005754-html",
-      "category": "イベント",
-      "date": "2026.11.6",
-      "title": "「ポケモンジャパンチャンピオンシップス2027」の優先出場権について",
-      "summary": "「ポケモンジャパンチャンピオンシップス2027」の優先出場権について",
-      "url": "https://www.pokemon-card.com/info/005754.html"
     }
   ]
 }
