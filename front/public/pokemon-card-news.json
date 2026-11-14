@@ -1,8 +1,40 @@
 {
-  "updatedAt": "2026-11-12",
+  "updatedAt": "2026-11-13",
   "sourceName": "ポケモンカードゲーム公式ニュース",
   "sourceUrl": "https://www.pokemon-card.com/info/",
   "items": [
+    {
+      "id": "official-2026-11-13-www-pokemon-card-com-ex-m7",
+      "category": "商品",
+      "date": "2026.11.13",
+      "title": "拡張パック「ハドウシーカー」の、収録カードをさらに大公開！",
+      "summary": "拡張パック「ハドウシーカー」の、収録カードをさらに大公開！",
+      "url": "https://www.pokemon-card.com/ex/m7/"
+    },
+    {
+      "id": "official-2026-11-13-www-pokemon-card-com-info-005751-html",
+      "category": "イベント",
+      "date": "2026.11.13",
+      "title": "「チャンピオンズリーグ2027 千葉」のライブ配信が決定！",
+      "summary": "「チャンピオンズリーグ2027 千葉」のライブ配信が決定！",
+      "url": "https://www.pokemon-card.com/info/005751.html"
+    },
+    {
+      "id": "official-2026-11-13-www-pokemon-team-masters-com-pages-news-news-detail-news-detail-id-8",
+      "category": "イベント",
+      "date": "2026.11.13",
+      "title": "「Pokémon Team Masters」の抽選結果発表の延期および参加規約同意期間について",
+      "summary": "「Pokémon Team Masters」の抽選結果発表の延期および参加規約同意期間について",
+      "url": "https://www.pokemon-team-masters.com/pages/news/news-detail/news-detail?id=8"
+    },
+    {
+      "id": "official-2026-11-13-www-pokemon-card-com-info-005452-html",
+      "category": "イベント",
+      "date": "2026.11.13",
+      "title": "「ポケモンカードゲーム学園祭2026」の開催情報を更新！",
+      "summary": "「ポケモンカードゲーム学園祭2026」の開催情報を更新！",
+      "url": "https://www.pokemon-card.com/info/005452.html"
+    },
     {
       "id": "official-2026-11-12-www-pokemon-card-com-info-005604-html",
       "category": "イベント",
@@ -10,38 +42,6 @@
       "title": "スペシャルデッキセットMEGAでデッキそのままバトルに参加しよう！",
       "summary": "スペシャルデッキセットMEGAでデッキそのままバトルに参加しよう！",
       "url": "https://www.pokemon-card.com/info/005604.html"
-    },
-    {
-      "id": "official-2026-11-06-www-pokemon-card-com-ex-m7",
-      "category": "商品",
-      "date": "2026.11.6",
-      "title": "拡張パック「ハドウシーカー」の、収録カードをさらに大公開！",
-      "summary": "拡張パック「ハドウシーカー」の、収録カードをさらに大公開！",
-      "url": "https://www.pokemon-card.com/ex/m7/"
-    },
-    {
-      "id": "official-2026-11-06-www-pokemon-card-com-info-005726-html",
-      "category": "商品",
-      "date": "2026.11.6",
-      "title": "原哲夫先生がイラストを描き下ろした「マキシの熱血」のSARが登場、登場を記念した原先生のインタビューを掲載！",
-      "summary": "原哲夫先生がイラストを描き下ろした「マキシの熱血」のSARが登場、登場を記念した原先生のインタビューを掲載！",
-      "url": "https://www.pokemon-card.com/info/005726.html"
-    },
-    {
-      "id": "official-2026-11-06-www-pokemon-card-com-info-005752-html",
-      "category": "イベント",
-      "date": "2026.11.6",
-      "title": "「チャンピオンズリーグ2027 千葉」サイドイベントについて",
-      "summary": "「チャンピオンズリーグ2027 千葉」サイドイベントについて",
-      "url": "https://www.pokemon-card.com/info/005752.html"
-    },
-    {
-      "id": "official-2026-11-06-www-pokemon-card-com-info-005753-html",
-      "category": "イベント",
-      "date": "2026.11.6",
-      "title": "2026年度ポケモンカードゲーム資格試験の実施について",
-      "summary": "2026年度ポケモンカードゲーム資格試験の実施について",
-      "url": "https://www.pokemon-card.com/info/005753.html"
     }
   ]
 }
